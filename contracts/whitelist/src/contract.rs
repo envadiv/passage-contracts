@@ -7,29 +7,19 @@ use crate::msg::{
 use crate::state::{Config, CONFIG, WHITELIST};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, StdResult};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, StdResult, Response};
 use cosmwasm_std::{Order, Timestamp};
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
-use cw_utils::{may_pay, maybe_addr, must_pay};
-use rust_decimal::prelude::ToPrimitive;
-use rust_decimal::Decimal;
+use cw_utils::{maybe_addr};
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:sg-whitelist";
+const CONTRACT_NAME: &str = "crates.io:passage-whitelist";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-// contract governance params
-const MAX_MEMBERS: u32 = 5000;
-const PRICE_PER_1000_MEMBERS: u128 = 100_000_000;
-const MIN_MINT_PRICE: u128 = 25_000_000;
-const MAX_PER_ADDRESS_LIMIT: u32 = 30;
 
 // queries
 const PAGINATION_DEFAULT_LIMIT: u32 = 25;
 const PAGINATION_MAX_LIMIT: u32 = 100;
-
-type Response = cosmwasm_std::Response<StargazeMsgWrapper>;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -40,50 +30,24 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    if msg.member_limit == 0 || msg.member_limit > MAX_MEMBERS {
+    if msg.member_limit == 0 {
         return Err(ContractError::InvalidMemberLimit {
             min: 1,
-            max: MAX_MEMBERS,
             got: msg.member_limit,
         });
     }
 
-    if msg.unit_price.denom != NATIVE_DENOM {
-        return Err(ContractError::InvalidDenom(msg.unit_price.denom));
-    }
-
-    if msg.unit_price.amount.u128() < MIN_MINT_PRICE {
+    if msg.unit_price.amount.u128() == 0 {
         return Err(ContractError::InvalidUnitPrice(
             msg.unit_price.amount.u128(),
-            MIN_MINT_PRICE,
         ));
     }
 
-    // Check per address limit is valid
-    if msg.per_address_limit > MAX_PER_ADDRESS_LIMIT {
-        return Err(ContractError::InvalidPerAddressLimit {
-            max: MAX_PER_ADDRESS_LIMIT.to_string(),
-            got: msg.per_address_limit.to_string(),
-        });
-    }
     if msg.per_address_limit == 0 {
         return Err(ContractError::InvalidPerAddressLimit {
             max: "must be > 0".to_string(),
             got: msg.per_address_limit.to_string(),
         });
-    }
-
-    let creation_fee = Decimal::new(msg.member_limit.into(), 3)
-        .ceil()
-        .to_u128()
-        .unwrap()
-        * PRICE_PER_1000_MEMBERS;
-    let payment = must_pay(&info, NATIVE_DENOM)?;
-    if payment != creation_fee.into() {
-        return Err(ContractError::IncorrectCreationFee(
-            payment.u128(),
-            creation_fee,
-        ));
     }
 
     // remove duplicate members
@@ -101,7 +65,7 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &config)?;
 
-    if msg.start_time > msg.end_time {
+    if msg.start_time >= msg.end_time {
         return Err(ContractError::InvalidStartTime(
             msg.start_time,
             msg.end_time,
@@ -114,16 +78,6 @@ pub fn instantiate(
             msg.start_time,
         ));
     }
-
-    let genesis_start_time = Timestamp::from_nanos(GENESIS_MINT_START_TIME);
-    if msg.start_time < genesis_start_time {
-        return Err(ContractError::InvalidStartTime(
-            msg.start_time,
-            genesis_start_time,
-        ));
-    }
-
-    let fee_msgs = checked_fair_burn(&info, creation_fee)?;
 
     if config.member_limit < config.num_members {
         return Err(ContractError::MembersExceeded {
@@ -142,7 +96,7 @@ pub fn instantiate(
         .add_attribute("contract_name", CONTRACT_NAME)
         .add_attribute("contract_version", CONTRACT_VERSION)
         .add_attribute("sender", info.sender)
-        .add_messages(fee_msgs))
+    )
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -185,13 +139,6 @@ pub fn execute_update_start_time(
     if start_time > config.end_time {
         return Err(ContractError::InvalidStartTime(start_time, config.end_time));
     }
-
-    let genesis_start_time = Timestamp::from_nanos(GENESIS_MINT_START_TIME);
-    let start_time = if start_time < genesis_start_time {
-        genesis_start_time
-    } else {
-        start_time
-    };
 
     config.start_time = start_time;
     CONFIG.save(deps.storage, &config)?;
@@ -307,13 +254,6 @@ pub fn execute_update_per_address_limit(
         return Err(ContractError::Unauthorized {});
     }
 
-    if per_address_limit > MAX_PER_ADDRESS_LIMIT {
-        return Err(ContractError::InvalidPerAddressLimit {
-            max: MAX_PER_ADDRESS_LIMIT.to_string(),
-            got: per_address_limit.to_string(),
-        });
-    }
-
     config.per_address_limit = per_address_limit;
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new()
@@ -324,46 +264,23 @@ pub fn execute_update_per_address_limit(
 /// Increase member limit. Must include a fee if crossing 1000, 2000, etc member limit.
 pub fn execute_increase_member_limit(
     deps: DepsMut,
-    info: MessageInfo,
+    _info: MessageInfo,
     member_limit: u32,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
-    if config.member_limit >= member_limit || member_limit > MAX_MEMBERS {
+    if config.member_limit >= member_limit {
         return Err(ContractError::InvalidMemberLimit {
             min: config.member_limit,
-            max: MAX_MEMBERS,
             got: member_limit,
         });
     }
-
-    // if new limit crosses 1,000 members, requires upgrade fee. Otherwise, free upgrade.
-    let old_limit = Decimal::new(config.member_limit.into(), 3).ceil();
-    let new_limit = Decimal::new(member_limit.into(), 3).ceil();
-    let upgrade_fee: u128 = if new_limit > old_limit {
-        (new_limit - old_limit).to_u128().unwrap() * PRICE_PER_1000_MEMBERS
-    } else {
-        0
-    };
-    let payment = may_pay(&info, NATIVE_DENOM)?;
-    if payment != upgrade_fee.into() {
-        return Err(ContractError::IncorrectCreationFee(
-            payment.u128(),
-            upgrade_fee,
-        ));
-    }
-
-    let fee_msgs = if upgrade_fee > 0 {
-        checked_fair_burn(&info, upgrade_fee)?
-    } else {
-        vec![]
-    };
 
     config.member_limit = member_limit;
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new()
         .add_attribute("action", "increase_member_limit")
         .add_attribute("member_limit", member_limit.to_string())
-        .add_messages(fee_msgs))
+    )
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -448,27 +365,31 @@ mod tests {
     use cosmwasm_std::{
         coin,
         testing::{mock_dependencies, mock_env, mock_info},
+        Attribute
     };
-    use sg_std::NATIVE_DENOM;
 
     const ADMIN: &str = "admin";
+    const NATIVE_DENOM: &str = "ujuno";
     const UNIT_AMOUNT: u128 = 100_000_000;
 
-    const GENESIS_START_TIME: Timestamp = Timestamp::from_nanos(GENESIS_MINT_START_TIME);
-    const END_TIME: Timestamp = Timestamp::from_nanos(GENESIS_MINT_START_TIME + 1000);
+    const START_TIME: Timestamp = Timestamp::from_nanos(1647032400000000000);
+    const END_TIME: Timestamp = START_TIME.plus_seconds(1);
 
     fn setup_contract(deps: DepsMut) {
         let msg = InstantiateMsg {
             members: vec!["adsfsa".to_string()],
-            start_time: GENESIS_START_TIME,
+            start_time: START_TIME,
             end_time: END_TIME,
             unit_price: coin(UNIT_AMOUNT, NATIVE_DENOM),
             per_address_limit: 1,
             member_limit: 1000,
         };
-        let info = mock_info(ADMIN, &[coin(100_000_000, "ustars")]);
-        let res = instantiate(deps, mock_env(), info, msg).unwrap();
-        assert_eq!(2, res.messages.len());
+        let info = mock_info(ADMIN, &[coin(100_000_000, "ujuno")]);
+        let res = instantiate(deps, mock_env(), info.clone(), msg).unwrap();
+        assert!(res.attributes[0].eq(&Attribute::new("action", "instantiate")));
+        assert!(res.attributes[1].eq(&Attribute::new("contract_name", CONTRACT_NAME)));
+        assert!(res.attributes[2].eq(&Attribute::new("contract_version", CONTRACT_VERSION)));
+        assert!(res.attributes[3].eq(&Attribute::new("sender", info.sender.into_string())));
     }
 
     #[test]
@@ -488,43 +409,8 @@ mod tests {
             per_address_limit: 1,
             member_limit: 1000,
         };
-        let info = mock_info(ADMIN, &[coin(100_000_000, "ustars")]);
+        let info = mock_info(ADMIN, &[coin(100_000_000, "ujuno")]);
         instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-    }
-
-    #[test]
-    fn improper_initialization_invalid_denom() {
-        let mut deps = mock_dependencies();
-        let msg = InstantiateMsg {
-            members: vec!["adsfsa".to_string()],
-            start_time: END_TIME,
-            end_time: END_TIME,
-            unit_price: coin(UNIT_AMOUNT, "not_ustars"),
-            per_address_limit: 1,
-            member_limit: 1000,
-        };
-        let info = mock_info(ADMIN, &[coin(100_000_000, "ustars")]);
-        let err = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(err.to_string(), "InvalidDenom: not_ustars");
-    }
-
-    #[test]
-    fn improper_initialization_invalid_creation_fee() {
-        let mut deps = mock_dependencies();
-        let msg = InstantiateMsg {
-            members: vec!["adsfsa".to_string()],
-            start_time: END_TIME,
-            end_time: END_TIME,
-            unit_price: coin(UNIT_AMOUNT, "ustars"),
-            per_address_limit: 1,
-            member_limit: 3000,
-        };
-        let info = mock_info(ADMIN, &[coin(100_000_000, "ustars")]);
-        let err = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            "IncorrectCreationFee 100000000 < 300000000"
-        );
     }
 
     #[test]
@@ -536,13 +422,13 @@ mod tests {
                 "adsfsa".to_string(),
                 "adsfsa".to_string(),
             ],
-            start_time: END_TIME,
+            start_time: START_TIME,
             end_time: END_TIME,
             unit_price: coin(UNIT_AMOUNT, NATIVE_DENOM),
             per_address_limit: 1,
             member_limit: 1000,
         };
-        let info = mock_info(ADMIN, &[coin(100_000_000, "ustars")]);
+        let info = mock_info(ADMIN, &[coin(100_000_000, "ujuno")]);
         let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
         let res = query_config(deps.as_ref(), mock_env()).unwrap();
         assert_eq!(1, res.num_members);
@@ -553,12 +439,12 @@ mod tests {
         let msg = InstantiateMsg {
             members: vec!["adsfsa".to_string()],
             start_time: END_TIME,
-            end_time: GENESIS_START_TIME,
+            end_time: START_TIME,
             unit_price: coin(UNIT_AMOUNT, NATIVE_DENOM),
             per_address_limit: 1,
             member_limit: 1000,
         };
-        let info = mock_info(ADMIN, &[coin(100_000_000, "ustars")]);
+        let info = mock_info(ADMIN, &[coin(100_000_000, "ujuno")]);
         let mut deps = mock_dependencies();
         instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
     }
@@ -568,12 +454,13 @@ mod tests {
         let mut deps = mock_dependencies();
         setup_contract(deps.as_mut());
 
-        let msg = ExecuteMsg::UpdateStartTime(Timestamp::from_nanos(GENESIS_MINT_START_TIME - 100));
+        let new_start_time = START_TIME.minus_nanos(100);
+        let msg = ExecuteMsg::UpdateStartTime(new_start_time);
         let info = mock_info(ADMIN, &[]);
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(res.attributes.len(), 3);
         let res = query_config(deps.as_ref(), mock_env()).unwrap();
-        assert_eq!(res.start_time, GENESIS_START_TIME);
+        assert_eq!(res.start_time, new_start_time);
     }
 
     #[test]
@@ -581,14 +468,13 @@ mod tests {
         let mut deps = mock_dependencies();
         setup_contract(deps.as_mut());
 
-        let msg = ExecuteMsg::UpdateEndTime(Timestamp::from_nanos(GENESIS_MINT_START_TIME + 100));
+        let new_end_time = START_TIME.plus_nanos(300);
+        let msg = ExecuteMsg::UpdateEndTime(new_end_time);
         let info = mock_info(ADMIN, &[]);
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(res.attributes.len(), 3);
-
-        let msg = ExecuteMsg::UpdateEndTime(Timestamp::from_nanos(GENESIS_MINT_START_TIME - 100));
-        let info = mock_info(ADMIN, &[]);
-        execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+        let res = query_config(deps.as_ref(), mock_env()).unwrap();
+        assert_eq!(res.end_time, new_end_time);
     }
 
     #[test]
@@ -620,48 +506,9 @@ mod tests {
     }
 
     #[test]
-    fn too_many_members_check() {
-        let mut deps = mock_dependencies();
-        setup_contract(deps.as_mut());
-
-        let mut members = vec![];
-        for i in 0..MAX_MEMBERS {
-            members.push(format!("adsfsa{}", i));
-        }
-
-        let inner_msg = AddMembersMsg { to_add: members };
-        let msg = ExecuteMsg::AddMembers(inner_msg);
-        let info = mock_info(ADMIN, &[]);
-        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(
-            ContractError::MembersExceeded {
-                expected: 1000,
-                actual: 1000
-            }
-            .to_string(),
-            err.to_string()
-        );
-    }
-
-    #[test]
     fn update_per_address_limit() {
         let mut deps = mock_dependencies();
         setup_contract(deps.as_mut());
-
-        let per_address_limit: u32 = 50;
-        let msg = ExecuteMsg::UpdatePerAddressLimit(per_address_limit);
-        let info = mock_info(ADMIN, &[]);
-        // let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        // let wl_config: ConfigResponse = query_config(deps.as_ref(), mock_env()).unwrap();
-        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(
-            ContractError::InvalidPerAddressLimit {
-                max: MAX_PER_ADDRESS_LIMIT.to_string(),
-                got: per_address_limit.to_string(),
-            }
-            .to_string(),
-            err.to_string()
-        );
 
         let per_address_limit: u32 = 2;
         let msg = ExecuteMsg::UpdatePerAddressLimit(per_address_limit);
@@ -671,24 +518,24 @@ mod tests {
         let wl_config: ConfigResponse = query_config(deps.as_ref(), mock_env()).unwrap();
         assert_eq!(wl_config.per_address_limit, per_address_limit);
     }
+    
     #[test]
     fn query_members_pagination() {
         let mut deps = mock_dependencies();
         let mut members = vec![];
         for i in 0..150 {
-            members.push(format!("stars1{}", i));
+            members.push(format!("juno1{}", i));
         }
         let msg = InstantiateMsg {
             members: members.clone(),
-            start_time: END_TIME,
+            start_time: START_TIME,
             end_time: END_TIME,
             unit_price: coin(UNIT_AMOUNT, NATIVE_DENOM),
             per_address_limit: 1,
             member_limit: 1000,
         };
-        let info = mock_info(ADMIN, &[coin(100_000_000, "ustars")]);
-        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(2, res.messages.len());
+        let info = mock_info(ADMIN, &[coin(100_000_000, "ujuno")]);
+        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         let mut all_elements: Vec<String> = vec![];
 
@@ -739,61 +586,14 @@ mod tests {
         let res = query_config(deps.as_ref(), mock_env()).unwrap();
         assert_eq!(1000, res.member_limit);
 
-        // needs upgrade fee
         let msg = ExecuteMsg::IncreaseMemberLimit(1001);
-        let info = mock_info(ADMIN, &[coin(100_000_000, "ustars")]);
+        let info = mock_info(ADMIN, &[]);
         let res = execute(deps.as_mut(), mock_env(), info, msg);
         assert!(res.is_ok());
 
-        // 0 upgrade fee
         let msg = ExecuteMsg::IncreaseMemberLimit(1002);
-        let info = mock_info(ADMIN, &[coin(0, "ustars")]);
+        let info = mock_info(ADMIN, &[]);
         let res = execute(deps.as_mut(), mock_env(), info, msg);
         assert!(res.is_ok());
-
-        // 0 upgrade fee, fails when including a fee
-        // don't allow updating to the same number of memebers
-        let msg = ExecuteMsg::IncreaseMemberLimit(1002);
-        let info = mock_info(ADMIN, &[coin(1, "ustars")]);
-        execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-
-        // 0 upgrade fee, fails when including a fee
-        let msg = ExecuteMsg::IncreaseMemberLimit(1003);
-        let info = mock_info(ADMIN, &[coin(1, "ustars")]);
-        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(err.to_string(), "IncorrectCreationFee 1 < 0");
-
-        // 0 upgrade fee
-        let msg = ExecuteMsg::IncreaseMemberLimit(1502);
-        let info = mock_info(ADMIN, &[coin(0, "ustars")]);
-        let res = execute(deps.as_mut(), mock_env(), info, msg);
-        assert!(res.is_ok());
-
-        // 0 upgrade fee
-        let msg = ExecuteMsg::IncreaseMemberLimit(2000);
-        let info = mock_info(ADMIN, &[coin(0, "ustars")]);
-        let res = execute(deps.as_mut(), mock_env(), info, msg);
-        assert!(res.is_ok());
-
-        // needs upgrade fee
-        let msg = ExecuteMsg::IncreaseMemberLimit(2002);
-        let info = mock_info(ADMIN, &[coin(100_000_000, "ustars")]);
-        let res = execute(deps.as_mut(), mock_env(), info, msg);
-        assert!(res.is_ok());
-
-        // needs upgrade fee
-        let msg = ExecuteMsg::IncreaseMemberLimit(4002);
-        let info = mock_info(ADMIN, &[coin(200_000_000, "ustars")]);
-        let res = execute(deps.as_mut(), mock_env(), info, msg);
-        assert!(res.is_ok());
-
-        // over MAX_MEMBERS, Invalid member limit
-        let msg = ExecuteMsg::IncreaseMemberLimit(6000);
-        let info = mock_info(ADMIN, &[coin(400_000_000, "ustars")]);
-        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            "Invalid member limit. min: 4002, max: 5000, got: 6000"
-        );
     }
 }
