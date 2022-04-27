@@ -1,6 +1,5 @@
 use cosmwasm_std::{Coin, StdError, Timestamp};
 use cw_utils::PaymentError;
-use sg_std::FeeError;
 use thiserror::Error;
 use url::ParseError;
 
@@ -24,14 +23,11 @@ pub enum ContractError {
     #[error("IncorrectPaymentAmount {0} != {1}")]
     IncorrectPaymentAmount(Coin, Coin),
 
-    #[error("InvalidNumTokens {max}, min: 1")]
-    InvalidNumTokens { max: u32, min: u32 },
+    #[error("InvalidNumTokens, min: 1")]
+    InvalidNumTokens { min: u32 },
 
     #[error("Sold out")]
     SoldOut {},
-
-    #[error("InvalidDenom {expected} got {got}")]
-    InvalidDenom { expected: String, got: String },
 
     #[error("Minimum network mint price {expected} got {got}")]
     InsufficientMintPrice { expected: u128, got: u128 },
@@ -45,16 +41,13 @@ pub enum ContractError {
     #[error("AlreadyStarted")]
     AlreadyStarted {},
 
-    #[error("BeforeGenesisTime")]
-    BeforeGenesisTime {},
-
     #[error("WhitelistAlreadyStarted")]
     WhitelistAlreadyStarted {},
 
     #[error("InvalidStartTime {0} < {1}")]
     InvalidStartTime(Timestamp, Timestamp),
 
-    #[error("Instantiate sg721 error")]
+    #[error("Instantiate cw721 error")]
     InstantiateSg721Error {},
 
     #[error("Invalid base token URI (must be an IPFS URI)")]
@@ -66,8 +59,8 @@ pub enum ContractError {
     #[error("Minting has not started yet")]
     BeforeMintStartTime {},
 
-    #[error("Invalid minting limit per address. max: {max}, min: 1, got: {got}")]
-    InvalidPerAddressLimit { max: u32, min: u32, got: u32 },
+    #[error("Invalid minting limit per address. min: 1, got: {got}")]
+    InvalidPerAddressLimit { min: u32, got: u32 },
 
     #[error("Max minting limit per address exceeded")]
     MaxPerAddressLimitExceeded {},
@@ -80,9 +73,6 @@ pub enum ContractError {
 
     #[error("{0}")]
     Payment(#[from] PaymentError),
-
-    #[error("{0}")]
-    Fee(#[from] FeeError),
 }
 
 impl From<ParseError> for ContractError {
