@@ -1,13 +1,13 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env,
-    MessageInfo, Order, Reply, ReplyOn, StdError, StdResult, Timestamp, WasmMsg,
+    coin, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
+    MessageInfo, Order, Reply, ReplyOn, StdError, StdResult, Timestamp, WasmMsg, Response, SubMsg
 };
 use cw2::set_contract_version;
 use cw721_base::{msg::ExecuteMsg as Cw721ExecuteMsg, MintMsg};
 use cw_utils::{may_pay, parse_reply_instantiate_data};
-use sg721::msg::InstantiateMsg as Sg721InstantiateMsg;
+use cw721_base::msg::InstantiateMsg as Cw721InstantiateMsg;
 use url::Url;
 
 use crate::error::ContractError;
@@ -16,30 +16,17 @@ use crate::msg::{
     MintableNumTokensResponse, QueryMsg, StartTimeResponse,
 };
 use crate::state::{
-    Config, CONFIG, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, SG721_ADDRESS,
+    Config, CONFIG, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, CW721_ADDRESS,
 };
-use sg_std::{checked_fair_burn, StargazeMsgWrapper, GENESIS_MINT_START_TIME, NATIVE_DENOM};
 use whitelist::msg::{
     ConfigResponse as WhitelistConfigResponse, HasMemberResponse, QueryMsg as WhitelistQueryMsg,
 };
 
-pub type Response = cosmwasm_std::Response<StargazeMsgWrapper>;
-pub type SubMsg = cosmwasm_std::SubMsg<StargazeMsgWrapper>;
-
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:sg-minter";
+const CONTRACT_NAME: &str = "crates.io:passage-minter";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const INSTANTIATE_SG721_REPLY_ID: u64 = 1;
-
-// governance parameters
-const MAX_TOKEN_LIMIT: u32 = 10000;
-const MAX_PER_ADDRESS_LIMIT: u32 = 50;
-const MIN_MINT_PRICE: u128 = 50_000_000;
-const AIRDROP_MINT_PRICE: u128 = 15_000_000;
-const MINT_FEE_PERCENT: u32 = 10;
-// 100% airdrop fee goes to fair burn
-const AIRDROP_MINT_FEE_PERCENT: u32 = 100;
+const INSTANTIATE_CW721_REPLY_ID: u64 = 1;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -51,49 +38,24 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     // Check the number of tokens is more than zero and less than the max limit
-    if msg.num_tokens == 0 || msg.num_tokens > MAX_TOKEN_LIMIT {
+    if msg.num_tokens == 0 {
         return Err(ContractError::InvalidNumTokens {
             min: 1,
-            max: MAX_TOKEN_LIMIT,
         });
     }
 
     // Check per address limit is valid
-    if msg.per_address_limit == 0 || msg.per_address_limit > MAX_PER_ADDRESS_LIMIT {
+    if msg.per_address_limit == 0 {
         return Err(ContractError::InvalidPerAddressLimit {
-            max: MAX_PER_ADDRESS_LIMIT,
             min: 1,
             got: msg.per_address_limit,
         });
     }
 
     // Check that base_token_uri is a valid IPFS uri
-    let parsed_token_uri = Url::parse(&msg.base_token_uri)?;
-    if parsed_token_uri.scheme() != "ipfs" {
-        return Err(ContractError::InvalidBaseTokenURI {});
-    }
+    Url::parse(&msg.base_token_uri)
+    .or_else(|_err: url::ParseError| Err(ContractError::InvalidBaseTokenURI {}))?;
 
-    // Check that the price is in the correct denom ('ustars')
-    if NATIVE_DENOM != msg.unit_price.denom {
-        return Err(ContractError::InvalidDenom {
-            expected: NATIVE_DENOM.to_string(),
-            got: msg.unit_price.denom,
-        });
-    }
-
-    // Check that the price is greater than the minimum
-    if MIN_MINT_PRICE > msg.unit_price.amount.into() {
-        return Err(ContractError::InsufficientMintPrice {
-            expected: MIN_MINT_PRICE,
-            got: msg.unit_price.amount.into(),
-        });
-    }
-
-    let genesis_time = Timestamp::from_nanos(GENESIS_MINT_START_TIME);
-    // If start time is before genesis time return error
-    if msg.start_time < genesis_time {
-        return Err(ContractError::BeforeGenesisTime {});
-    }
     // If current time is beyond the provided start time return error
     if env.block.time > msg.start_time {
         return Err(ContractError::InvalidStartTime(
@@ -111,7 +73,7 @@ pub fn instantiate(
         admin: info.sender.clone(),
         base_token_uri: msg.base_token_uri,
         num_tokens: msg.num_tokens,
-        sg721_code_id: msg.sg721_code_id,
+        cw721_code_id: msg.cw721_code_id,
         unit_price: msg.unit_price,
         per_address_limit: msg.per_address_limit,
         whitelist: whitelist_addr,
@@ -125,22 +87,21 @@ pub fn instantiate(
         MINTABLE_TOKEN_IDS.save(deps.storage, token_id, &true)?;
     }
 
-    // Submessage to instantiate sg721 contract
+    // Submessage to instantiate cw721 contract
     let sub_msgs: Vec<SubMsg> = vec![SubMsg {
         msg: WasmMsg::Instantiate {
-            code_id: msg.sg721_code_id,
-            msg: to_binary(&Sg721InstantiateMsg {
-                name: msg.sg721_instantiate_msg.name,
-                symbol: msg.sg721_instantiate_msg.symbol,
+            code_id: msg.cw721_code_id,
+            msg: to_binary(&Cw721InstantiateMsg {
+                name: msg.cw721_instantiate_msg.name,
+                symbol: msg.cw721_instantiate_msg.symbol,
                 minter: env.contract.address.to_string(),
-                collection_info: msg.sg721_instantiate_msg.collection_info,
             })?,
             funds: info.funds,
             admin: Some(info.sender.to_string()),
             label: String::from("Fixed price minter"),
         }
         .into(),
-        id: INSTANTIATE_SG721_REPLY_ID,
+        id: INSTANTIATE_CW721_REPLY_ID,
         gas_limit: None,
         reply_on: ReplyOn::Success,
     }];
@@ -193,7 +154,7 @@ pub fn execute_withdraw(
     // query balance from the contract
     let balance = deps
         .querier
-        .query_balance(env.contract.address, NATIVE_DENOM)?;
+        .query_balance(env.contract.address, config.unit_price.denom)?;
     if balance.amount.is_zero() {
         return Err(ContractError::ZeroBalance {});
     }
@@ -360,7 +321,7 @@ fn _execute_mint(
     token_id: Option<u32>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let sg721_address = SG721_ADDRESS.load(deps.storage)?;
+    let cw721_address = CW721_ADDRESS.load(deps.storage)?;
 
     let recipient_addr = match recipient {
         Some(some_recipient) => some_recipient,
@@ -376,17 +337,6 @@ fn _execute_mint(
             mint_price,
         ));
     }
-
-    let mut msgs: Vec<CosmosMsg<StargazeMsgWrapper>> = vec![];
-
-    // Create network fee msgs
-    let fee_percent = if is_admin {
-        Decimal::percent(AIRDROP_MINT_FEE_PERCENT as u64)
-    } else {
-        Decimal::percent(MINT_FEE_PERCENT as u64)
-    };
-    let network_fee = mint_price.amount * fee_percent;
-    msgs.append(&mut checked_fair_burn(&info, network_fee.u128())?);
 
     let mintable_token_id = match token_id {
         Some(token_id) => {
@@ -420,11 +370,10 @@ fn _execute_mint(
         extension: Empty {},
     });
     let msg = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: sg721_address.to_string(),
+        contract_addr: cw721_address.to_string(),
         msg: to_binary(&mint_msg)?,
         funds: vec![],
     });
-    msgs.append(&mut vec![msg]);
 
     // Remove mintable token id from map
     MINTABLE_TOKEN_IDS.remove(deps.storage, mintable_token_id);
@@ -440,9 +389,8 @@ fn _execute_mint(
         .add_attribute("sender", info.sender)
         .add_attribute("recipient", recipient_addr)
         .add_attribute("token_id", mintable_token_id.to_string())
-        .add_attribute("network_fee", network_fee)
         .add_attribute("mint_price", mint_price.amount)
-        .add_messages(msgs))
+        .add_message(msg))
 }
 
 pub fn execute_update_start_time(
@@ -467,12 +415,6 @@ pub fn execute_update_start_time(
         return Err(ContractError::InvalidStartTime(start_time, env.block.time));
     }
 
-    let genesis_start_time = Timestamp::from_nanos(GENESIS_MINT_START_TIME);
-    // If the new start_time is before genesis start time return error
-    if start_time < genesis_start_time {
-        return Err(ContractError::BeforeGenesisTime {});
-    }
-
     config.start_time = start_time;
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new()
@@ -493,9 +435,8 @@ pub fn execute_update_per_address_limit(
             "Sender is not an admin".to_owned(),
         ));
     }
-    if per_address_limit == 0 || per_address_limit > MAX_PER_ADDRESS_LIMIT {
+    if per_address_limit == 0 {
         return Err(ContractError::InvalidPerAddressLimit {
-            max: MAX_PER_ADDRESS_LIMIT,
             min: 1,
             got: per_address_limit,
         });
@@ -515,7 +456,7 @@ pub fn mint_price(deps: Deps, is_admin: bool) -> Result<Coin, StdError> {
     let config = CONFIG.load(deps.storage)?;
 
     if is_admin {
-        return Ok(coin(AIRDROP_MINT_PRICE, config.unit_price.denom));
+        return Ok(coin(0, config.unit_price.denom));
     }
 
     if config.whitelist.is_none() {
@@ -556,13 +497,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
-    let sg721_address = SG721_ADDRESS.load(deps.storage)?;
+    let cw721_address = CW721_ADDRESS.load(deps.storage)?;
 
     Ok(ConfigResponse {
         admin: config.admin.to_string(),
         base_token_uri: config.base_token_uri,
-        sg721_address: sg721_address.to_string(),
-        sg721_code_id: config.sg721_code_id,
+        cw721_address: cw721_address.to_string(),
+        cw721_code_id: config.cw721_code_id,
         num_tokens: config.num_tokens,
         start_time: config.start_time,
         unit_price: config.unit_price,
@@ -614,15 +555,15 @@ fn query_mint_price(deps: Deps) -> StdResult<MintPriceResponse> {
 // Reply callback triggered from cw721 contract instantiation
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    if msg.id != INSTANTIATE_SG721_REPLY_ID {
+    if msg.id != INSTANTIATE_CW721_REPLY_ID {
         return Err(ContractError::InvalidReplyID {});
     }
 
     let reply = parse_reply_instantiate_data(msg);
     match reply {
         Ok(res) => {
-            SG721_ADDRESS.save(deps.storage, &Addr::unchecked(res.contract_address))?;
-            Ok(Response::default().add_attribute("action", "instantiate_sg721_reply"))
+            CW721_ADDRESS.save(deps.storage, &Addr::unchecked(res.contract_address))?;
+            Ok(Response::default().add_attribute("action", "instantiate_cw721_reply"))
         }
         Err(_) => Err(ContractError::InstantiateSg721Error {}),
     }
