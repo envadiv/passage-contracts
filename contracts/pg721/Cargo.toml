@@ -1,20 +1,21 @@
 [package]
-name = "cw2981-royalties"
-version = "0.13.1"
-authors = ["Alex Lynham <alex@lynh.am>"]
+name = "pg721"
+version = "0.10.0"
+authors = ["Tasio Victoria <tasio@envadiv.com>"]
 edition = "2018"
-description = "Basic implementation of royalties for cw721 NFTs with token level royalties"
+description = "Passage NFT collection contract"
 license = "Apache-2.0"
-repository = "https://github.com/CosmWasm/cw-nfts"
-homepage = "https://cosmwasm.com"
-documentation = "https://docs.cosmwasm.com"
+repository = "https://github.com/envadiv/passage-contracts"
+homepage = "https://https://passage3d.com"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "artifacts/*",
+  "contract.wasm",
+  "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
@@ -25,14 +26,17 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw721 = { git = "https://github.com/CosmWasm/cw-nfts", version = "0.13.1" }
-cw721-base = { git = "https://github.com/CosmWasm/cw-nfts", version = "0.13.1", features = [
-  "library",
-] }
 cosmwasm-std = { version = "1.0.0-beta7" }
-schemars = "0.8.1"
-serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-thiserror = { version = "1.0.23" }
+cosmwasm-storage = { version = "1.0.0-beta7" }
+cw-storage-plus = "0.13.1"
+cw-utils = "0.13.1"
+cw2 = "0.13.1"
+schemars = "0.8.8"
+serde = { version = "1.0.133", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.30" }
+url = "2.2.2"
+cw721 = "0.13.1"
+cw721-base = { version = "0.13.1", features = ["library"] }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "1.0.0-beta7" }
