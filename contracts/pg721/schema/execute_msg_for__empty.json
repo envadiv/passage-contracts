@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "ExecuteMsg",
+  "title": "ExecuteMsg_for_Empty",
   "description": "This is like Cw721ExecuteMsg but we add a Mint command for an owner to make this stand-alone. You will likely want to remove mint and use other control logic in any contract that inherits this.",
   "oneOf": [
     {
@@ -177,7 +177,7 @@
       ],
       "properties": {
         "mint": {
-          "$ref": "#/definitions/MintMsg_for_Nullable_Empty"
+          "$ref": "#/definitions/MintMsg_for_Empty"
         }
       },
       "additionalProperties": false
@@ -259,21 +259,19 @@
         }
       ]
     },
-    "MintMsg_for_Nullable_Empty": {
+    "MintMsg_for_Empty": {
       "type": "object",
       "required": [
+        "extension",
         "owner",
         "token_id"
       ],
       "properties": {
         "extension": {
           "description": "Any custom extension used by this contract",
-          "anyOf": [
+          "allOf": [
             {
               "$ref": "#/definitions/Empty"
-            },
-            {
-              "type": "null"
             }
           ]
         },
