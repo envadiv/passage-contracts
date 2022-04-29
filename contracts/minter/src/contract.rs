@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw721_base::{msg::ExecuteMsg as Cw721ExecuteMsg, MintMsg};
 use cw_utils::{may_pay, parse_reply_instantiate_data};
-use cw721_base::msg::InstantiateMsg as Cw721InstantiateMsg;
+use pg721::msg::InstantiateMsg as Pg721InstantiateMsg;
 use url::Url;
 
 use crate::error::ContractError;
@@ -37,7 +37,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    // Check the number of tokens is more than zero and less than the max limit
+    // Check the number of tokens is more than zero
     if msg.num_tokens == 0 {
         return Err(ContractError::InvalidNumTokens {
             min: 1,
@@ -91,10 +91,11 @@ pub fn instantiate(
     let sub_msgs: Vec<SubMsg> = vec![SubMsg {
         msg: WasmMsg::Instantiate {
             code_id: msg.cw721_code_id,
-            msg: to_binary(&Cw721InstantiateMsg {
+            msg: to_binary(&Pg721InstantiateMsg {
                 name: msg.cw721_instantiate_msg.name,
                 symbol: msg.cw721_instantiate_msg.symbol,
                 minter: env.contract.address.to_string(),
+                collection_info: msg.cw721_instantiate_msg.collection_info,
             })?,
             funds: info.funds,
             admin: Some(info.sender.to_string()),

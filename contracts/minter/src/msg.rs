@@ -2,14 +2,14 @@ use cosmwasm_std::{Coin, Timestamp};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cw721_base::msg::InstantiateMsg as Cw721InstantiateMsg;
+use pg721::msg::InstantiateMsg as Pg721InstantiateMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub base_token_uri: String,
     pub num_tokens: u32,
     pub cw721_code_id: u64,
-    pub cw721_instantiate_msg: Cw721InstantiateMsg,
+    pub cw721_instantiate_msg: Pg721InstantiateMsg,
     pub start_time: Timestamp,
     pub per_address_limit: u32,
     pub unit_price: Coin,
