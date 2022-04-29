@@ -29,12 +29,12 @@ cw2 = "0.13.1"
 cw-utils = "0.13.1"
 schemars = "0.8"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
+pg721 = { path = "../pg721", features = ["library"] }
 thiserror = { version = "1.0" }
 url = "2.2.0"
 whitelist = { path = "../whitelist", features = ["library"] }
 cw721 = "0.13.1"
 cw721-base = { version = "0.13.1", features = ["library"] }
-cw2981-royalties = { path = "../cw2981-royalties", features = ["library"] }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "1.0.0-beta7" }

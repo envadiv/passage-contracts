@@ -11,7 +11,7 @@ use cw721::{
 use cw721_base::{
     MinterResponse
 };
-use sg721::msg::{CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use pg721::msg::{CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
