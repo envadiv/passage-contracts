@@ -17,3 +17,7 @@ junod tx wasm store artifacts/<contract>.wasm  --from <address> --chain-id=<uni-
 # Addresses
 
 - Tasio testnet address: `juno1z0pmpswx9evje48nkkswhzme62llkc2r22ex2m`
+
+# Diagram
+
+![Screen Shot 2022-04-29 at 1 24 18 PM](https://user-images.githubusercontent.com/6496257/165993415-0ca10d74-f875-47b6-b85e-00928bbd3f7a.png)
