@@ -5,10 +5,10 @@
   "required": [
     "admin",
     "base_token_uri",
+    "cw721_address",
+    "cw721_code_id",
     "num_tokens",
     "per_address_limit",
-    "sg721_address",
-    "sg721_code_id",
     "start_time",
     "unit_price"
   ],
@@ -19,6 +19,14 @@
     "base_token_uri": {
       "type": "string"
     },
+    "cw721_address": {
+      "type": "string"
+    },
+    "cw721_code_id": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
     "num_tokens": {
       "type": "integer",
       "format": "uint32",
@@ -27,14 +35,6 @@
     "per_address_limit": {
       "type": "integer",
       "format": "uint32",
-      "minimum": 0.0
-    },
-    "sg721_address": {
-      "type": "string"
-    },
-    "sg721_code_id": {
-      "type": "integer",
-      "format": "uint64",
       "minimum": 0.0
     },
     "start_time": {

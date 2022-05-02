@@ -4,16 +4,24 @@
   "type": "object",
   "required": [
     "base_token_uri",
+    "cw721_code_id",
+    "cw721_instantiate_msg",
     "num_tokens",
     "per_address_limit",
-    "sg721_code_id",
-    "sg721_instantiate_msg",
     "start_time",
     "unit_price"
   ],
   "properties": {
     "base_token_uri": {
       "type": "string"
+    },
+    "cw721_code_id": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "cw721_instantiate_msg": {
+      "$ref": "#/definitions/InstantiateMsg"
     },
     "num_tokens": {
       "type": "integer",
@@ -24,14 +32,6 @@
       "type": "integer",
       "format": "uint32",
       "minimum": 0.0
-    },
-    "sg721_code_id": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
-    "sg721_instantiate_msg": {
-      "$ref": "#/definitions/InstantiateMsg"
     },
     "start_time": {
       "$ref": "#/definitions/Timestamp"
