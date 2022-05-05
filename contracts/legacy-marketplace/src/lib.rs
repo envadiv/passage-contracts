@@ -1,4 +1,3 @@
-pub mod contract_tests;
 mod error;
 pub mod execute;
 pub mod helpers;
