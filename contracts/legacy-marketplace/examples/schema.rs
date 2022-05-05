@@ -3,8 +3,8 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use cw721_marketplace::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use cw721_marketplace::state::{Config, Token};
+use legacy_marketplace::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use legacy_marketplace::state::{Config, Token};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
