@@ -606,7 +606,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "legacy-marketplace"
+name = "marketplace-legacy"
 version = "0.3.0"
 dependencies = [
  "anyhow",
