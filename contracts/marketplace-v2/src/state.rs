@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Decimal, Uint128};
-use cw_storage_plus::{Index, IndexedMap, IndexList, Item, MultiIndex};
+use cw_storage_plus::{Index, IndexedMap, IndexList, Item, MultiIndex, Map};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -45,4 +45,35 @@ pub fn token_map<'a>() -> IndexedMap<'a, String, Token, TokenIndexes<'a>> {
         ),
     };
     IndexedMap::new("tokens", indexes)
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Token2 {
+    pub token_id: String,
+    pub price: Uint128,
+    pub originator: Addr,
+}
+
+pub const ASKS: Map<&str, Token2> = Map::new("asks");
+
+pub struct BidIndexes<'a> {
+    pub token_id: MultiIndex<'a, String, Token2, (Addr, String)>,
+}
+
+impl<'a> IndexList<Token2> for BidIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Token2>> + '_> {
+        let v: Vec<&dyn Index<Token2>> = vec![&self.token_id];
+        Box::new(v.into_iter())
+    }
+}
+
+pub fn bid_map<'a>() -> IndexedMap<'a, String, Token2, BidIndexes<'a>> {
+    let indexes = BidIndexes {
+        token_id: MultiIndex::new(
+            |d: &Token2| d.token_id.clone(),
+            "bids",
+            "bids__on_sale",
+        ),
+    };
+    IndexedMap::new("bids", indexes)
 }
