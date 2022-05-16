@@ -1,38 +1,54 @@
 use cosmwasm_std::{StdError, Uint128};
+use cw_utils::PaymentError;
 use thiserror::Error;
+
+use crate::hooks::HookError;
+use crate::helpers::ExpiryRangeError;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Unauthorized")]
-    Unauthorized {},
+    #[error("UnauthorizedOwner")]
+    UnauthorizedOwner {},
 
-    #[error("NotFound")]
-    NotFound {},
+    #[error("UnauthorizedOperator")]
+    UnauthorizedOperator {},
 
-    #[error("Native token not in allowed list: {denom}")]
-    NativeDenomNotAllowed { denom: String },
+    #[error("InvalidPrice")]
+    InvalidPrice {},
 
-    #[error("CW20 token not in allowed list: {addr}")]
-    CW20TokenNotAllowed { addr: String },
+    #[error("AskExpired")]
+    AskExpired {},
 
-    #[error("Send single native token type")]
-    SendSingleNativeToken {},
+    #[error("AskNotActive")]
+    AskNotActive {},
 
-    #[error("Insufficient balance, need: {need} sent: {sent}")]
-    InsufficientBalance { need: Uint128, sent: Uint128 },
+    #[error("AskUnchanged")]
+    AskUnchanged {},
 
-    #[error("NFT not on sale")]
-    NftNotOnSale {},
+    #[error("BidExpired")]
+    BidExpired {},
 
-    #[error("Marketplace contract is not approved as operator")]
-    NotApproved {},
+    #[error("BidNotStale")]
+    BidNotStale {},
 
-    #[error("Approval expired")]
-    ApprovalExpired {},
+    #[error("PriceTooSmall: {0}")]
+    PriceTooSmall(Uint128),
 
-    #[error("Wrong input")]
-    WrongInput {},
+    #[error("Token reserved")]
+    TokenReserved {},
+
+    #[error("Invalid finders fee bps: {0}")]
+    InvalidFindersFeeBps(u64),
+
+    #[error("{0}")]
+    BidPaymentError(#[from] PaymentError),
+
+    #[error("{0}")]
+    Hook(#[from] HookError),
+
+    #[error("{0}")]
+    ExpiryRange(#[from] ExpiryRangeError),
 }
