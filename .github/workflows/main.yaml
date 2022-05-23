@@ -32,6 +32,3 @@ jobs:
 
       - name: Run unit-tests
         run: cargo unit-test
-
-      - name: Run optimize
-        run: ./scripts/optimize.sh
