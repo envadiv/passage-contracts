@@ -85,38 +85,28 @@ pub fn execute_list_token(
 
     let mut res = Response::new();
     for t in tokens {
-        let opt_token = token_map().may_load(deps.storage, t.id.clone())?;
-        // if exists update listing, if not register
-        if let Some(mut token) = opt_token.clone() {
-            // check if sender has approval
-            nft_contract
-                .approval(
-                    &deps.querier,
-                    token.id.clone(),
-                    info.sender.clone().into_string(),
-                    None,
-                )
-                .map_err(|_e| ContractError::Unauthorized {})?;
-            // will not return approval if not found
-            nft_contract
-                .approval(
-                    &deps.querier,
-                    token.id.clone(),
-                    env.contract.address.clone().into_string(),
-                    None,
-                )
-                .map_err(|_e| ContractError::NotApproved {})?;
+        let token = &mut t.clone();
+        // check if sender has approval
+        nft_contract
+            .approval(
+                &deps.querier,
+                token.id.clone(),
+                info.sender.clone().into_string(),
+                None,
+            )
+            .map_err(|_e| ContractError::Unauthorized {})?;
+        // will not return approval if not found
+        nft_contract
+            .approval(
+                &deps.querier,
+                token.id.clone(),
+                env.contract.address.clone().into_string(),
+                None,
+            )
+            .map_err(|_e| ContractError::NotApproved {})?;
 
-            token.on_sale = true;
-            token.price = t.price;
-            token_map().save(deps.storage, token.id.clone(), &token)?;
-        } else {
-            // only admin can register new tokens
-            if cfg.admin != info.sender {
-                return Err(ContractError::Unauthorized {});
-            }
-            token_map().save(deps.storage, t.id.clone(), &t)?;
-        }
+        token.on_sale = true;
+        token_map().save(deps.storage, token.id.clone(), &token)?;
         res = res.add_attribute("token", format!("token{:?}", t.id));
     }
 
