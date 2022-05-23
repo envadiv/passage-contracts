@@ -10,13 +10,14 @@ Passage smart contracts written in CosmWasm and deployed to Juno.
 
 ### Testnet
 
-| Contract      | Code ID | Version      | Checksum                                                         | Notes                      |
-| ------------- | ------- | ------------ | ---------------------------------------------------------------- | -------------------------- |
-| pg721         | 829     | v0.1.0-alpha | f5f6bf30ccdaadfa440036437600ac3a98999cc4707f20a2b1e80842563e4384 |                            |
-| whitelist     | 830     | v0.1.0-alpha | e62979c720855cac3cccb9026beaee806490a2655e17a3d88febfdd441d30297 |                            |
-| minter        | 831     | v0.1.0-alpha | c018628958d0d4e169ece7d415eda4840a29a8a7ddde0ea1f62153cd72a764e4 |                            |
-| royalty-group | 832     | v0.1.0-alpha | bee354500a63c0e4c43fccb5ffc2a83e62da08f32af40c7e7b010d24817d7ae0 |                            |
-| royalty-group | 878     | v0.1.1-alpha | 6c86f2f1f37eab7b1c2e94f4718e4f8449e5d094f5b8dbb5a96f6c2f000e45ba | reworked distribute method |
+| Contract           | Code ID | Version      | Checksum                                                         | Notes                                   |
+| ------------------ | ------- | ------------ | ---------------------------------------------------------------- | --------------------------------------- |
+| pg721              | 829     | v0.1.0-alpha | f5f6bf30ccdaadfa440036437600ac3a98999cc4707f20a2b1e80842563e4384 |                                         |
+| whitelist          | 830     | v0.1.0-alpha | e62979c720855cac3cccb9026beaee806490a2655e17a3d88febfdd441d30297 |                                         |
+| minter             | 831     | v0.1.0-alpha | c018628958d0d4e169ece7d415eda4840a29a8a7ddde0ea1f62153cd72a764e4 |                                         |
+| royalty-group      | 832     | v0.1.0-alpha | bee354500a63c0e4c43fccb5ffc2a83e62da08f32af40c7e7b010d24817d7ae0 |                                         |
+| royalty-group      | 878     | v0.1.1-alpha | 6c86f2f1f37eab7b1c2e94f4718e4f8449e5d094f5b8dbb5a96f6c2f000e45ba | reworked distribute method              |
+| legacy-marketplace | 1029    | v0.1.2-alpha | c166e8c6060da4bdf30e42126afc3c08128f59fca65ba73c1c70400284a5145e | includes admin NFT registration bug fix |
 
 ## Commands
 
