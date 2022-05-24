@@ -22,16 +22,8 @@ pub struct InstantiateMsg {
     /// Operators are entites that are responsible for maintaining the active state of Asks.
     /// They listen to NFT transfer events, and update the active state of Asks.
     pub operators: Vec<String>,
-    /// The address of the airdrop claim contract to detect sales
-    pub sale_hook: Option<String>,
-    /// Max basis points for the finders fee
-    pub max_finders_fee_bps: u64,
     /// Min value for bids and asks
     pub min_price: Uint128,
-    /// Duration after expiry when a bid becomes stale (in seconds)
-    pub stale_bid_duration: Duration,
-    /// Stale bid removal reward
-    pub bid_removal_reward_bps: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
