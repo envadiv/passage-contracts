@@ -357,6 +357,15 @@ fn try_add_and_remove_ask() {
         .unwrap();
     assert_eq!(res.owner, marketplace.to_string());
 
+    // Update asking price
+    let set_ask = ExecuteMsg::UpdateAskPrice {
+        collection: collection.to_string(),
+        token_id: TOKEN_ID,
+        price: coin(200, NATIVE_DENOM),
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
+    assert!(res.is_ok());
+
     // An asking price is made by the creator
     let remove_ask = ExecuteMsg::RemoveAsk {
         collection: collection.to_string(),
