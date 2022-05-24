@@ -2,7 +2,7 @@ use cosmwasm_std::{StdError, Uint128};
 use cw_utils::PaymentError;
 use thiserror::Error;
 
-use crate::hooks::HookError;
+// use crate::hooks::HookError;
 use crate::helpers::ExpiryRangeError;
 
 #[derive(Error, Debug, PartialEq)]
@@ -46,8 +46,8 @@ pub enum ContractError {
     #[error("{0}")]
     BidPaymentError(#[from] PaymentError),
 
-    #[error("{0}")]
-    Hook(#[from] HookError),
+    // #[error("{0}")]
+    // Hook(#[from] HookError),
 
     #[error("{0}")]
     ExpiryRange(#[from] ExpiryRangeError),
