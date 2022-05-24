@@ -140,27 +140,43 @@ fn proper_initialization() {
     assert_eq!(0, res.messages.len());
 }
 
-#[test]
-fn try_set_ask() {
-    let mut deps = mock_dependencies();
-    setup_contract(deps.as_mut());
+// #[test]
+// fn try_set_ask() {
+//     let mut deps = mock_dependencies();
+//     setup_contract(deps.as_mut());
 
-    let set_ask = ExecuteMsg::SetAsk {
-        collection: COLLECTION.to_string(),
-        token_id: TOKEN_ID,
-        price: coin(100, NATIVE_DENOM),
-        funds_recipient: None,
-        reserve_for: None,
-        expires_at: Timestamp::from_seconds(
-            mock_env().block.time.plus_seconds(MIN_EXPIRY + 1).seconds(),
-        ),
-    };
+//     let set_ask = ExecuteMsg::SetAsk {
+//         collection: COLLECTION.to_string(),
+//         token_id: TOKEN_ID,
+//         price: coin(100, NATIVE_DENOM),
+//         funds_recipient: None,
+//         reserve_for: None,
+//         expires_at: Timestamp::from_seconds(
+//             mock_env().block.time.plus_seconds(MIN_EXPIRY + 1).seconds(),
+//         ),
+//     };
 
-    // Reject if not called by the media owner
-    let not_allowed = mock_info("random", &[]);
-    let err = execute(deps.as_mut(), mock_env(), not_allowed, set_ask);
-    assert!(err.is_err());
-}
+//     // Reject if not called by the media owner
+//     let not_allowed = mock_info("random", &[]);
+//     let err = execute(deps.as_mut(), mock_env(), not_allowed, set_ask);
+//     assert!(err.is_err());
+// }
+
+// #[test]
+// fn try_remove_ask() {
+//     let mut deps = mock_dependencies();
+//     setup_contract(deps.as_mut());
+
+//     let remove_ask = ExecuteMsg::RemoveAsk {
+//         collection: COLLECTION.to_string(),
+//         token_id: TOKEN_ID,
+//     };
+
+//     // Reject if not called by the media owner
+//     let not_allowed = mock_info("random", &[]);
+//     let err = execute(deps.as_mut(), mock_env(), not_allowed, remove_ask);
+//     assert!(err.is_err());
+// }
 
 // #[test]
 // fn try_set_bid() {

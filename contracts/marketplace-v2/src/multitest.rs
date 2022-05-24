@@ -1,6 +1,6 @@
-// #![cfg(test)]
-// use crate::error::ContractError;
-// use crate::helpers::ExpiryRange;
+#![cfg(test)]
+use crate::error::ContractError;
+use crate::helpers::ExpiryRange;
 // use crate::msg::{
 //     AskCountResponse, AskOffset, AskResponse, AsksResponse, BidOffset, BidResponse,
 //     CollectionBidOffset, CollectionOffset, CollectionsResponse, ParamsResponse, SudoMsg,
@@ -8,306 +8,374 @@
 // use crate::msg::{
 //     BidsResponse, CollectionBidResponse, CollectionBidsResponse, ExecuteMsg, QueryMsg,
 // };
+use crate::msg::{
+    ExecuteMsg,
+};
 // use crate::state::{Bid, SaleType};
 // use crate::hooks::HooksResponse;
-// use cosmwasm_std::{Addr, Empty, Timestamp};
-// use cw721::{Cw721QueryMsg, OwnerOfResponse};
-// use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMsg, MintMsg};
-// use cw_multi_test::{App, AppBuilder, BankSudo, Contract, ContractWrapper, Executor, SudoMsg as CwSudoMsg};
+use cosmwasm_std::{Addr, Empty, Timestamp};
+use cw721::{Cw721QueryMsg, OwnerOfResponse};
+use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMsg, MintMsg};
+use cw_multi_test::{App, AppBuilder, BankSudo, Contract, ContractWrapper, Executor, SudoMsg as CwSudoMsg};
 
-// use cosmwasm_std::{coin, coins, Coin, Decimal, Uint128};
-// use cw_utils::Duration;
-// use pg721::msg::{InstantiateMsg as Pg721InstantiateMsg, RoyaltyInfoResponse};
-// use pg721::state::CollectionInfo;
+use cosmwasm_std::{coin, coins, Coin, Decimal, Uint128};
+use cw_utils::Duration;
+use pg721::msg::{InstantiateMsg as Pg721InstantiateMsg, RoyaltyInfoResponse};
+use pg721::state::CollectionInfo;
 
-// const TOKEN_ID: u32 = 123;
-// const CREATION_FEE: u128 = 1_000_000_000;
-// const INITIAL_BALANCE: u128 = 2000;
-// const NATIVE_DENOM: &str = "ujunox";
-// const USER: &str = "USER";
+const TOKEN_ID: u32 = 123;
+const CREATION_FEE: u128 = 1_000_000_000;
+const INITIAL_BALANCE: u128 = 2000;
+const NATIVE_DENOM: &str = "ujunox";
+const USER: &str = "USER";
 
-// // Governance parameters
-// const TRADING_FEE_BPS: u64 = 200; // 2%
-// const MIN_EXPIRY: u64 = 24 * 60 * 60; // 24 hours (in seconds)
-// const MAX_EXPIRY: u64 = 180 * 24 * 60 * 60; // 6 months (in seconds)
-// const MAX_FINDERS_FEE_BPS: u64 = 1000; // 10%
-// const BID_REMOVAL_REWARD_BPS: u64 = 500; // 5%
+// Governance parameters
+const TRADING_FEE_BPS: u64 = 200; // 2%
+const MIN_EXPIRY: u64 = 24 * 60 * 60; // 24 hours (in seconds)
+const MAX_EXPIRY: u64 = 180 * 24 * 60 * 60; // 6 months (in seconds)
+const MAX_FINDERS_FEE_BPS: u64 = 1000; // 10%
+const BID_REMOVAL_REWARD_BPS: u64 = 500; // 5%
 
-// fn custom_mock_app() -> App {
-//     AppBuilder::new().build(|router, _, storage| {
-//         router
-//             .bank
-//             .init_balance(
-//                 storage,
-//                 &Addr::unchecked(USER),
-//                 vec![Coin {
-//                     denom: NATIVE_DENOM.to_string(),
-//                     amount: Uint128::new(3_000_000),
-//                 }],
-//             )
-//             .unwrap();
-//     })
-// }
+fn custom_mock_app() -> App {
+    AppBuilder::new().build(|router, _, storage| {
+        router
+            .bank
+            .init_balance(
+                storage,
+                &Addr::unchecked(USER),
+                vec![Coin {
+                    denom: NATIVE_DENOM.to_string(),
+                    amount: Uint128::new(3_000_000),
+                }],
+            )
+            .unwrap();
+    })
+}
 
-// pub fn contract_marketplace() -> Box<dyn Contract<Empty>> {
-//     let contract = ContractWrapper::new(
-//         crate::execute::execute,
-//         crate::execute::instantiate,
-//         crate::query::query,
-//     )
-//     .with_sudo(crate::sudo::sudo)
-//     .with_reply(crate::execute::reply);
-//     Box::new(contract)
-// }
+pub fn contract_marketplace() -> Box<dyn Contract<Empty>> {
+    let contract = ContractWrapper::new(
+        crate::execute::execute,
+        crate::execute::instantiate,
+        crate::query::query,
+    );
+    // .with_sudo(crate::sudo::sudo)
+    // .with_reply(crate::execute::reply);
+    Box::new(contract)
+}
 
-// pub fn contract_sg721() -> Box<dyn Contract<Empty>> {
-//     let contract = ContractWrapper::new(
-//         pg721::contract::execute,
-//         pg721::contract::instantiate,
-//         pg721::contract::query,
-//     );
-//     Box::new(contract)
-// }
+pub fn contract_pg721() -> Box<dyn Contract<Empty>> {
+    let contract = ContractWrapper::new(
+        pg721::contract::execute,
+        pg721::contract::instantiate,
+        pg721::contract::query,
+    );
+    Box::new(contract)
+}
 
-// fn setup_block_time(router: &mut App, seconds: u64) {
-//     let mut block = router.block_info();
-//     block.time = Timestamp::from_seconds(seconds);
-//     router.set_block(block);
-// }
+fn setup_block_time(router: &mut App, seconds: u64) {
+    let mut block = router.block_info();
+    block.time = Timestamp::from_seconds(seconds);
+    router.set_block(block);
+}
 
-// // Instantiates all needed contracts for testing
-// fn setup_contracts(
-//     router: &mut App,
-//     creator: &Addr,
-// ) -> Result<(Addr, Addr), ContractError> {
-//     // Instantiate marketplace contract
-//     let marketplace_id = router.store_code(contract_marketplace());
-//     let msg = crate::msg::InstantiateMsg {
-//         operators: vec!["operator".to_string()],
-//         trading_fee_bps: TRADING_FEE_BPS,
-//         ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-//         bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-//         sale_hook: None,
-//         max_finders_fee_bps: MAX_FINDERS_FEE_BPS,
-//         min_price: Uint128::from(5u128),
-//         stale_bid_duration: Duration::Time(100),
-//         bid_removal_reward_bps: BID_REMOVAL_REWARD_BPS,
-//     };
-//     let marketplace = router
-//         .instantiate_contract(
-//             marketplace_id,
-//             creator.clone(),
-//             &msg,
-//             &[],
-//             "Marketplace",
-//             None,
-//         )
-//         .unwrap();
-//     println!("marketplace: {:?}", marketplace);
+// Instantiates all needed contracts for testing
+fn setup_contracts(
+    router: &mut App,
+    creator: &Addr,
+) -> Result<(Addr, Addr), ContractError> {
+    // Instantiate marketplace contract
+    let marketplace_id = router.store_code(contract_marketplace());
+    let msg = crate::msg::InstantiateMsg {
+        trading_fee_bps: TRADING_FEE_BPS,
+        ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+        bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+        operators: vec!["operator".to_string()],
+        min_price: Uint128::from(5u128),
+    };
+    let marketplace = router
+        .instantiate_contract(
+            marketplace_id,
+            creator.clone(),
+            &msg,
+            &[],
+            "Marketplace",
+            None,
+        )
+        .unwrap();
+    println!("marketplace: {:?}", marketplace);
 
-//     // Setup media contract
-//     let sg721_id = router.store_code(contract_sg721());
-//     let msg = Pg721InstantiateMsg {
-//         name: String::from("Test Coin"),
-//         symbol: String::from("TEST"),
-//         minter: creator.to_string(),
-//         collection_info: CollectionInfo {
-//             creator: creator.to_string(),
-//             description: String::from("Stargaze Monkeys"),
-//             image:
-//                 "ipfs://bafybeigi3bwpvyvsmnbj46ra4hyffcxdeaj6ntfk5jpic5mx27x6ih2qvq/images/1.png"
-//                     .to_string(),
-//             external_link: Some("https://example.com/external.html".to_string()),
-//             royalty_info: Some(RoyaltyInfoResponse {
-//                 payment_address: creator.to_string(),
-//                 share: Decimal::percent(10),
-//             }),
-//         },
-//     };
-//     let collection = router
-//         .instantiate_contract(
-//             sg721_id,
-//             creator.clone(),
-//             &msg,
-//             &coins(CREATION_FEE, NATIVE_DENOM),
-//             "NFT",
-//             None,
-//         )
-//         .unwrap();
-//     println!("collection: {:?}", collection);
+    // Setup media contract
+    let pg721_id = router.store_code(contract_pg721());
+    let msg = Pg721InstantiateMsg {
+        name: String::from("Test Coin"),
+        symbol: String::from("TEST"),
+        minter: creator.to_string(),
+        collection_info: CollectionInfo {
+            creator: creator.to_string(),
+            description: String::from("Passage Monkeys"),
+            image:
+                "ipfs://bafybeigi3bwpvyvsmnbj46ra4hyffcxdeaj6ntfk5jpic5mx27x6ih2qvq/images/1.png"
+                    .to_string(),
+            external_link: Some("https://example.com/external.html".to_string()),
+            royalty_info: Some(RoyaltyInfoResponse {
+                payment_address: creator.to_string(),
+                share: Decimal::percent(10),
+            }),
+        },
+    };
+    let collection = router
+        .instantiate_contract(
+            pg721_id,
+            creator.clone(),
+            &msg,
+            &coins(CREATION_FEE, NATIVE_DENOM),
+            "NFT",
+            None,
+        )
+        .unwrap();
+    println!("collection: {:?}", collection);
 
-//     Ok((marketplace, collection))
-// }
+    Ok((marketplace, collection))
+}
 
-// fn setup_collection(router: &mut App, creator: &Addr) -> Result<Addr, ContractError> {
-//     // Setup media contract
-//     let sg721_id = router.store_code(contract_sg721());
-//     let msg = Pg721InstantiateMsg {
-//         name: String::from("Test Collection 2"),
-//         symbol: String::from("TEST 2"),
-//         minter: creator.to_string(),
-//         collection_info: CollectionInfo {
-//             creator: creator.to_string(),
-//             description: String::from("Stargaze Monkeys 2"),
-//             image:
-//                 "ipfs://bafybeigi3bwpvyvsmnbj46ra4hyffcxdeaj6ntfk5jpic5mx27x6ih2qvq/images/1.png"
-//                     .to_string(),
-//             external_link: Some("https://example.com/external.html".to_string()),
-//             royalty_info: Some(RoyaltyInfoResponse {
-//                 payment_address: creator.to_string(),
-//                 share: Decimal::percent(10),
-//             }),
-//         },
-//     };
-//     let collection = router
-//         .instantiate_contract(
-//             sg721_id,
-//             creator.clone(),
-//             &msg,
-//             &coins(CREATION_FEE, NATIVE_DENOM),
-//             "NFT",
-//             None,
-//         )
-//         .unwrap();
-//     println!("collection 2: {:?}", collection);
-//     Ok(collection)
-// }
+fn setup_collection(router: &mut App, creator: &Addr) -> Result<Addr, ContractError> {
+    // Setup media contract
+    let pg721_id = router.store_code(contract_pg721());
+    let msg = Pg721InstantiateMsg {
+        name: String::from("Test Collection 2"),
+        symbol: String::from("TEST 2"),
+        minter: creator.to_string(),
+        collection_info: CollectionInfo {
+            creator: creator.to_string(),
+            description: String::from("Passage Monkeys 2"),
+            image:
+                "ipfs://bafybeigi3bwpvyvsmnbj46ra4hyffcxdeaj6ntfk5jpic5mx27x6ih2qvq/images/1.png"
+                    .to_string(),
+            external_link: Some("https://example.com/external.html".to_string()),
+            royalty_info: Some(RoyaltyInfoResponse {
+                payment_address: creator.to_string(),
+                share: Decimal::percent(10),
+            }),
+        },
+    };
+    let collection = router
+        .instantiate_contract(
+            pg721_id,
+            creator.clone(),
+            &msg,
+            &coins(CREATION_FEE, NATIVE_DENOM),
+            "NFT",
+            None,
+        )
+        .unwrap();
+    println!("collection 2: {:?}", collection);
+    Ok(collection)
+}
 
-// // Intializes accounts with balances
-// fn setup_accounts(router: &mut App) -> Result<(Addr, Addr, Addr), ContractError> {
-//     let owner: Addr = Addr::unchecked("owner");
-//     let bidder: Addr = Addr::unchecked("bidder");
-//     let creator: Addr = Addr::unchecked("creator");
-//     let creator_funds: Vec<Coin> = coins(CREATION_FEE, NATIVE_DENOM);
-//     let funds: Vec<Coin> = coins(INITIAL_BALANCE, NATIVE_DENOM);
-//     router
-//         .sudo(CwSudoMsg::Bank({
-//             BankSudo::Mint {
-//                 to_address: owner.to_string(),
-//                 amount: funds.clone(),
-//             }
-//         }))
-//         .map_err(|err| println!("{:?}", err))
-//         .ok();
-//     router
-//         .sudo(CwSudoMsg::Bank({
-//             BankSudo::Mint {
-//                 to_address: bidder.to_string(),
-//                 amount: funds.clone(),
-//             }
-//         }))
-//         .map_err(|err| println!("{:?}", err))
-//         .ok();
-//     router
-//         .sudo(CwSudoMsg::Bank({
-//             BankSudo::Mint {
-//                 to_address: creator.to_string(),
-//                 amount: creator_funds.clone(),
-//             }
-//         }))
-//         .map_err(|err| println!("{:?}", err))
-//         .ok();
+// Intializes accounts with balances
+fn setup_accounts(router: &mut App) -> Result<(Addr, Addr, Addr), ContractError> {
+    let owner: Addr = Addr::unchecked("owner");
+    let bidder: Addr = Addr::unchecked("bidder");
+    let creator: Addr = Addr::unchecked("creator");
+    let creator_funds: Vec<Coin> = coins(CREATION_FEE, NATIVE_DENOM);
+    let funds: Vec<Coin> = coins(INITIAL_BALANCE, NATIVE_DENOM);
+    router
+        .sudo(CwSudoMsg::Bank({
+            BankSudo::Mint {
+                to_address: owner.to_string(),
+                amount: funds.clone(),
+            }
+        }))
+        .map_err(|err| println!("{:?}", err))
+        .ok();
+    router
+        .sudo(CwSudoMsg::Bank({
+            BankSudo::Mint {
+                to_address: bidder.to_string(),
+                amount: funds.clone(),
+            }
+        }))
+        .map_err(|err| println!("{:?}", err))
+        .ok();
+    router
+        .sudo(CwSudoMsg::Bank({
+            BankSudo::Mint {
+                to_address: creator.to_string(),
+                amount: creator_funds.clone(),
+            }
+        }))
+        .map_err(|err| println!("{:?}", err))
+        .ok();
 
-//     // Check native balances
-//     let owner_native_balances = router.wrap().query_all_balances(owner.clone()).unwrap();
-//     assert_eq!(owner_native_balances, funds);
-//     let bidder_native_balances = router.wrap().query_all_balances(bidder.clone()).unwrap();
-//     assert_eq!(bidder_native_balances, funds);
-//     let creator_native_balances = router.wrap().query_all_balances(creator.clone()).unwrap();
-//     assert_eq!(creator_native_balances, creator_funds);
+    // Check native balances
+    let owner_native_balances = router.wrap().query_all_balances(owner.clone()).unwrap();
+    assert_eq!(owner_native_balances, funds);
+    let bidder_native_balances = router.wrap().query_all_balances(bidder.clone()).unwrap();
+    assert_eq!(bidder_native_balances, funds);
+    let creator_native_balances = router.wrap().query_all_balances(creator.clone()).unwrap();
+    assert_eq!(creator_native_balances, creator_funds);
 
-//     Ok((owner, bidder, creator))
-// }
+    Ok((owner, bidder, creator))
+}
 
-// fn setup_second_bidder_account(router: &mut App) -> Result<Addr, ContractError> {
-//     let bidder2: Addr = Addr::unchecked("bidder2");
-//     let funds: Vec<Coin> = coins(CREATION_FEE + INITIAL_BALANCE, NATIVE_DENOM);
-//     router
-//         .sudo(CwSudoMsg::Bank({
-//             BankSudo::Mint {
-//                 to_address: bidder2.to_string(),
-//                 amount: funds.clone(),
-//             }
-//         }))
-//         .map_err(|err| println!("{:?}", err))
-//         .ok();
+fn setup_second_bidder_account(router: &mut App) -> Result<Addr, ContractError> {
+    let bidder2: Addr = Addr::unchecked("bidder2");
+    let funds: Vec<Coin> = coins(CREATION_FEE + INITIAL_BALANCE, NATIVE_DENOM);
+    router
+        .sudo(CwSudoMsg::Bank({
+            BankSudo::Mint {
+                to_address: bidder2.to_string(),
+                amount: funds.clone(),
+            }
+        }))
+        .map_err(|err| println!("{:?}", err))
+        .ok();
 
-//     // Check native balances
-//     let bidder_native_balances = router.wrap().query_all_balances(bidder2.clone()).unwrap();
-//     assert_eq!(bidder_native_balances, funds);
+    // Check native balances
+    let bidder_native_balances = router.wrap().query_all_balances(bidder2.clone()).unwrap();
+    assert_eq!(bidder_native_balances, funds);
 
-//     Ok(bidder2)
-// }
+    Ok(bidder2)
+}
 
-// // Mints an NFT for a creator
-// fn mint(router: &mut App, creator: &Addr, collection: &Addr, token_id: u32) {
-//     let mint_for_creator_msg = Cw721ExecuteMsg::Mint(MintMsg {
-//         token_id: token_id.to_string(),
-//         owner: creator.clone().to_string(),
-//         token_uri: Some("https://starships.example.com/Starship/Enterprise.json".into()),
-//         extension: Empty {},
-//     });
-//     let res = router.execute_contract(
-//         creator.clone(),
-//         collection.clone(),
-//         &mint_for_creator_msg,
-//         &[],
-//     );
-//     assert!(res.is_ok());
-// }
+// Mints an NFT for a creator
+fn mint(router: &mut App, creator: &Addr, collection: &Addr, token_id: u32) {
+    let mint_for_creator_msg = Cw721ExecuteMsg::Mint(MintMsg {
+        token_id: token_id.to_string(),
+        owner: creator.clone().to_string(),
+        token_uri: Some("https://starships.example.com/Starship/Enterprise.json".into()),
+        extension: Empty {},
+    });
+    let res = router.execute_contract(
+        creator.clone(),
+        collection.clone(),
+        &mint_for_creator_msg,
+        &[],
+    );
+    assert!(res.is_ok());
+}
 
-// fn mint_for(
-//     router: &mut App,
-//     owner: &Addr,
-//     creator: &Addr,
-//     collection: &Addr,
-//     token_id: u32,
-// ) {
-//     let mint_for_creator_msg = Cw721ExecuteMsg::Mint(MintMsg {
-//         token_id: token_id.to_string(),
-//         owner: owner.to_string(),
-//         token_uri: Some("https://starships.example.com/Starship/Enterprise.json".into()),
-//         extension: Empty {},
-//     });
-//     let res = router.execute_contract(
-//         creator.clone(),
-//         collection.clone(),
-//         &mint_for_creator_msg,
-//         &[],
-//     );
-//     assert!(res.is_ok());
-// }
+fn mint_for(
+    router: &mut App,
+    owner: &Addr,
+    creator: &Addr,
+    collection: &Addr,
+    token_id: u32,
+) {
+    let mint_for_creator_msg = Cw721ExecuteMsg::Mint(MintMsg {
+        token_id: token_id.to_string(),
+        owner: owner.to_string(),
+        token_uri: Some("https://starships.example.com/Starship/Enterprise.json".into()),
+        extension: Empty {},
+    });
+    let res = router.execute_contract(
+        creator.clone(),
+        collection.clone(),
+        &mint_for_creator_msg,
+        &[],
+    );
+    assert!(res.is_ok());
+}
 
-// fn approve(
-//     router: &mut App,
-//     creator: &Addr,
-//     collection: &Addr,
-//     marketplace: &Addr,
-//     token_id: u32,
-// ) {
-//     let approve_msg = Cw721ExecuteMsg::<Empty>::Approve {
-//         spender: marketplace.to_string(),
-//         token_id: token_id.to_string(),
-//         expires: None,
-//     };
-//     let res = router.execute_contract(creator.clone(), collection.clone(), &approve_msg, &[]);
-//     assert!(res.is_ok());
-// }
+fn approve(
+    router: &mut App,
+    creator: &Addr,
+    collection: &Addr,
+    marketplace: &Addr,
+    token_id: u32,
+) {
+    let approve_msg = Cw721ExecuteMsg::<Empty>::Approve {
+        spender: marketplace.to_string(),
+        token_id: token_id.to_string(),
+        expires: None,
+    };
+    let res = router.execute_contract(creator.clone(), collection.clone(), &approve_msg, &[]);
+    assert!(res.is_ok());
+}
 
-// fn transfer(
-//     router: &mut App,
-//     creator: &Addr,
-//     recipient: &Addr,
-//     collection: &Addr,
-//     token_id: u32,
-// ) {
-//     let transfer_msg = Cw721ExecuteMsg::<Empty>::TransferNft {
-//         recipient: recipient.to_string(),
-//         token_id: token_id.to_string(),
-//     };
-//     let res = router.execute_contract(creator.clone(), collection.clone(), &transfer_msg, &[]);
-//     assert!(res.is_ok());
-// }
+fn transfer(
+    router: &mut App,
+    creator: &Addr,
+    recipient: &Addr,
+    collection: &Addr,
+    token_id: u32,
+) {
+    let transfer_msg = Cw721ExecuteMsg::<Empty>::TransferNft {
+        recipient: recipient.to_string(),
+        token_id: token_id.to_string(),
+    };
+    let res = router.execute_contract(creator.clone(), collection.clone(), &transfer_msg, &[]);
+    assert!(res.is_ok());
+}
+
+#[test]
+fn try_add_and_remove_ask() {
+    let mut router = custom_mock_app();
+
+    // Setup intial accounts
+    let (owner, bidder, creator) = setup_accounts(&mut router).unwrap();
+
+    // Instantiate and configure contracts
+    let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
+
+    // Mint NFT for creator
+    mint(&mut router, &creator, &collection, TOKEN_ID);
+    approve(&mut router, &creator, &collection, &marketplace, TOKEN_ID);
+
+    // Should error with expiry lower than min
+    let set_ask = ExecuteMsg::SetAsk {
+        collection: collection.to_string(),
+        token_id: TOKEN_ID,
+        price: coin(110, NATIVE_DENOM),
+        funds_recipient: None,
+        reserve_for: None,
+        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY - 1),
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
+    assert!(res.is_err());
+
+    // An asking price is made by the creator
+    let set_ask = ExecuteMsg::SetAsk {
+        collection: collection.to_string(),
+        token_id: TOKEN_ID,
+        price: coin(110, NATIVE_DENOM),
+        funds_recipient: None,
+        reserve_for: None,
+        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
+    assert!(res.is_ok());
+
+    // Check NFT is transferred to marketplace contract
+    let query_owner_msg = Cw721QueryMsg::OwnerOf {
+        token_id: TOKEN_ID.to_string(),
+        include_expired: None,
+    };
+    let res: OwnerOfResponse = router
+        .wrap()
+        .query_wasm_smart(collection.clone(), &query_owner_msg)
+        .unwrap();
+    assert_eq!(res.owner, marketplace.to_string());
+
+    // An asking price is made by the creator
+    let remove_ask = ExecuteMsg::RemoveAsk {
+        collection: collection.to_string(),
+        token_id: TOKEN_ID,
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &remove_ask, &[]);
+    assert!(res.is_ok());
+
+    // Check NFT is transferred back to the seller
+    let query_owner_msg = Cw721QueryMsg::OwnerOf {
+        token_id: TOKEN_ID.to_string(),
+        include_expired: None,
+    };
+    let res: OwnerOfResponse = router
+        .wrap()
+        .query_wasm_smart(collection, &query_owner_msg)
+        .unwrap();
+    assert_eq!(res.owner, creator.to_string());
+}
 
 // #[test]
 // fn try_set_accept_bid() {
@@ -1843,14 +1911,14 @@
 //         .unwrap();
 
 //     // Setup media contract with 10% royalties to a curator
-//     let sg721_id = router.store_code(contract_sg721());
+//     let pg721_id = router.store_code(contract_pg721());
 //     let msg = pg721::msg::InstantiateMsg {
 //         name: String::from("Test Coin"),
 //         symbol: String::from("TEST"),
 //         minter: creator.to_string(),
 //         collection_info: CollectionInfo {
 //             creator: creator.to_string(),
-//             description: String::from("Stargaze Monkeys"),
+//             description: String::from("Passage Monkeys"),
 //             image: "https://example.com/image.png".to_string(),
 //             external_link: Some("https://example.com/external.html".to_string()),
 //             royalty_info: Some(RoyaltyInfoResponse {
@@ -1861,7 +1929,7 @@
 //     };
 //     let collection = router
 //         .instantiate_contract(
-//             sg721_id,
+//             pg721_id,
 //             creator.clone(),
 //             &msg,
 //             &coins(CREATION_FEE, NATIVE_DENOM),

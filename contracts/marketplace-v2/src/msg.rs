@@ -38,11 +38,11 @@ pub enum ExecuteMsg {
         reserve_for: Option<String>,
         expires_at: Timestamp,
     },
-    // /// Remove an existing ask from the marketplace
-    // RemoveAsk {
-    //     collection: String,
-    //     token_id: TokenId,
-    // },
+    /// Remove an existing ask from the marketplace
+    RemoveAsk {
+        collection: String,
+        token_id: TokenId,
+    },
     // /// Update the price of an existing ask
     // UpdateAskPrice {
     //     collection: String,
@@ -196,146 +196,146 @@ pub enum ExecuteMsg {
 //     }
 // }
 
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-// #[serde(rename_all = "snake_case")]
-// pub enum QueryMsg {
-//     /// List of collections that have asks on them
-//     /// Return type: `CollectionsResponse`
-//     Collections {
-//         start_after: Option<Collection>,
-//         limit: Option<u32>,
-//     },
-//     /// Get the current ask for specific NFT
-//     /// Return type: `CurrentAskResponse`
-//     Ask {
-//         collection: Collection,
-//         token_id: TokenId,
-//     },
-//     /// Get all asks for a collection
-//     /// Return type: `AsksResponse`
-//     Asks {
-//         collection: Collection,
-//         include_inactive: Option<bool>,
-//         start_after: Option<TokenId>,
-//         limit: Option<u32>,
-//     },
-//     /// Get all asks for a collection, sorted by price
-//     /// Return type: `AsksResponse`
-//     AsksSortedByPrice {
-//         collection: Collection,
-//         include_inactive: Option<bool>,
-//         start_after: Option<AskOffset>,
-//         limit: Option<u32>,
-//     },
-//     /// Get all asks for a collection, sorted by price in reverse
-//     /// Return type: `AsksResponse`
-//     ReverseAsksSortedByPrice {
-//         collection: Collection,
-//         include_inactive: Option<bool>,
-//         start_before: Option<AskOffset>,
-//         limit: Option<u32>,
-//     },
-//     /// Count of all asks
-//     /// Return type: `AskCountResponse`
-//     AskCount { collection: Collection },
-//     /// Get all asks by seller
-//     /// Return type: `AsksResponse`
-//     AsksBySeller {
-//         seller: Seller,
-//         include_inactive: Option<bool>,
-//         start_after: Option<CollectionOffset>,
-//         limit: Option<u32>,
-//     },
-//     /// Get data for a specific bid
-//     /// Return type: `BidResponse`
-//     Bid {
-//         collection: Collection,
-//         token_id: TokenId,
-//         bidder: Bidder,
-//     },
-//     /// Get all bids by a bidder
-//     /// Return type: `BidsResponse`
-//     BidsByBidder {
-//         bidder: Bidder,
-//         start_after: Option<CollectionOffset>,
-//         limit: Option<u32>,
-//     },
-//     /// Get all bids by a bidder, sorted by expiration
-//     /// Return type: `BidsResponse`
-//     BidsByBidderSortedByExpiration {
-//         bidder: Bidder,
-//         start_after: Option<CollectionOffset>,
-//         limit: Option<u32>,
-//     },
-//     /// Get all bids for a specific NFT
-//     /// Return type: `BidsResponse`
-//     Bids {
-//         collection: Collection,
-//         token_id: TokenId,
-//         start_after: Option<Bidder>,
-//         limit: Option<u32>,
-//     },
-//     /// Get all bids for a collection, sorted by price
-//     /// Return type: `BidsResponse`
-//     BidsSortedByPrice {
-//         collection: Collection,
-//         start_after: Option<BidOffset>,
-//         limit: Option<u32>,
-//     },
-//     /// Get all bids for a collection, sorted by price in reverse
-//     /// Return type: `BidsResponse`
-//     ReverseBidsSortedByPrice {
-//         collection: Collection,
-//         start_before: Option<BidOffset>,
-//         limit: Option<u32>,
-//     },
-//     /// Get data for a specific collection bid
-//     /// Return type: `CollectionBidResponse`
-//     CollectionBid {
-//         collection: Collection,
-//         bidder: Bidder,
-//     },
-//     /// Get all collection bids by a bidder
-//     /// Return type: `CollectionBidsResponse`
-//     CollectionBidsByBidder {
-//         bidder: Bidder,
-//         start_after: Option<CollectionOffset>,
-//         limit: Option<u32>,
-//     },
-//     /// Get all collection bids by a bidder, sorted by expiration
-//     /// Return type: `CollectionBidsResponse`
-//     CollectionBidsByBidderSortedByExpiration {
-//         bidder: Collection,
-//         start_after: Option<CollectionBidOffset>,
-//         limit: Option<u32>,
-//     },
-//     /// Get all collection bids for a collection sorted by price
-//     /// Return type: `CollectionBidsResponse`
-//     CollectionBidsSortedByPrice {
-//         collection: Collection,
-//         start_after: Option<CollectionBidOffset>,
-//         limit: Option<u32>,
-//     },
-//     /// Get all collection bids for a collection sorted by price in reverse
-//     /// Return type: `CollectionBidsResponse`
-//     ReverseCollectionBidsSortedByPrice {
-//         collection: Collection,
-//         start_before: Option<CollectionBidOffset>,
-//         limit: Option<u32>,
-//     },
-//     /// Show all registered ask hooks
-//     /// Return type: `HooksResponse`
-//     AskHooks {},
-//     /// Show all registered bid hooks
-//     /// Return type: `HooksResponse`
-//     BidHooks {},
-//     /// Show all registered sale hooks
-//     /// Return type: `HooksResponse`
-//     SaleHooks {},
-//     /// Get the config for the contract
-//     /// Return type: `ParamsResponse`
-//     Params {},
-// }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryMsg {
+    // /// List of collections that have asks on them
+    // /// Return type: `CollectionsResponse`
+    // Collections {
+    //     start_after: Option<Collection>,
+    //     limit: Option<u32>,
+    // },
+    // /// Get the current ask for specific NFT
+    // /// Return type: `CurrentAskResponse`
+    // Ask {
+    //     collection: Collection,
+    //     token_id: TokenId,
+    // },
+    // /// Get all asks for a collection
+    // /// Return type: `AsksResponse`
+    // Asks {
+    //     collection: Collection,
+    //     include_inactive: Option<bool>,
+    //     start_after: Option<TokenId>,
+    //     limit: Option<u32>,
+    // },
+    // /// Get all asks for a collection, sorted by price
+    // /// Return type: `AsksResponse`
+    // AsksSortedByPrice {
+    //     collection: Collection,
+    //     include_inactive: Option<bool>,
+    //     start_after: Option<AskOffset>,
+    //     limit: Option<u32>,
+    // },
+    // /// Get all asks for a collection, sorted by price in reverse
+    // /// Return type: `AsksResponse`
+    // ReverseAsksSortedByPrice {
+    //     collection: Collection,
+    //     include_inactive: Option<bool>,
+    //     start_before: Option<AskOffset>,
+    //     limit: Option<u32>,
+    // },
+    // /// Count of all asks
+    // /// Return type: `AskCountResponse`
+    // AskCount { collection: Collection },
+    // /// Get all asks by seller
+    // /// Return type: `AsksResponse`
+    // AsksBySeller {
+    //     seller: Seller,
+    //     include_inactive: Option<bool>,
+    //     start_after: Option<CollectionOffset>,
+    //     limit: Option<u32>,
+    // },
+    // /// Get data for a specific bid
+    // /// Return type: `BidResponse`
+    // Bid {
+    //     collection: Collection,
+    //     token_id: TokenId,
+    //     bidder: Bidder,
+    // },
+    // /// Get all bids by a bidder
+    // /// Return type: `BidsResponse`
+    // BidsByBidder {
+    //     bidder: Bidder,
+    //     start_after: Option<CollectionOffset>,
+    //     limit: Option<u32>,
+    // },
+    // /// Get all bids by a bidder, sorted by expiration
+    // /// Return type: `BidsResponse`
+    // BidsByBidderSortedByExpiration {
+    //     bidder: Bidder,
+    //     start_after: Option<CollectionOffset>,
+    //     limit: Option<u32>,
+    // },
+    // /// Get all bids for a specific NFT
+    // /// Return type: `BidsResponse`
+    // Bids {
+    //     collection: Collection,
+    //     token_id: TokenId,
+    //     start_after: Option<Bidder>,
+    //     limit: Option<u32>,
+    // },
+    // /// Get all bids for a collection, sorted by price
+    // /// Return type: `BidsResponse`
+    // BidsSortedByPrice {
+    //     collection: Collection,
+    //     start_after: Option<BidOffset>,
+    //     limit: Option<u32>,
+    // },
+    // /// Get all bids for a collection, sorted by price in reverse
+    // /// Return type: `BidsResponse`
+    // ReverseBidsSortedByPrice {
+    //     collection: Collection,
+    //     start_before: Option<BidOffset>,
+    //     limit: Option<u32>,
+    // },
+    // /// Get data for a specific collection bid
+    // /// Return type: `CollectionBidResponse`
+    // CollectionBid {
+    //     collection: Collection,
+    //     bidder: Bidder,
+    // },
+    // /// Get all collection bids by a bidder
+    // /// Return type: `CollectionBidsResponse`
+    // CollectionBidsByBidder {
+    //     bidder: Bidder,
+    //     start_after: Option<CollectionOffset>,
+    //     limit: Option<u32>,
+    // },
+    // /// Get all collection bids by a bidder, sorted by expiration
+    // /// Return type: `CollectionBidsResponse`
+    // CollectionBidsByBidderSortedByExpiration {
+    //     bidder: Collection,
+    //     start_after: Option<CollectionBidOffset>,
+    //     limit: Option<u32>,
+    // },
+    // /// Get all collection bids for a collection sorted by price
+    // /// Return type: `CollectionBidsResponse`
+    // CollectionBidsSortedByPrice {
+    //     collection: Collection,
+    //     start_after: Option<CollectionBidOffset>,
+    //     limit: Option<u32>,
+    // },
+    // /// Get all collection bids for a collection sorted by price in reverse
+    // /// Return type: `CollectionBidsResponse`
+    // ReverseCollectionBidsSortedByPrice {
+    //     collection: Collection,
+    //     start_before: Option<CollectionBidOffset>,
+    //     limit: Option<u32>,
+    // },
+    // /// Show all registered ask hooks
+    // /// Return type: `HooksResponse`
+    // AskHooks {},
+    // /// Show all registered bid hooks
+    // /// Return type: `HooksResponse`
+    // BidHooks {},
+    // /// Show all registered sale hooks
+    // /// Return type: `HooksResponse`
+    // SaleHooks {},
+    // /// Get the config for the contract
+    // /// Return type: `ParamsResponse`
+    // Params {},
+}
 
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 // pub struct AskResponse {
