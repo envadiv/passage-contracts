@@ -3,194 +3,197 @@
 //     BidsResponse, Collection, CollectionBidOffset, CollectionBidResponse, CollectionBidsResponse,
 //     CollectionOffset, CollectionsResponse, ParamsResponse, QueryMsg,
 // };
+use crate::msg::{
+    QueryMsg,
+};
 // use crate::state::{
 //     ask_key, asks, bid_key, bids, collection_bid_key, collection_bids, BidKey, CollectionBidKey,
 //     TokenId, ASK_HOOKS, BID_HOOKS, SALE_HOOKS, SUDO_PARAMS,
 // };
-// use cosmwasm_std::{entry_point, to_binary, Addr, Binary, Deps, Env, Order, StdResult};
-// use cw_storage_plus::{Bound, PrefixBound};
-// use cw_utils::maybe_addr;
+use cosmwasm_std::{entry_point, to_binary, Addr, Binary, Deps, Env, Order, StdResult};
+use cw_storage_plus::{Bound, PrefixBound};
+use cw_utils::maybe_addr;
 
-// // Query limits
-// const DEFAULT_QUERY_LIMIT: u32 = 10;
-// const MAX_QUERY_LIMIT: u32 = 30;
+// Query limits
+const DEFAULT_QUERY_LIMIT: u32 = 10;
+const MAX_QUERY_LIMIT: u32 = 30;
 
-// #[cfg_attr(not(feature = "library"), entry_point)]
-// pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-//     let api = deps.api;
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    let api = deps.api;
 
-//     match msg {
-//         QueryMsg::Collections { start_after, limit } => {
-//             to_binary(&query_collections(deps, start_after, limit)?)
-//         }
-//         QueryMsg::Ask {
-//             collection,
-//             token_id,
-//         } => to_binary(&query_ask(deps, api.addr_validate(&collection)?, token_id)?),
-//         QueryMsg::Asks {
-//             collection,
-//             include_inactive,
-//             start_after,
-//             limit,
-//         } => to_binary(&query_asks(
-//             deps,
-//             api.addr_validate(&collection)?,
-//             include_inactive,
-//             start_after,
-//             limit,
-//         )?),
-//         QueryMsg::AsksSortedByPrice {
-//             collection,
-//             include_inactive,
-//             start_after,
-//             limit,
-//         } => to_binary(&query_asks_sorted_by_price(
-//             deps,
-//             api.addr_validate(&collection)?,
-//             include_inactive,
-//             start_after,
-//             limit,
-//         )?),
-//         QueryMsg::ReverseAsksSortedByPrice {
-//             collection,
-//             include_inactive,
-//             start_before,
-//             limit,
-//         } => to_binary(&reverse_query_asks_sorted_by_price(
-//             deps,
-//             api.addr_validate(&collection)?,
-//             include_inactive,
-//             start_before,
-//             limit,
-//         )?),
-//         QueryMsg::AsksBySeller {
-//             seller,
-//             include_inactive,
-//             start_after,
-//             limit,
-//         } => to_binary(&query_asks_by_seller(
-//             deps,
-//             api.addr_validate(&seller)?,
-//             include_inactive,
-//             start_after,
-//             limit,
-//         )?),
-//         QueryMsg::AskCount { collection } => {
-//             to_binary(&query_ask_count(deps, api.addr_validate(&collection)?)?)
-//         }
-//         QueryMsg::Bid {
-//             collection,
-//             token_id,
-//             bidder,
-//         } => to_binary(&query_bid(
-//             deps,
-//             api.addr_validate(&collection)?,
-//             token_id,
-//             api.addr_validate(&bidder)?,
-//         )?),
-//         QueryMsg::Bids {
-//             collection,
-//             token_id,
-//             start_after,
-//             limit,
-//         } => to_binary(&query_bids(
-//             deps,
-//             api.addr_validate(&collection)?,
-//             token_id,
-//             start_after,
-//             limit,
-//         )?),
-//         QueryMsg::BidsByBidder {
-//             bidder,
-//             start_after,
-//             limit,
-//         } => to_binary(&query_bids_by_bidder(
-//             deps,
-//             api.addr_validate(&bidder)?,
-//             start_after,
-//             limit,
-//         )?),
-//         QueryMsg::BidsSortedByPrice {
-//             collection,
-//             start_after,
-//             limit,
-//         } => to_binary(&query_bids_sorted_by_price(
-//             deps,
-//             api.addr_validate(&collection)?,
-//             start_after,
-//             limit,
-//         )?),
-//         QueryMsg::ReverseBidsSortedByPrice {
-//             collection,
-//             start_before,
-//             limit,
-//         } => to_binary(&reverse_query_bids_sorted_by_price(
-//             deps,
-//             api.addr_validate(&collection)?,
-//             start_before,
-//             limit,
-//         )?),
-//         QueryMsg::BidsByBidderSortedByExpiration {
-//             bidder,
-//             start_after,
-//             limit,
-//         } => to_binary(&query_bids_by_bidder_sorted_by_expiry(
-//             deps,
-//             api.addr_validate(&bidder)?,
-//             start_after,
-//             limit,
-//         )?),
-//         QueryMsg::CollectionBid { collection, bidder } => to_binary(&query_collection_bid(
-//             deps,
-//             api.addr_validate(&collection)?,
-//             api.addr_validate(&bidder)?,
-//         )?),
-//         QueryMsg::CollectionBidsSortedByPrice {
-//             collection,
-//             start_after,
-//             limit,
-//         } => to_binary(&query_collection_bids_sorted_by_price(
-//             deps,
-//             api.addr_validate(&collection)?,
-//             start_after,
-//             limit,
-//         )?),
-//         QueryMsg::ReverseCollectionBidsSortedByPrice {
-//             collection,
-//             start_before,
-//             limit,
-//         } => to_binary(&reverse_query_collection_bids_sorted_by_price(
-//             deps,
-//             api.addr_validate(&collection)?,
-//             start_before,
-//             limit,
-//         )?),
-//         QueryMsg::CollectionBidsByBidder {
-//             bidder,
-//             start_after,
-//             limit,
-//         } => to_binary(&query_collection_bids_by_bidder(
-//             deps,
-//             api.addr_validate(&bidder)?,
-//             start_after,
-//             limit,
-//         )?),
-//         QueryMsg::CollectionBidsByBidderSortedByExpiration {
-//             bidder,
-//             start_after,
-//             limit,
-//         } => to_binary(&query_collection_bids_by_bidder_sorted_by_expiry(
-//             deps,
-//             api.addr_validate(&bidder)?,
-//             start_after,
-//             limit,
-//         )?),
-//         QueryMsg::AskHooks {} => to_binary(&ASK_HOOKS.query_hooks(deps)?),
-//         QueryMsg::BidHooks {} => to_binary(&BID_HOOKS.query_hooks(deps)?),
-//         QueryMsg::SaleHooks {} => to_binary(&SALE_HOOKS.query_hooks(deps)?),
-//         QueryMsg::Params {} => to_binary(&query_params(deps)?),
-//     }
-// }
+    match msg {
+        // QueryMsg::Collections { start_after, limit } => {
+        //     to_binary(&query_collections(deps, start_after, limit)?)
+        // }
+        // QueryMsg::Ask {
+        //     collection,
+        //     token_id,
+        // } => to_binary(&query_ask(deps, api.addr_validate(&collection)?, token_id)?),
+        // QueryMsg::Asks {
+        //     collection,
+        //     include_inactive,
+        //     start_after,
+        //     limit,
+        // } => to_binary(&query_asks(
+        //     deps,
+        //     api.addr_validate(&collection)?,
+        //     include_inactive,
+        //     start_after,
+        //     limit,
+        // )?),
+        // QueryMsg::AsksSortedByPrice {
+        //     collection,
+        //     include_inactive,
+        //     start_after,
+        //     limit,
+        // } => to_binary(&query_asks_sorted_by_price(
+        //     deps,
+        //     api.addr_validate(&collection)?,
+        //     include_inactive,
+        //     start_after,
+        //     limit,
+        // )?),
+        // QueryMsg::ReverseAsksSortedByPrice {
+        //     collection,
+        //     include_inactive,
+        //     start_before,
+        //     limit,
+        // } => to_binary(&reverse_query_asks_sorted_by_price(
+        //     deps,
+        //     api.addr_validate(&collection)?,
+        //     include_inactive,
+        //     start_before,
+        //     limit,
+        // )?),
+        // QueryMsg::AsksBySeller {
+        //     seller,
+        //     include_inactive,
+        //     start_after,
+        //     limit,
+        // } => to_binary(&query_asks_by_seller(
+        //     deps,
+        //     api.addr_validate(&seller)?,
+        //     include_inactive,
+        //     start_after,
+        //     limit,
+        // )?),
+        // QueryMsg::AskCount { collection } => {
+        //     to_binary(&query_ask_count(deps, api.addr_validate(&collection)?)?)
+        // }
+        // QueryMsg::Bid {
+        //     collection,
+        //     token_id,
+        //     bidder,
+        // } => to_binary(&query_bid(
+        //     deps,
+        //     api.addr_validate(&collection)?,
+        //     token_id,
+        //     api.addr_validate(&bidder)?,
+        // )?),
+        // QueryMsg::Bids {
+        //     collection,
+        //     token_id,
+        //     start_after,
+        //     limit,
+        // } => to_binary(&query_bids(
+        //     deps,
+        //     api.addr_validate(&collection)?,
+        //     token_id,
+        //     start_after,
+        //     limit,
+        // )?),
+        // QueryMsg::BidsByBidder {
+        //     bidder,
+        //     start_after,
+        //     limit,
+        // } => to_binary(&query_bids_by_bidder(
+        //     deps,
+        //     api.addr_validate(&bidder)?,
+        //     start_after,
+        //     limit,
+        // )?),
+        // QueryMsg::BidsSortedByPrice {
+        //     collection,
+        //     start_after,
+        //     limit,
+        // } => to_binary(&query_bids_sorted_by_price(
+        //     deps,
+        //     api.addr_validate(&collection)?,
+        //     start_after,
+        //     limit,
+        // )?),
+        // QueryMsg::ReverseBidsSortedByPrice {
+        //     collection,
+        //     start_before,
+        //     limit,
+        // } => to_binary(&reverse_query_bids_sorted_by_price(
+        //     deps,
+        //     api.addr_validate(&collection)?,
+        //     start_before,
+        //     limit,
+        // )?),
+        // QueryMsg::BidsByBidderSortedByExpiration {
+        //     bidder,
+        //     start_after,
+        //     limit,
+        // } => to_binary(&query_bids_by_bidder_sorted_by_expiry(
+        //     deps,
+        //     api.addr_validate(&bidder)?,
+        //     start_after,
+        //     limit,
+        // )?),
+        // QueryMsg::CollectionBid { collection, bidder } => to_binary(&query_collection_bid(
+        //     deps,
+        //     api.addr_validate(&collection)?,
+        //     api.addr_validate(&bidder)?,
+        // )?),
+        // QueryMsg::CollectionBidsSortedByPrice {
+        //     collection,
+        //     start_after,
+        //     limit,
+        // } => to_binary(&query_collection_bids_sorted_by_price(
+        //     deps,
+        //     api.addr_validate(&collection)?,
+        //     start_after,
+        //     limit,
+        // )?),
+        // QueryMsg::ReverseCollectionBidsSortedByPrice {
+        //     collection,
+        //     start_before,
+        //     limit,
+        // } => to_binary(&reverse_query_collection_bids_sorted_by_price(
+        //     deps,
+        //     api.addr_validate(&collection)?,
+        //     start_before,
+        //     limit,
+        // )?),
+        // QueryMsg::CollectionBidsByBidder {
+        //     bidder,
+        //     start_after,
+        //     limit,
+        // } => to_binary(&query_collection_bids_by_bidder(
+        //     deps,
+        //     api.addr_validate(&bidder)?,
+        //     start_after,
+        //     limit,
+        // )?),
+        // QueryMsg::CollectionBidsByBidderSortedByExpiration {
+        //     bidder,
+        //     start_after,
+        //     limit,
+        // } => to_binary(&query_collection_bids_by_bidder_sorted_by_expiry(
+        //     deps,
+        //     api.addr_validate(&bidder)?,
+        //     start_after,
+        //     limit,
+        // )?),
+        // QueryMsg::AskHooks {} => to_binary(&ASK_HOOKS.query_hooks(deps)?),
+        // QueryMsg::BidHooks {} => to_binary(&BID_HOOKS.query_hooks(deps)?),
+        // QueryMsg::SaleHooks {} => to_binary(&SALE_HOOKS.query_hooks(deps)?),
+        // QueryMsg::Params {} => to_binary(&query_params(deps)?),
+    }
+}
 
 // pub fn query_collections(
 //     deps: Deps,

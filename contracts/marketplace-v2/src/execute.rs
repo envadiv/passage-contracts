@@ -91,10 +91,10 @@ pub fn execute(
                 expires_at,
             },
         ),
-        // ExecuteMsg::RemoveAsk {
-        //     collection,
-        //     token_id,
-        // } => execute_remove_ask(deps, info, api.addr_validate(&collection)?, token_id),
+        ExecuteMsg::RemoveAsk {
+            collection,
+            token_id,
+        } => execute_remove_ask(deps, info, api.addr_validate(&collection)?, token_id),
         // ExecuteMsg::SetBid {
         //     collection,
         //     token_id,
@@ -225,28 +225,33 @@ pub fn execute_set_ask(
     Ok(res.add_event(event))
 }
 
-// /// Removes the ask on a particular NFT
-// pub fn execute_remove_ask(
-//     deps: DepsMut,
-//     info: MessageInfo,
-//     collection: Addr,
-//     token_id: TokenId,
-// ) -> Result<Response, ContractError> {
-//     nonpayable(&info)?;
-//     only_owner(deps.as_ref(), &info, &collection, token_id)?;
+/// Removes the ask on a particular NFT
+pub fn execute_remove_ask(
+    deps: DepsMut,
+    info: MessageInfo,
+    collection: Addr,
+    token_id: TokenId,
+) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
 
-//     let key = ask_key(&collection, token_id);
-//     let ask = asks().load(deps.storage, key.clone())?;
-//     asks().remove(deps.storage, key)?;
+    let key = ask_key(&collection, token_id);
+    let ask = asks().load(deps.storage, key.clone())?;
+    only_seller(&info, &ask)?;
 
-//     let hook = prepare_ask_hook(deps.as_ref(), &ask, HookAction::Delete)?;
+    asks().remove(deps.storage, key)?;
 
-//     let event = Event::new("remove-ask")
-//         .add_attribute("collection", collection.to_string())
-//         .add_attribute("token_id", token_id.to_string());
+    let mut res = Response::new();
 
-//     Ok(Response::new().add_event(event).add_submessages(hook))
-// }
+    // Transfer NFT
+    let transfer_nft_msg = generate_transfer_nft_msg(&ask.token_id, &ask.seller, &ask.collection)?;
+    res.messages.push(transfer_nft_msg);
+
+    let event = Event::new("remove-ask")
+        .add_attribute("collection", collection.to_string())
+        .add_attribute("token_id", token_id.to_string());
+
+    Ok(res.add_event(event))
+}
 
 // /// Updates the ask price on a particular NFT
 // pub fn execute_update_ask_price(
@@ -941,6 +946,17 @@ fn only_owner(
     }
 
     Ok(res)
+}
+
+/// Checks to enforce only Ask seller can call
+fn only_seller(
+    info: &MessageInfo,
+    ask: &Ask,
+) -> Result<(), ContractError> {
+    if info.sender != ask.seller {
+        return Err(ContractError::UnauthorizedOwner {});
+    }
+    Ok(())
 }
 
 // /// Checks to enforce only privileged operators
