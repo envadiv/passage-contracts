@@ -43,12 +43,12 @@ pub enum ExecuteMsg {
         collection: String,
         token_id: TokenId,
     },
-    // /// Update the price of an existing ask
-    // UpdateAskPrice {
-    //     collection: String,
-    //     token_id: TokenId,
-    //     price: Coin,
-    // },
+    /// Update the price of an existing ask
+    UpdateAskPrice {
+        collection: String,
+        token_id: TokenId,
+        price: Coin,
+    },
     // /// Place a bid on an existing ask
     // SetBid {
     //     collection: String,
