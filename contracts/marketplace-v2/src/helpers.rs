@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// MarketplaceContract is a wrapper around Addr that provides a lot of helpers
+// MarketplaceContract is a wrapper around Addr that provides a lot of helpers
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MarketplaceContract(pub Addr);
 
