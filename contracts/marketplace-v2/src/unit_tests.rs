@@ -1,28 +1,26 @@
-// #[cfg(test)]
-// use std::vec;
+#[cfg(test)]
+use std::vec;
 
-// use crate::error::ContractError;
-// use crate::execute::{execute, instantiate};
-// use crate::helpers::ExpiryRange;
-// use crate::msg::{ExecuteMsg, InstantiateMsg};
+use crate::error::ContractError;
+use crate::execute::{execute, instantiate};
+use crate::helpers::ExpiryRange;
+use crate::msg::{ExecuteMsg, InstantiateMsg};
 // use crate::query::{query_ask_count, query_asks_by_seller, query_bids_by_bidder};
 // use crate::state::{ask_key, asks, bid_key, bids, Ask, Bid, SaleType};
 
-// use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-// use cosmwasm_std::{coin, coins, Addr, DepsMut, Timestamp, Uint128};
-// use cw_utils::Duration;
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+use cosmwasm_std::{coin, coins, Addr, DepsMut, Timestamp, Uint128};
+use cw_utils::Duration;
 
-// const CREATOR: &str = "creator";
-// const COLLECTION: &str = "collection";
-// const TOKEN_ID: u32 = 123;
-// const NATIVE_DENOM: &str = "ujunox";
+const CREATOR: &str = "creator";
+const COLLECTION: &str = "collection";
+const TOKEN_ID: u32 = 123;
+const NATIVE_DENOM: &str = "ujunox";
 
-// // Governance parameters
-// const TRADING_FEE_BASIS_POINTS: u64 = 200; // 2%
-// const MIN_EXPIRY: u64 = 24 * 60 * 60; // 24 hours (in seconds)
-// const MAX_EXPIRY: u64 = 180 * 24 * 60 * 60; // 6 months (in seconds)
-// const MAX_FINDERS_FEE_BPS: u64 = 1000; // 10%
-// const BID_REMOVAL_REWARD_BPS: u64 = 500; // 5%
+// Governance parameters
+const TRADING_FEE_BASIS_POINTS: u64 = 200; // 2%
+const MIN_EXPIRY: u64 = 24 * 60 * 60; // 24 hours (in seconds)
+const MAX_EXPIRY: u64 = 180 * 24 * 60 * 60; // 6 months (in seconds)
 
 // #[test]
 // fn ask_indexed_map() {
@@ -74,7 +72,6 @@
 // }
 
 // #[test]
-
 // fn bid_indexed_map() {
 //     let mut deps = mock_dependencies();
 //     let collection = Addr::unchecked(COLLECTION);
@@ -112,44 +109,58 @@
 //     assert_eq!(res.bids[0], bid);
 // }
 
-// fn setup_contract(deps: DepsMut) {
-//     let msg = InstantiateMsg {
-//         operators: vec!["operator".to_string()],
-//         trading_fee_bps: TRADING_FEE_BASIS_POINTS,
-//         ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-//         bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-//         sale_hook: None,
-//         max_finders_fee_bps: MAX_FINDERS_FEE_BPS,
-//         min_price: Uint128::from(5u128),
-//         stale_bid_duration: Duration::Height(100),
-//         bid_removal_reward_bps: BID_REMOVAL_REWARD_BPS,
-//     };
-//     let info = mock_info(CREATOR, &[]);
-//     let res = instantiate(deps, mock_env(), info, msg).unwrap();
-//     assert_eq!(0, res.messages.len());
-// }
+fn setup_contract(deps: DepsMut) {
+    let msg = InstantiateMsg {
+        trading_fee_bps: TRADING_FEE_BASIS_POINTS,
+        ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+        bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+        operators: vec!["operator".to_string()],
+        min_price: Uint128::from(5u128),
+    };
+    let info = mock_info(CREATOR, &[]);
+    let res = instantiate(deps, mock_env(), info, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+}
 
-// #[test]
-// fn proper_initialization() {
-//     let mut deps = mock_dependencies();
+#[test]
+fn proper_initialization() {
+    let mut deps = mock_dependencies();
 
-//     let msg = InstantiateMsg {
-//         operators: vec!["operator".to_string()],
-//         trading_fee_bps: TRADING_FEE_BASIS_POINTS,
-//         ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-//         bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-//         sale_hook: None,
-//         max_finders_fee_bps: MAX_FINDERS_FEE_BPS,
-//         min_price: Uint128::from(5u128),
-//         stale_bid_duration: Duration::Height(100),
-//         bid_removal_reward_bps: BID_REMOVAL_REWARD_BPS,
-//     };
-//     let info = mock_info("creator", &coins(1000, NATIVE_DENOM));
+    let msg = InstantiateMsg {
+        trading_fee_bps: TRADING_FEE_BASIS_POINTS,
+        ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+        bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+        operators: vec!["operator".to_string()],
+        min_price: Uint128::from(5u128),
+    };
+    let info = mock_info(CREATOR, &coins(1000, NATIVE_DENOM));
 
-//     // we can just call .unwrap() to assert this was a success
-//     let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-//     assert_eq!(0, res.messages.len());
-// }
+    // we can just call .unwrap() to assert this was a success
+    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+}
+
+#[test]
+fn try_set_ask() {
+    let mut deps = mock_dependencies();
+    setup_contract(deps.as_mut());
+
+    let set_ask = ExecuteMsg::SetAsk {
+        collection: COLLECTION.to_string(),
+        token_id: TOKEN_ID,
+        price: coin(100, NATIVE_DENOM),
+        funds_recipient: None,
+        reserve_for: None,
+        expires_at: Timestamp::from_seconds(
+            mock_env().block.time.plus_seconds(MIN_EXPIRY + 1).seconds(),
+        ),
+    };
+
+    // Reject if not called by the media owner
+    let not_allowed = mock_info("random", &[]);
+    let err = execute(deps.as_mut(), mock_env(), not_allowed, set_ask);
+    assert!(err.is_err());
+}
 
 // #[test]
 // fn try_set_bid() {
@@ -185,50 +196,4 @@
 //     // Bidder calls SetBid before an Ask is set, still succeeds
 //     let res = execute(deps.as_mut(), mock_env(), bidder, set_bid_msg);
 //     assert!(res.is_ok());
-// }
-
-// #[test]
-// fn try_set_ask() {
-//     let mut deps = mock_dependencies();
-//     setup_contract(deps.as_mut());
-
-//     let set_ask = ExecuteMsg::SetAsk {
-//         sale_type: SaleType::FixedPrice,
-//         collection: COLLECTION.to_string(),
-//         token_id: TOKEN_ID,
-//         price: coin(100, NATIVE_DENOM),
-//         funds_recipient: None,
-//         reserve_for: None,
-//         expires: Timestamp::from_seconds(
-//             mock_env().block.time.plus_seconds(MIN_EXPIRY + 1).seconds(),
-//         ),
-//         finders_fee_bps: Some(0),
-//     };
-
-//     // Reject if not called by the media owner
-//     let not_allowed = mock_info("random", &[]);
-//     let err = execute(deps.as_mut(), mock_env(), not_allowed, set_ask);
-//     assert!(err.is_err());
-
-//     // Reject wrong denom
-//     let set_bad_ask = ExecuteMsg::SetAsk {
-//         sale_type: SaleType::FixedPrice,
-//         collection: COLLECTION.to_string(),
-//         token_id: TOKEN_ID,
-//         price: coin(100, "osmo".to_string()),
-//         funds_recipient: None,
-//         reserve_for: None,
-//         expires: Timestamp::from_seconds(
-//             mock_env().block.time.plus_seconds(MIN_EXPIRY + 1).seconds(),
-//         ),
-//         finders_fee_bps: Some(0),
-//     };
-//     let err = execute(
-//         deps.as_mut(),
-//         mock_env(),
-//         mock_info("creator", &[]),
-//         set_bad_ask,
-//     )
-//     .unwrap_err();
-//     assert_eq!(err, ContractError::InvalidPrice {});
 // }
