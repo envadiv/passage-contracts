@@ -4,7 +4,7 @@
 //     CollectionOffset, CollectionsResponse, ParamsResponse, QueryMsg,
 // };
 use crate::msg::{
-    QueryMsg, AskResponse
+    QueryMsg, AskResponse, AsksResponse
 };
 // use crate::state::{
 //     ask_key, asks, bid_key, bids, collection_bid_key, collection_bids, BidKey, CollectionBidKey,
@@ -26,24 +26,17 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let api = deps.api;
 
     match msg {
-        // QueryMsg::Collections { start_after, limit } => {
-        //     to_binary(&query_collections(deps, start_after, limit)?)
-        // }
         QueryMsg::Ask {
             token_id,
         } => to_binary(&query_ask(deps, token_id)?),
-        // QueryMsg::Asks {
-        //     collection,
-        //     include_inactive,
-        //     start_after,
-        //     limit,
-        // } => to_binary(&query_asks(
-        //     deps,
-        //     api.addr_validate(&collection)?,
-        //     include_inactive,
-        //     start_after,
-        //     limit,
-        // )?),
+        QueryMsg::Asks {
+            start_after,
+            limit,
+        } => to_binary(&query_asks(
+            deps,
+            start_after,
+            limit,
+        )?),
         // QueryMsg::AsksSortedByPrice {
         //     collection,
         //     include_inactive,
@@ -219,41 +212,28 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 //     Ok(CollectionsResponse { collections })
 // }
 
-// pub fn query_asks(
-//     deps: Deps,
-//     collection: Addr,
-//     include_inactive: Option<bool>,
-//     start_after: Option<TokenId>,
-//     limit: Option<u32>,
-// ) -> StdResult<AsksResponse> {
-//     let limit = limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
+pub fn query_asks(
+    deps: Deps,
+    start_after: Option<TokenId>,
+    limit: Option<u32>,
+) -> StdResult<AsksResponse> {
+    let limit = limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
 
-//     let asks = asks()
-//         .idx
-//         .collection
-//         .prefix(collection.clone())
-//         .range(
-//             deps.storage,
-//             Some(Bound::exclusive((
-//                 collection,
-//                 start_after.unwrap_or_default(),
-//             ))),
-//             None,
-//             Order::Ascending,
-//         )
-//         .filter(|item| match item {
-//             Ok((_, ask)) => match include_inactive {
-//                 Some(true) => true,
-//                 _ => ask.is_active,
-//             },
-//             Err(_) => true,
-//         })
-//         .take(limit)
-//         .map(|res| res.map(|item| item.1))
-//         .collect::<StdResult<Vec<_>>>()?;
+    let asks = asks()
+        .range(
+            deps.storage,
+            Some(Bound::exclusive(
+                start_after.unwrap_or_default(),
+            )),
+            None,
+            Order::Ascending,
+        )
+        .take(limit)
+        .map(|res| res.map(|item| item.1))
+        .collect::<StdResult<Vec<_>>>()?;
 
-//     Ok(AsksResponse { asks })
-// }
+    Ok(AsksResponse { asks })
+}
 
 // pub fn query_asks_sorted_by_price(
 //     deps: Deps,
