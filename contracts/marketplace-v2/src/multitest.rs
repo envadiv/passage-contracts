@@ -11,6 +11,7 @@ use crate::helpers::ExpiryRange;
 use crate::msg::{
     ExecuteMsg, QueryMsg, AskResponse
 };
+use crate::state::{Ask};
 // use crate::state::{Bid, SaleType};
 // use crate::hooks::HooksResponse;
 use cosmwasm_std::{Addr, Empty, Timestamp};
@@ -335,6 +336,28 @@ fn try_add_and_remove_ask() {
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
     assert!(res.is_err());
 
+    // Should error with invalid denom
+    let set_ask = ExecuteMsg::SetAsk {
+        token_id: TOKEN_ID.to_string(),
+        price: coin(110, "ujuno"),
+        funds_recipient: None,
+        reserve_for: None,
+        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
+    assert!(res.is_err());
+
+    // Should error with price below min
+    let set_ask = ExecuteMsg::SetAsk {
+        token_id: TOKEN_ID.to_string(),
+        price: coin(1, "ujuno"),
+        funds_recipient: None,
+        reserve_for: None,
+        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
+    assert!(res.is_err());
+
     // An asking price is made by the creator
     let set_ask = ExecuteMsg::SetAsk {
         token_id: TOKEN_ID.to_string(),
@@ -345,6 +368,30 @@ fn try_add_and_remove_ask() {
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
     assert!(res.is_ok());
+
+    // Validate Ask data is correct
+    let query_ask = QueryMsg::Ask {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res: AskResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_ask)
+        .unwrap();
+
+    let ask = match res.ask {
+        Some(ask) => Ok(ask),
+        None => Err("Ask not found")
+    }.unwrap();
+    assert_eq!(ask.token_id, TOKEN_ID);
+    assert_eq!(ask.seller, creator);
+    assert_eq!(Ask {
+        token_id: TOKEN_ID.to_string(),
+        price: coin(110, NATIVE_DENOM),
+        seller: creator.clone(),
+        funds_recipient: None,
+        reserve_for: None,
+        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+    }, ask);
 
     // Check NFT is transferred to marketplace contract
     let query_owner_msg = Cw721QueryMsg::OwnerOf {
@@ -365,7 +412,7 @@ fn try_add_and_remove_ask() {
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
     assert!(res.is_ok());
 
-    // Check if Ask was created
+    // Validate Ask data is correct
     let query_ask = QueryMsg::Ask {
         token_id: TOKEN_ID.to_string(),
     };
@@ -378,15 +425,35 @@ fn try_add_and_remove_ask() {
         Some(ask) => Ok(ask),
         None => Err("Ask not found")
     }.unwrap();
-    assert_eq!(ask.token_id, TOKEN_ID);
-    assert_eq!(ask.seller, creator);
+    assert_eq!(Ask {
+        token_id: TOKEN_ID.to_string(),
+        price: coin(200, NATIVE_DENOM),
+        seller: creator.clone(),
+        funds_recipient: None,
+        reserve_for: None,
+        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+    }, ask);
 
-    // An asking price is made by the creator
+    // Remove an ask
     let remove_ask = ExecuteMsg::RemoveAsk {
         token_id: TOKEN_ID.to_string(),
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &remove_ask, &[]);
     assert!(res.is_ok());
+
+    // Validate Ask is removed
+    let query_ask = QueryMsg::Ask {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res: AskResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_ask)
+        .unwrap();
+
+    let ask = match res.ask {
+        Some(_) => Err("Ask found"),
+        None => Ok(())
+    }.unwrap();
 
     // Check NFT is transferred back to the seller
     let query_owner_msg = Cw721QueryMsg::OwnerOf {

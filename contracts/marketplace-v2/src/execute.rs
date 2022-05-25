@@ -197,11 +197,11 @@ pub fn execute_set_ask(
     ask: Ask,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
-    price_validate(deps.storage, &ask.price)?;
     
     let params = PARAMS.load(deps.storage)?;
     params.ask_expiry.is_valid(&env.block, ask.expires_at)?;
     only_owner(deps.as_ref(), &info, &params.cw721_address, &ask.token_id)?;
+    price_validate(&ask.price, &params)?;
 
     store_ask(deps.storage, &ask)?;
 
@@ -255,7 +255,9 @@ pub fn execute_update_ask_price(
     price: Coin,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
-    price_validate(deps.storage, &price)?;
+
+    let params = PARAMS.load(deps.storage)?;
+    price_validate(&price, &params)?;
 
     let mut ask = asks().load(deps.storage, token_id.clone())?;
     only_seller(&info, &ask)?;
@@ -892,20 +894,14 @@ pub fn execute_update_ask_price(
 //     Ok(())
 // }
 
-fn price_validate(store: &dyn Storage, price: &Coin) -> Result<(), ContractError> {
-    // TODO
-    // 1. Check if price is 0
-    // 2. Check if denom is supported
-    // 3. Check if price is above denom min
-
-
-    // if price.amount.is_zero() || price.denom != NATIVE_DENOM {
-    //     return Err(ContractError::InvalidPrice {});
-    // }
-
-    // if price.amount < PARAMS.load(store)?.min_price {
-    //     return Err(ContractError::PriceTooSmall(price.amount));
-    // }
+fn price_validate(price: &Coin, params: &Params) -> Result<(), ContractError> {
+    if
+        price.amount.is_zero() ||
+        price.denom != params.denom ||
+        price.amount < params.min_price
+    {
+        return Err(ContractError::InvalidPrice {});
+    }
 
     Ok(())
 }
