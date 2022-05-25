@@ -109,36 +109,36 @@ const MAX_EXPIRY: u64 = 180 * 24 * 60 * 60; // 6 months (in seconds)
 //     assert_eq!(res.bids[0], bid);
 // }
 
-fn setup_contract(deps: DepsMut) {
-    let msg = InstantiateMsg {
-        trading_fee_bps: TRADING_FEE_BASIS_POINTS,
-        ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-        bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-        operators: vec!["operator".to_string()],
-        min_price: Uint128::from(5u128),
-    };
-    let info = mock_info(CREATOR, &[]);
-    let res = instantiate(deps, mock_env(), info, msg).unwrap();
-    assert_eq!(0, res.messages.len());
-}
+// fn setup_contract(deps: DepsMut) {
+//     let msg = InstantiateMsg {
+//         trading_fee_bps: TRADING_FEE_BASIS_POINTS,
+//         ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+//         bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+//         operators: vec!["operator".to_string()],
+//         min_price: Uint128::from(5u128),
+//     };
+//     let info = mock_info(CREATOR, &[]);
+//     let res = instantiate(deps, mock_env(), info, msg).unwrap();
+//     assert_eq!(0, res.messages.len());
+// }
 
-#[test]
-fn proper_initialization() {
-    let mut deps = mock_dependencies();
+// #[test]
+// fn proper_initialization() {
+//     let mut deps = mock_dependencies();
 
-    let msg = InstantiateMsg {
-        trading_fee_bps: TRADING_FEE_BASIS_POINTS,
-        ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-        bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-        operators: vec!["operator".to_string()],
-        min_price: Uint128::from(5u128),
-    };
-    let info = mock_info(CREATOR, &coins(1000, NATIVE_DENOM));
+//     let msg = InstantiateMsg {
+//         trading_fee_bps: TRADING_FEE_BASIS_POINTS,
+//         ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+//         bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+//         operators: vec!["operator".to_string()],
+//         min_price: Uint128::from(5u128),
+//     };
+//     let info = mock_info(CREATOR, &coins(1000, NATIVE_DENOM));
 
-    // we can just call .unwrap() to assert this was a success
-    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-    assert_eq!(0, res.messages.len());
-}
+//     // we can just call .unwrap() to assert this was a success
+//     let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+//     assert_eq!(0, res.messages.len());
+// }
 
 // #[test]
 // fn try_set_ask() {

@@ -13,7 +13,7 @@ use crate::msg::{
 //     PARAMS,
 // };
 use crate::state::{
-    Params, PARAMS, Ask, ask_key, asks, TokenId
+    Params, PARAMS, Ask, asks, TokenId
 };
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -43,15 +43,15 @@ pub fn instantiate(
     msg.ask_expiry.validate()?;
     msg.bid_expiry.validate()?;
 
+    let api = deps.api;
     let params = Params {
+        cw721_address: api.addr_validate(&msg.cw721_address)?,
+        denom: msg.denom,
         trading_fee_percent: Decimal::percent(msg.trading_fee_bps),
         ask_expiry: msg.ask_expiry,
         bid_expiry: msg.bid_expiry,
-        operators: map_validate(deps.api, &msg.operators)?,
+        admins: map_validate(deps.api, &msg.operators)?,
         min_price: msg.min_price,
-        // max_finders_fee_percent: Decimal::percent(msg.max_finders_fee_bps),
-        // stale_bid_duration: msg.stale_bid_duration,
-        // bid_removal_reward_percent: Decimal::percent(msg.bid_removal_reward_bps),
     };
     PARAMS.save(deps.storage, &params)?;
 
@@ -71,7 +71,6 @@ pub fn execute(
 
     match msg {
         ExecuteMsg::SetAsk {
-            collection,
             token_id,
             price,
             funds_recipient,
@@ -82,7 +81,6 @@ pub fn execute(
             env,
             info,
             Ask {
-                collection: api.addr_validate(&collection)?,
                 token_id,
                 seller: message_info.sender,
                 price,
@@ -92,14 +90,12 @@ pub fn execute(
             },
         ),
         ExecuteMsg::RemoveAsk {
-            collection,
             token_id,
-        } => execute_remove_ask(deps, info, api.addr_validate(&collection)?, token_id),
+        } => execute_remove_ask(deps, info, token_id),
         ExecuteMsg::UpdateAskPrice {
-            collection,
             token_id,
             price,
-        } => execute_update_ask_price(deps, info, api.addr_validate(&collection)?, token_id, price),
+        } => execute_update_ask_price(deps, info, token_id, price),
         // ExecuteMsg::SetBid {
         //     collection,
         //     token_id,
@@ -202,21 +198,21 @@ pub fn execute_set_ask(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
     price_validate(deps.storage, &ask.price)?;
-    only_owner(deps.as_ref(), &info, &ask.collection, ask.token_id)?;
-
+    
     let params = PARAMS.load(deps.storage)?;
     params.ask_expiry.is_valid(&env.block, ask.expires_at)?;
+    only_owner(deps.as_ref(), &info, &params.cw721_address, &ask.token_id)?;
 
     store_ask(deps.storage, &ask)?;
 
     let mut res = Response::new();
 
     // Transfer NFT
-    let transfer_nft_msg = generate_transfer_nft_msg(&ask.token_id, &env.contract.address, &ask.collection)?;
+    let transfer_nft_msg = generate_transfer_nft_msg(&ask.token_id, &env.contract.address, &params.cw721_address)?;
     res.messages.push(transfer_nft_msg);
 
     let event = Event::new("set-ask")
-        .add_attribute("collection", ask.collection.to_string())
+        .add_attribute("cw721_address", params.cw721_address.to_string())
         .add_attribute("token_id", ask.token_id.to_string())
         .add_attribute("seller", ask.seller)
         .add_attribute("price", ask.price.to_string())
@@ -229,25 +225,23 @@ pub fn execute_set_ask(
 pub fn execute_remove_ask(
     deps: DepsMut,
     info: MessageInfo,
-    collection: Addr,
     token_id: TokenId,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let key = ask_key(&collection, token_id);
-    let ask = asks().load(deps.storage, key.clone())?;
+    let ask = asks().load(deps.storage, token_id.clone())?;
     only_seller(&info, &ask)?;
 
-    asks().remove(deps.storage, key)?;
+    asks().remove(deps.storage, token_id.clone())?;
 
+    let params = PARAMS.load(deps.storage)?;
     let mut res = Response::new();
 
     // Transfer NFT
-    let transfer_nft_msg = generate_transfer_nft_msg(&ask.token_id, &ask.seller, &ask.collection)?;
+    let transfer_nft_msg = generate_transfer_nft_msg(&ask.token_id, &ask.seller, &params.cw721_address)?;
     res.messages.push(transfer_nft_msg);
 
     let event = Event::new("remove-ask")
-        .add_attribute("collection", collection.to_string())
         .add_attribute("token_id", token_id.to_string());
 
     Ok(res.add_event(event))
@@ -257,22 +251,19 @@ pub fn execute_remove_ask(
 pub fn execute_update_ask_price(
     deps: DepsMut,
     info: MessageInfo,
-    collection: Addr,
     token_id: TokenId,
     price: Coin,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
     price_validate(deps.storage, &price)?;
 
-    let key = ask_key(&collection, token_id);
-    let mut ask = asks().load(deps.storage, key.clone())?;
+    let mut ask = asks().load(deps.storage, token_id.clone())?;
     only_seller(&info, &ask)?;
 
     ask.price = price;
-    asks().save(deps.storage, key, &ask)?;
+    asks().save(deps.storage, token_id.clone(), &ask)?;
 
     let event = Event::new("update-ask")
-        .add_attribute("collection", collection.to_string())
         .add_attribute("token_id", token_id.to_string())
         .add_attribute("price amount", ask.price.amount.to_string())
         .add_attribute("price denom", ask.price.denom);
@@ -928,7 +919,7 @@ fn price_validate(store: &dyn Storage, price: &Coin) -> Result<(), ContractError
 // }
 
 fn store_ask(store: &mut dyn Storage, ask: &Ask) -> StdResult<()> {
-    asks().save(store, ask_key(&ask.collection, ask.token_id), ask)
+    asks().save(store, ask.token_id.clone(), ask)
 }
 
 /// Checks to enforce only NFT owner can call
@@ -936,10 +927,10 @@ fn only_owner(
     deps: Deps,
     info: &MessageInfo,
     collection: &Addr,
-    token_id: u32,
+    token_id: &String,
 ) -> Result<OwnerOfResponse, ContractError> {
     let res =
-        Cw721Contract(collection.clone()).owner_of(&deps.querier, token_id.to_string(), false)?;
+        Cw721Contract(collection.clone()).owner_of(&deps.querier, token_id, false)?;
     if res.owner != info.sender {
         return Err(ContractError::UnauthorizedOwner {});
     }
