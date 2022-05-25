@@ -198,25 +198,17 @@ pub type Seller = String;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    // /// List of collections that have asks on them
-    // /// Return type: `CollectionsResponse`
-    // Collections {
-    //     start_after: Option<Collection>,
-    //     limit: Option<u32>,
-    // },
     /// Get the current ask for specific NFT
     /// Return type: `CurrentAskResponse`
     Ask {
         token_id: TokenId,
     },
-    // /// Get all asks for a collection
-    // /// Return type: `AsksResponse`
-    // Asks {
-    //     collection: Collection,
-    //     include_inactive: Option<bool>,
-    //     start_after: Option<TokenId>,
-    //     limit: Option<u32>,
-    // },
+    /// Get all asks
+    /// Return type: `AsksResponse`
+    Asks {
+        start_after: Option<TokenId>,
+        limit: Option<u32>,
+    },
     // /// Get all asks for a collection, sorted by price
     // /// Return type: `AsksResponse`
     // AsksSortedByPrice {
@@ -340,10 +332,10 @@ pub struct AskResponse {
     pub ask: Option<Ask>,
 }
 
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-// pub struct AsksResponse {
-//     pub asks: Vec<Ask>,
-// }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AsksResponse {
+    pub asks: Vec<Ask>,
+}
 
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 // pub struct AskCountResponse {

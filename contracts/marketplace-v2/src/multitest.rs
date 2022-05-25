@@ -9,7 +9,7 @@ use crate::helpers::ExpiryRange;
 //     BidsResponse, CollectionBidResponse, CollectionBidsResponse, ExecuteMsg, QueryMsg,
 // };
 use crate::msg::{
-    ExecuteMsg, QueryMsg, AskResponse
+    ExecuteMsg, QueryMsg, AskResponse, AsksResponse
 };
 use crate::state::{Ask};
 // use crate::state::{Bid, SaleType};
@@ -296,6 +296,24 @@ fn approve(
     assert!(res.is_ok());
 }
 
+fn ask(
+    router: &mut App,
+    creator: &Addr,
+    marketplace: &Addr,
+    token_id: String,
+    price: u128,
+) {
+    let set_ask = ExecuteMsg::SetAsk {
+        token_id: token_id,
+        price: coin(price, NATIVE_DENOM),
+        funds_recipient: None,
+        reserve_for: None,
+        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
+    assert!(res.is_ok());
+}
+
 fn transfer(
     router: &mut App,
     creator: &Addr,
@@ -312,7 +330,7 @@ fn transfer(
 }
 
 #[test]
-fn try_add_and_remove_ask() {
+fn try_add_update_remove_ask() {
     let mut router = custom_mock_app();
 
     // Setup intial accounts
@@ -465,6 +483,49 @@ fn try_add_and_remove_ask() {
         .query_wasm_smart(collection, &query_owner_msg)
         .unwrap();
     assert_eq!(res.owner, creator.to_string());
+}
+
+#[test]
+fn try_ask_queries() {
+    let mut router = custom_mock_app();
+
+    // Setup intial accounts
+    let (owner, bidder, creator) = setup_accounts(&mut router).unwrap();
+
+    // Instantiate and configure contracts
+    let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
+
+    // Mint NFT for creator
+    for n in 1..5 {
+        mint(&mut router, &creator, &collection, n.to_string());
+        approve(&mut router, &creator, &collection, &marketplace, n.to_string());
+        ask(&mut router, &creator, &marketplace, n.to_string(), 100 + n);
+    }
+
+    let query_asks = QueryMsg::Asks {
+        start_after: Some(String::from("2")),
+        limit: Some(2),
+    };
+    let res: AsksResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_asks)
+        .unwrap();
+    
+    for n in 3..5 {
+        assert_eq!(Ask {
+            token_id: n.to_string(),
+            price: coin(100 + n, NATIVE_DENOM),
+            seller: creator.clone(),
+            funds_recipient: None,
+            reserve_for: None,
+            expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+        }, res.asks[(n as usize) - 3]);
+    }
+
+    // let ask = match res.asks {
+    //     Some(_) => Err("Ask found"),
+    //     None => Ok(())
+    // }.unwrap();
 }
 
 // #[test]
