@@ -4,12 +4,15 @@
 //     CollectionOffset, CollectionsResponse, ParamsResponse, QueryMsg,
 // };
 use crate::msg::{
-    QueryMsg,
+    QueryMsg, AskResponse
 };
 // use crate::state::{
 //     ask_key, asks, bid_key, bids, collection_bid_key, collection_bids, BidKey, CollectionBidKey,
 //     TokenId, ASK_HOOKS, BID_HOOKS, SALE_HOOKS, SUDO_PARAMS,
 // };
+use crate::state::{
+    asks, TokenId
+};
 use cosmwasm_std::{entry_point, to_binary, Addr, Binary, Deps, Env, Order, StdResult};
 use cw_storage_plus::{Bound, PrefixBound};
 use cw_utils::maybe_addr;
@@ -26,10 +29,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         // QueryMsg::Collections { start_after, limit } => {
         //     to_binary(&query_collections(deps, start_after, limit)?)
         // }
-        // QueryMsg::Ask {
-        //     collection,
-        //     token_id,
-        // } => to_binary(&query_ask(deps, api.addr_validate(&collection)?, token_id)?),
+        QueryMsg::Ask {
+            token_id,
+        } => to_binary(&query_ask(deps, token_id)?),
         // QueryMsg::Asks {
         //     collection,
         //     include_inactive,
@@ -363,11 +365,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 //     Ok(AsksResponse { asks })
 // }
 
-// pub fn query_ask(deps: Deps, collection: Addr, token_id: TokenId) -> StdResult<AskResponse> {
-//     let ask = asks().may_load(deps.storage, ask_key(&collection, token_id))?;
+pub fn query_ask(deps: Deps, token_id: TokenId) -> StdResult<AskResponse> {
+    let ask = asks().may_load(deps.storage, token_id)?;
 
-//     Ok(AskResponse { ask })
-// }
+    Ok(AskResponse { ask })
+}
 
 // pub fn query_bid(
 //     deps: Deps,

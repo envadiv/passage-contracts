@@ -9,6 +9,10 @@ use crate::helpers::ExpiryRange;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Params {
+    /// The NFT contract
+    pub cw721_address: Addr,
+    /// The token used to pay for NFTs
+    pub denom: String,
     /// Marketplace fee
     pub trading_fee_percent: Decimal,
     /// Valid time range for Asks
@@ -17,22 +21,15 @@ pub struct Params {
     /// Valid time range for Bids
     /// (min, max) in seconds
     pub bid_expiry: ExpiryRange,
-    /// Operators are entites that are responsible for maintaining the active state of Asks
-    /// They listen to NFT transfer events, and update the active state of Asks
-    pub operators: Vec<Addr>,
-    /// Max value for the finders fee
-    // pub max_finders_fee_percent: Decimal,
+    /// The admin addresses that have access to certain functionality
+    pub admins: Vec<Addr>,
     /// Min value for a bid
     pub min_price: Uint128,
-    // Duration after expiry when a bid becomes stale
-    // pub stale_bid_duration: Duration,
-    // Stale bid removal reward
-    // pub bid_removal_reward_percent: Decimal,
 }
 
 pub const PARAMS: Item<Params> = Item::new("params");
 
-pub type TokenId = u32;
+pub type TokenId = String;
 
 pub trait Order {
     fn expires_at(&self) -> Timestamp;
@@ -45,7 +42,6 @@ pub trait Order {
 /// Represents an ask on the marketplace
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Ask {
-    pub collection: Addr,
     pub token_id: TokenId,
     pub seller: Addr,
     pub price: Coin,
@@ -60,35 +56,25 @@ impl Order for Ask {
     }
 }
 
-/// Primary key for asks: (collection, token_id)
-pub type AskKey = (Addr, TokenId);
-/// Convenience ask key constructor
-pub fn ask_key(collection: &Addr, token_id: TokenId) -> AskKey {
-    (collection.clone(), token_id)
-}
+/// Primary key for asks
+pub type AskKey = TokenId;
 
 /// Defines indices for accessing Asks
 pub struct AskIndicies<'a> {
-    pub collection: MultiIndex<'a, Addr, Ask, AskKey>,
-    pub collection_price: MultiIndex<'a, (Addr, u128), Ask, AskKey>,
+    pub price: MultiIndex<'a, u128, Ask, AskKey>,
     pub seller: MultiIndex<'a, Addr, Ask, AskKey>,
 }
 
 impl<'a> IndexList<Ask> for AskIndicies<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Ask>> + '_> {
-        let v: Vec<&dyn Index<Ask>> = vec![&self.collection, &self.collection_price, &self.seller];
+        let v: Vec<&dyn Index<Ask>> = vec![&self.price, &self.seller];
         Box::new(v.into_iter())
     }
 }
 
 pub fn asks<'a>() -> IndexedMap<'a, AskKey, Ask, AskIndicies<'a>> {
     let indexes = AskIndicies {
-        collection: MultiIndex::new(|d: &Ask| d.collection.clone(), "asks", "asks__collection"),
-        collection_price: MultiIndex::new(
-            |d: &Ask| (d.collection.clone(), d.price.amount.u128()),
-            "asks",
-            "asks__collection_price",
-        ),
+        price: MultiIndex::new(|d: &Ask|  d.price.amount.u128(), "asks", "asks__price"),
         seller: MultiIndex::new(|d: &Ask| d.seller.clone(), "asks", "asks__seller"),
     };
     IndexedMap::new("asks", indexes)

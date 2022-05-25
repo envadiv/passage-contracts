@@ -10,6 +10,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
+    /// The NFT contract
+    pub cw721_address: String,
+    /// The token used to pay for NFTs
+    pub denom: String,
     /// Fair Burn fee for winning bids
     /// 0.25% = 25, 0.5% = 50, 1% = 100, 2.5% = 250
     pub trading_fee_bps: u64,
@@ -31,7 +35,6 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// List an NFT on the marketplace by creating a new ask
     SetAsk {
-        collection: String,
         token_id: TokenId,
         price: Coin,
         funds_recipient: Option<String>,
@@ -40,12 +43,10 @@ pub enum ExecuteMsg {
     },
     /// Remove an existing ask from the marketplace
     RemoveAsk {
-        collection: String,
         token_id: TokenId,
     },
     /// Update the price of an existing ask
     UpdateAskPrice {
-        collection: String,
         token_id: TokenId,
         price: Coin,
     },
@@ -54,8 +55,6 @@ pub enum ExecuteMsg {
     //     collection: String,
     //     token_id: TokenId,
     //     expires: Timestamp,
-    //     finder: Option<String>,
-    //     finders_fee_bps: Option<u64>,
     // },
     // /// Remove an existing bid from an ask
     // RemoveBid {
@@ -128,9 +127,9 @@ pub enum ExecuteMsg {
 //     RemoveSaleHook { hook: String },
 // }
 
-// pub type Collection = String;
-// pub type Bidder = String;
-// pub type Seller = String;
+pub type Collection = String;
+pub type Bidder = String;
+pub type Seller = String;
 
 // /// Offset for ask pagination
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -205,12 +204,11 @@ pub enum QueryMsg {
     //     start_after: Option<Collection>,
     //     limit: Option<u32>,
     // },
-    // /// Get the current ask for specific NFT
-    // /// Return type: `CurrentAskResponse`
-    // Ask {
-    //     collection: Collection,
-    //     token_id: TokenId,
-    // },
+    /// Get the current ask for specific NFT
+    /// Return type: `CurrentAskResponse`
+    Ask {
+        token_id: TokenId,
+    },
     // /// Get all asks for a collection
     // /// Return type: `AsksResponse`
     // Asks {
@@ -337,10 +335,10 @@ pub enum QueryMsg {
     // Params {},
 }
 
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-// pub struct AskResponse {
-//     pub ask: Option<Ask>,
-// }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AskResponse {
+    pub ask: Option<Ask>,
+}
 
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 // pub struct AsksResponse {

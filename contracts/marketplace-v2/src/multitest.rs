@@ -9,7 +9,7 @@ use crate::helpers::ExpiryRange;
 //     BidsResponse, CollectionBidResponse, CollectionBidsResponse, ExecuteMsg, QueryMsg,
 // };
 use crate::msg::{
-    ExecuteMsg,
+    ExecuteMsg, QueryMsg, AskResponse
 };
 // use crate::state::{Bid, SaleType};
 // use crate::hooks::HooksResponse;
@@ -23,7 +23,7 @@ use cw_utils::Duration;
 use pg721::msg::{InstantiateMsg as Pg721InstantiateMsg, RoyaltyInfoResponse};
 use pg721::state::CollectionInfo;
 
-const TOKEN_ID: u32 = 123;
+const TOKEN_ID: &str = "123";
 const CREATION_FEE: u128 = 1_000_000_000;
 const INITIAL_BALANCE: u128 = 2000;
 const NATIVE_DENOM: &str = "ujunox";
@@ -83,27 +83,6 @@ fn setup_contracts(
     router: &mut App,
     creator: &Addr,
 ) -> Result<(Addr, Addr), ContractError> {
-    // Instantiate marketplace contract
-    let marketplace_id = router.store_code(contract_marketplace());
-    let msg = crate::msg::InstantiateMsg {
-        trading_fee_bps: TRADING_FEE_BPS,
-        ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-        bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-        operators: vec!["operator".to_string()],
-        min_price: Uint128::from(5u128),
-    };
-    let marketplace = router
-        .instantiate_contract(
-            marketplace_id,
-            creator.clone(),
-            &msg,
-            &[],
-            "Marketplace",
-            None,
-        )
-        .unwrap();
-    println!("marketplace: {:?}", marketplace);
-
     // Setup media contract
     let pg721_id = router.store_code(contract_pg721());
     let msg = Pg721InstantiateMsg {
@@ -134,6 +113,29 @@ fn setup_contracts(
         )
         .unwrap();
     println!("collection: {:?}", collection);
+
+    // Instantiate marketplace contract
+    let marketplace_id = router.store_code(contract_marketplace());
+    let msg = crate::msg::InstantiateMsg {
+        cw721_address: collection.to_string(),
+        denom: String::from(NATIVE_DENOM),
+        trading_fee_bps: TRADING_FEE_BPS,
+        ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+        bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+        operators: vec!["operator".to_string()],
+        min_price: Uint128::from(5u128),
+    };
+    let marketplace = router
+        .instantiate_contract(
+            marketplace_id,
+            creator.clone(),
+            &msg,
+            &[],
+            "Marketplace",
+            None,
+        )
+        .unwrap();
+    println!("marketplace: {:?}", marketplace);
 
     Ok((marketplace, collection))
 }
@@ -239,9 +241,9 @@ fn setup_second_bidder_account(router: &mut App) -> Result<Addr, ContractError> 
 }
 
 // Mints an NFT for a creator
-fn mint(router: &mut App, creator: &Addr, collection: &Addr, token_id: u32) {
+fn mint(router: &mut App, creator: &Addr, collection: &Addr, token_id: String) {
     let mint_for_creator_msg = Cw721ExecuteMsg::Mint(MintMsg {
-        token_id: token_id.to_string(),
+        token_id: token_id,
         owner: creator.clone().to_string(),
         token_uri: Some("https://starships.example.com/Starship/Enterprise.json".into()),
         extension: Empty {},
@@ -282,11 +284,11 @@ fn approve(
     creator: &Addr,
     collection: &Addr,
     marketplace: &Addr,
-    token_id: u32,
+    token_id: String,
 ) {
     let approve_msg = Cw721ExecuteMsg::<Empty>::Approve {
         spender: marketplace.to_string(),
-        token_id: token_id.to_string(),
+        token_id: token_id,
         expires: None,
     };
     let res = router.execute_contract(creator.clone(), collection.clone(), &approve_msg, &[]);
@@ -298,11 +300,11 @@ fn transfer(
     creator: &Addr,
     recipient: &Addr,
     collection: &Addr,
-    token_id: u32,
+    token_id: String,
 ) {
     let transfer_msg = Cw721ExecuteMsg::<Empty>::TransferNft {
         recipient: recipient.to_string(),
-        token_id: token_id.to_string(),
+        token_id: token_id,
     };
     let res = router.execute_contract(creator.clone(), collection.clone(), &transfer_msg, &[]);
     assert!(res.is_ok());
@@ -319,13 +321,12 @@ fn try_add_and_remove_ask() {
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
 
     // Mint NFT for creator
-    mint(&mut router, &creator, &collection, TOKEN_ID);
-    approve(&mut router, &creator, &collection, &marketplace, TOKEN_ID);
+    mint(&mut router, &creator, &collection, TOKEN_ID.to_string());
+    approve(&mut router, &creator, &collection, &marketplace, TOKEN_ID.to_string());
 
     // Should error with expiry lower than min
     let set_ask = ExecuteMsg::SetAsk {
-        collection: collection.to_string(),
-        token_id: TOKEN_ID,
+        token_id: TOKEN_ID.to_string(),
         price: coin(110, NATIVE_DENOM),
         funds_recipient: None,
         reserve_for: None,
@@ -336,8 +337,7 @@ fn try_add_and_remove_ask() {
 
     // An asking price is made by the creator
     let set_ask = ExecuteMsg::SetAsk {
-        collection: collection.to_string(),
-        token_id: TOKEN_ID,
+        token_id: TOKEN_ID.to_string(),
         price: coin(110, NATIVE_DENOM),
         funds_recipient: None,
         reserve_for: None,
@@ -359,17 +359,31 @@ fn try_add_and_remove_ask() {
 
     // Update asking price
     let set_ask = ExecuteMsg::UpdateAskPrice {
-        collection: collection.to_string(),
-        token_id: TOKEN_ID,
+        token_id: TOKEN_ID.to_string(),
         price: coin(200, NATIVE_DENOM),
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
     assert!(res.is_ok());
 
+    // Check if Ask was created
+    let query_ask = QueryMsg::Ask {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res: AskResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_ask)
+        .unwrap();
+
+    let ask = match res.ask {
+        Some(ask) => Ok(ask),
+        None => Err("Ask not found")
+    }.unwrap();
+    assert_eq!(ask.token_id, TOKEN_ID);
+    assert_eq!(ask.seller, creator);
+
     // An asking price is made by the creator
     let remove_ask = ExecuteMsg::RemoveAsk {
-        collection: collection.to_string(),
-        token_id: TOKEN_ID,
+        token_id: TOKEN_ID.to_string(),
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &remove_ask, &[]);
     assert!(res.is_ok());
