@@ -131,18 +131,28 @@ pub type Collection = String;
 pub type Bidder = String;
 pub type Seller = String;
 
-// /// Offset for ask pagination
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-// pub struct AskOffset {
-//     pub price: Uint128,
-//     pub token_id: TokenId,
-// }
+/// Offset for ask price pagination
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AskPriceOffset {
+    pub price: Uint128,
+    pub token_id: TokenId,
+}
 
-// impl AskOffset {
-//     pub fn new(price: Uint128, token_id: TokenId) -> Self {
-//         AskOffset { price, token_id }
-//     }
-// }
+/// Offset for ask expiry pagination
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AskExpiryOffset {
+    pub expires_at: Timestamp,
+    pub token_id: TokenId,
+}
+
+/// Offset for ask expiry pagination
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AskQueryOptions<T> {
+    pub descending: Option<bool>,
+    pub filter_expiry: Option<Timestamp>,
+    pub start_after: Option<T>,
+    pub limit: Option<u32>,
+}
 
 // /// Offset for bid pagination
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -203,39 +213,25 @@ pub enum QueryMsg {
     Ask {
         token_id: TokenId,
     },
-    /// Get all asks
+    /// Get all asks sorted by expiry
     /// Return type: `AsksResponse`
-    Asks {
-        start_after: Option<TokenId>,
-        limit: Option<u32>,
+    AsksSortedByExpiry {
+        query_options: AskQueryOptions<AskExpiryOffset>
     },
-    // /// Get all asks for a collection, sorted by price
-    // /// Return type: `AsksResponse`
-    // AsksSortedByPrice {
-    //     collection: Collection,
-    //     include_inactive: Option<bool>,
-    //     start_after: Option<AskOffset>,
-    //     limit: Option<u32>,
-    // },
-    // /// Get all asks for a collection, sorted by price in reverse
-    // /// Return type: `AsksResponse`
-    // ReverseAsksSortedByPrice {
-    //     collection: Collection,
-    //     include_inactive: Option<bool>,
-    //     start_before: Option<AskOffset>,
-    //     limit: Option<u32>,
-    // },
-    // /// Count of all asks
-    // /// Return type: `AskCountResponse`
-    // AskCount { collection: Collection },
-    // /// Get all asks by seller
-    // /// Return type: `AsksResponse`
-    // AsksBySeller {
-    //     seller: Seller,
-    //     include_inactive: Option<bool>,
-    //     start_after: Option<CollectionOffset>,
-    //     limit: Option<u32>,
-    // },
+    /// Get all asks sorted by price
+    /// Return type: `AsksResponse`
+    AsksSortedByPrice {
+        query_options: AskQueryOptions<AskPriceOffset>
+    },
+    /// Get all asks by seller
+    /// Return type: `AsksResponse`
+    AsksBySeller {
+        seller: Seller,
+        query_options: AskQueryOptions<TokenId>
+    },
+    /// Count of all asks
+    /// Return type: `AskCountResponse`
+    AskCount { },
     // /// Get data for a specific bid
     // /// Return type: `BidResponse`
     // Bid {
@@ -337,10 +333,10 @@ pub struct AsksResponse {
     pub asks: Vec<Ask>,
 }
 
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-// pub struct AskCountResponse {
-//     pub count: u32,
-// }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AskCountResponse {
+    pub count: u32,
+}
 
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 // pub struct CollectionsResponse {
