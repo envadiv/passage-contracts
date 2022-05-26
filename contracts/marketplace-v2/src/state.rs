@@ -50,30 +50,26 @@ pub struct Ask {
     pub expires_at: Timestamp,
 }
 
-impl Order for Ask {
-    fn expires_at(&self) -> Timestamp {
-        self.expires_at
-    }
-}
-
 /// Primary key for asks
 pub type AskKey = TokenId;
 
 /// Defines indices for accessing Asks
 pub struct AskIndicies<'a> {
+    pub expiry: MultiIndex<'a, u64, Ask, AskKey>,
     pub price: MultiIndex<'a, u128, Ask, AskKey>,
     pub seller: MultiIndex<'a, Addr, Ask, AskKey>,
 }
 
 impl<'a> IndexList<Ask> for AskIndicies<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Ask>> + '_> {
-        let v: Vec<&dyn Index<Ask>> = vec![&self.price, &self.seller];
+        let v: Vec<&dyn Index<Ask>> = vec![&self.expiry, &self.price, &self.seller];
         Box::new(v.into_iter())
     }
 }
 
 pub fn asks<'a>() -> IndexedMap<'a, AskKey, Ask, AskIndicies<'a>> {
     let indexes = AskIndicies {
+        expiry: MultiIndex::new(|d: &Ask|  d.expires_at.nanos(), "asks", "asks__expiry"),
         price: MultiIndex::new(|d: &Ask|  d.price.amount.u128(), "asks", "asks__price"),
         seller: MultiIndex::new(|d: &Ask| d.seller.clone(), "asks", "asks__seller"),
     };

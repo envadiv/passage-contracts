@@ -1,5 +1,5 @@
 use crate::msg::ExecuteMsg;
-use cosmwasm_std::{to_binary, Addr, Api, BlockInfo, StdError, StdResult, Timestamp, WasmMsg, CosmosMsg};
+use cosmwasm_std::{to_binary, Addr, Api, BlockInfo, StdError, StdResult, Timestamp, WasmMsg, CosmosMsg, Order};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -70,5 +70,12 @@ impl ExpiryRange {
         }
 
         Ok(())
+    }
+}
+
+pub fn option_bool_to_order(descending: Option<bool>) -> Order {
+     match descending {
+        Some(_descending) => if _descending { Order::Descending } else { Order::Ascending },
+        _ => Order::Ascending
     }
 }

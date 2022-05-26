@@ -4,16 +4,18 @@
 //     CollectionOffset, CollectionsResponse, ParamsResponse, QueryMsg,
 // };
 use crate::msg::{
-    QueryMsg, AskResponse, AsksResponse
+    QueryMsg, AskResponse, AsksResponse, AskQueryOptions, AskExpiryOffset, AskPriceOffset,
+    AskCountResponse
 };
 // use crate::state::{
 //     ask_key, asks, bid_key, bids, collection_bid_key, collection_bids, BidKey, CollectionBidKey,
 //     TokenId, ASK_HOOKS, BID_HOOKS, SALE_HOOKS, SUDO_PARAMS,
 // };
 use crate::state::{
-    asks, TokenId
+    PARAMS, asks, TokenId
 };
-use cosmwasm_std::{entry_point, to_binary, Addr, Binary, Deps, Env, Order, StdResult};
+use crate::helpers::option_bool_to_order;
+use cosmwasm_std::{entry_point, to_binary, Addr, Binary, Deps, Env, Order, StdResult, Timestamp};
 use cw_storage_plus::{Bound, PrefixBound};
 use cw_utils::maybe_addr;
 
@@ -29,53 +31,27 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Ask {
             token_id,
         } => to_binary(&query_ask(deps, token_id)?),
-        QueryMsg::Asks {
-            start_after,
-            limit,
-        } => to_binary(&query_asks(
+        QueryMsg::AsksSortedByExpiry {
+            query_options
+        } => to_binary(&query_asks_sorted_by_expiry(
             deps,
-            start_after,
-            limit,
+            &query_options
         )?),
-        // QueryMsg::AsksSortedByPrice {
-        //     collection,
-        //     include_inactive,
-        //     start_after,
-        //     limit,
-        // } => to_binary(&query_asks_sorted_by_price(
-        //     deps,
-        //     api.addr_validate(&collection)?,
-        //     include_inactive,
-        //     start_after,
-        //     limit,
-        // )?),
-        // QueryMsg::ReverseAsksSortedByPrice {
-        //     collection,
-        //     include_inactive,
-        //     start_before,
-        //     limit,
-        // } => to_binary(&reverse_query_asks_sorted_by_price(
-        //     deps,
-        //     api.addr_validate(&collection)?,
-        //     include_inactive,
-        //     start_before,
-        //     limit,
-        // )?),
-        // QueryMsg::AsksBySeller {
-        //     seller,
-        //     include_inactive,
-        //     start_after,
-        //     limit,
-        // } => to_binary(&query_asks_by_seller(
-        //     deps,
-        //     api.addr_validate(&seller)?,
-        //     include_inactive,
-        //     start_after,
-        //     limit,
-        // )?),
-        // QueryMsg::AskCount { collection } => {
-        //     to_binary(&query_ask_count(deps, api.addr_validate(&collection)?)?)
-        // }
+        QueryMsg::AsksSortedByPrice {
+            query_options
+        } => to_binary(&query_asks_sorted_by_price(
+            deps,
+            &query_options,
+        )?),
+        QueryMsg::AsksBySeller {
+            seller,
+            query_options,
+        } => to_binary(&query_asks_by_seller(
+            deps,
+            api.addr_validate(&seller)?,
+            &query_options,
+        )?),
+        QueryMsg::AskCount { } => to_binary(&query_ask_count(deps)?),
         // QueryMsg::Bid {
         //     collection,
         //     token_id,
@@ -190,44 +166,35 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-// pub fn query_collections(
-//     deps: Deps,
-//     start_after: Option<Collection>,
-//     limit: Option<u32>,
-// ) -> StdResult<CollectionsResponse> {
-//     let limit = limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
-//     let start_addr = maybe_addr(deps.api, start_after)?;
+pub fn query_ask(deps: Deps, token_id: TokenId) -> StdResult<AskResponse> {
+    let ask = asks().may_load(deps.storage, token_id)?;
 
-//     let collections = asks()
-//         .prefix_range(
-//             deps.storage,
-//             start_addr.map(PrefixBound::exclusive),
-//             None,
-//             Order::Ascending,
-//         )
-//         .take(limit)
-//         .map(|item| item.map(|(key, _)| key.0))
-//         .collect::<StdResult<Vec<_>>>()?;
+    Ok(AskResponse { ask })
+}
 
-//     Ok(CollectionsResponse { collections })
-// }
-
-pub fn query_asks(
+pub fn query_asks_sorted_by_expiry(
     deps: Deps,
-    start_after: Option<TokenId>,
-    limit: Option<u32>,
+    query_options: &AskQueryOptions<AskExpiryOffset>
 ) -> StdResult<AsksResponse> {
-    let limit = limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
+    let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
+    let params = PARAMS.load(deps.storage)?;
+
+    let start = query_options.start_after.as_ref().map(|offset| {
+        Bound::exclusive((offset.expires_at.nanos(), offset.token_id.clone()))
+    });
+    let order = option_bool_to_order(query_options.descending);
 
     let asks = asks()
-        .range(
-            deps.storage,
-            Some(Bound::exclusive(
-                start_after.unwrap_or_default(),
-            )),
-            None,
-            Order::Ascending,
-        )
+        .idx
+        .expiry
+        .range(deps.storage, start, None, order)
+        .filter(|item| match item {
+            Ok((_, ask)) => match query_options.filter_expiry {
+                Some(ts) => ask.expires_at > ts,
+                _ => true,
+            },
+            Err(_) => true,
+        })
         .take(limit)
         .map(|res| res.map(|item| item.1))
         .collect::<StdResult<Vec<_>>>()?;
@@ -235,120 +202,74 @@ pub fn query_asks(
     Ok(AsksResponse { asks })
 }
 
-// pub fn query_asks_sorted_by_price(
-//     deps: Deps,
-//     collection: Addr,
-//     include_inactive: Option<bool>,
-//     start_after: Option<AskOffset>,
-//     limit: Option<u32>,
-// ) -> StdResult<AsksResponse> {
-//     let limit = limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
+pub fn query_asks_sorted_by_price(
+    deps: Deps,
+    query_options: &AskQueryOptions<AskPriceOffset>
+) -> StdResult<AsksResponse> {
+    let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
+    let params = PARAMS.load(deps.storage)?;
 
-//     let start = start_after.map(|offset| {
-//         Bound::exclusive((offset.price.u128(), ask_key(&collection, offset.token_id)))
-//     });
+    let start = query_options.start_after.as_ref().map(|offset| {
+        Bound::exclusive((offset.price.u128(), offset.token_id.clone()))
+    });
+    let order = option_bool_to_order(query_options.descending);
 
-//     let asks = asks()
-//         .idx
-//         .collection_price
-//         .sub_prefix(collection)
-//         .range(deps.storage, start, None, Order::Ascending)
-//         .filter(|item| match item {
-//             Ok((_, ask)) => match include_inactive {
-//                 Some(true) => true,
-//                 _ => ask.is_active,
-//             },
-//             Err(_) => true,
-//         })
-//         .take(limit)
-//         .map(|res| res.map(|item| item.1))
-//         .collect::<StdResult<Vec<_>>>()?;
+    let asks = asks()
+        .idx
+        .price
+        .range(deps.storage, start, None, order)
+        .filter(|item| match item {
+            Ok((_, ask)) => match query_options.filter_expiry {
+                Some(ts) => ask.expires_at > ts,
+                _ => true,
+            },
+            Err(_) => true,
+        })
+        .take(limit)
+        .map(|res| res.map(|item| item.1))
+        .collect::<StdResult<Vec<_>>>()?;
 
-//     Ok(AsksResponse { asks })
-// }
+    Ok(AsksResponse { asks })
+}
 
-// pub fn reverse_query_asks_sorted_by_price(
-//     deps: Deps,
-//     collection: Addr,
-//     include_inactive: Option<bool>,
-//     start_before: Option<AskOffset>,
-//     limit: Option<u32>,
-// ) -> StdResult<AsksResponse> {
-//     let limit = limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
+pub fn query_asks_by_seller(
+    deps: Deps,
+    seller: Addr,
+    query_options: &AskQueryOptions<TokenId>
+) -> StdResult<AsksResponse> {
+    let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
+    let params = PARAMS.load(deps.storage)?;
 
-//     let end = start_before.map(|offset| {
-//         Bound::exclusive((offset.price.u128(), ask_key(&collection, offset.token_id)))
-//     });
+    let start = query_options.start_after.as_ref().map(|token_id| {
+        Bound::exclusive(token_id)
+    });
+    let order = option_bool_to_order(query_options.descending);
 
-//     let asks = asks()
-//         .idx
-//         .collection_price
-//         .sub_prefix(collection)
-//         .range(deps.storage, None, end, Order::Descending)
-//         .filter(|item| match item {
-//             Ok((_, ask)) => match include_inactive {
-//                 Some(true) => true,
-//                 _ => ask.is_active,
-//             },
-//             Err(_) => true,
-//         })
-//         .take(limit)
-//         .map(|res| res.map(|item| item.1))
-//         .collect::<StdResult<Vec<_>>>()?;
+    let asks = asks()
+        .idx
+        .seller
+        .prefix(seller)
+        .range(deps.storage, start, None, order)
+        .filter(|item| match item {
+            Ok((_, ask)) => match query_options.filter_expiry {
+                Some(ts) => ask.expires_at > ts,
+                _ => true,
+            },
+            Err(_) => true,
+        })
+        .take(limit)
+        .map(|res| res.map(|item| item.1))
+        .collect::<StdResult<Vec<_>>>()?;
 
-//     Ok(AsksResponse { asks })
-// }
+    Ok(AsksResponse { asks })
+}
 
-// pub fn query_ask_count(deps: Deps, collection: Addr) -> StdResult<AskCountResponse> {
-//     let count = asks()
-//         .idx
-//         .collection
-//         .prefix(collection)
-//         .keys_raw(deps.storage, None, None, Order::Ascending)
-//         .count() as u32;
+pub fn query_ask_count(deps: Deps) -> StdResult<AskCountResponse> {
+    let count = asks()
+        .keys_raw(deps.storage, None, None, Order::Ascending)
+        .count() as u32;
 
-//     Ok(AskCountResponse { count })
-// }
-
-// pub fn query_asks_by_seller(
-//     deps: Deps,
-//     seller: Addr,
-//     include_inactive: Option<bool>,
-//     start_after: Option<CollectionOffset>,
-//     limit: Option<u32>,
-// ) -> StdResult<AsksResponse> {
-//     let limit = limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
-
-//     let start = if let Some(start) = start_after {
-//         let collection = deps.api.addr_validate(&start.collection)?;
-//         Some(Bound::exclusive(ask_key(&collection, start.token_id)))
-//     } else {
-//         None
-//     };
-
-//     let asks = asks()
-//         .idx
-//         .seller
-//         .prefix(seller)
-//         .range(deps.storage, start, None, Order::Ascending)
-//         .filter(|item| match item {
-//             Ok((_, ask)) => match include_inactive {
-//                 Some(true) => true,
-//                 _ => ask.is_active,
-//             },
-//             Err(_) => true,
-//         })
-//         .take(limit)
-//         .map(|res| res.map(|item| item.1))
-//         .collect::<StdResult<Vec<_>>>()?;
-
-//     Ok(AsksResponse { asks })
-// }
-
-pub fn query_ask(deps: Deps, token_id: TokenId) -> StdResult<AskResponse> {
-    let ask = asks().may_load(deps.storage, token_id)?;
-
-    Ok(AskResponse { ask })
+    Ok(AskCountResponse { count })
 }
 
 // pub fn query_bid(

@@ -9,7 +9,7 @@ use crate::helpers::ExpiryRange;
 //     BidsResponse, CollectionBidResponse, CollectionBidsResponse, ExecuteMsg, QueryMsg,
 // };
 use crate::msg::{
-    ExecuteMsg, QueryMsg, AskResponse, AsksResponse
+    ExecuteMsg, QueryMsg, AskResponse, AsksResponse, AskQueryOptions, AskPriceOffset, AskCountResponse
 };
 use crate::state::{Ask};
 // use crate::state::{Bid, SaleType};
@@ -113,7 +113,6 @@ fn setup_contracts(
             None,
         )
         .unwrap();
-    println!("collection: {:?}", collection);
 
     // Instantiate marketplace contract
     let marketplace_id = router.store_code(contract_marketplace());
@@ -136,7 +135,6 @@ fn setup_contracts(
             None,
         )
         .unwrap();
-    println!("marketplace: {:?}", marketplace);
 
     Ok((marketplace, collection))
 }
@@ -302,13 +300,14 @@ fn ask(
     marketplace: &Addr,
     token_id: String,
     price: u128,
+    expires_at: Timestamp,
 ) {
     let set_ask = ExecuteMsg::SetAsk {
         token_id: token_id,
         price: coin(price, NATIVE_DENOM),
         funds_recipient: None,
         reserve_for: None,
-        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+        expires_at: expires_at,
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
     assert!(res.is_ok());
@@ -495,16 +494,52 @@ fn try_ask_queries() {
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
 
+    let block_time = router.block_info().time;
+
     // Mint NFT for creator
-    for n in 1..5 {
+    for n in 1..6 {
         mint(&mut router, &creator, &collection, n.to_string());
         approve(&mut router, &creator, &collection, &marketplace, n.to_string());
-        ask(&mut router, &creator, &marketplace, n.to_string(), 100 + n);
+
+        let ts = block_time.plus_seconds(MIN_EXPIRY + n as u64);
+        ask(&mut router, &creator, &marketplace, n.to_string(), 100 + n, ts);
     }
 
-    let query_asks = QueryMsg::Asks {
-        start_after: Some(String::from("2")),
-        limit: Some(2),
+    let query_asks = QueryMsg::AsksSortedByExpiry {
+        query_options: AskQueryOptions {
+            descending: Some(true),
+            filter_expiry: None,
+            start_after: None,
+            limit: None,
+        }
+    };
+    let res: AsksResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_asks)
+        .unwrap();
+    
+    for n in 1..6 {
+        let idx = 6 - n;
+        assert_eq!(Ask {
+            token_id: idx.to_string(),
+            price: coin(100 + idx, NATIVE_DENOM),
+            seller: creator.clone(),
+            funds_recipient: None,
+            reserve_for: None,
+            expires_at: block_time.plus_seconds(MIN_EXPIRY + idx as u64),
+        }, res.asks[(n as usize) - 1]);
+    }
+
+    let query_asks = QueryMsg::AsksSortedByPrice {
+        query_options: AskQueryOptions {
+            descending: Some(false),
+            filter_expiry: None,
+            start_after: Some(AskPriceOffset {
+                price: Uint128::from(102u128),
+                token_id: String::from("2")
+            }),
+            limit: Some(2),
+        }
     };
     let res: AsksResponse = router
         .wrap()
@@ -518,14 +553,41 @@ fn try_ask_queries() {
             seller: creator.clone(),
             funds_recipient: None,
             reserve_for: None,
-            expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+            expires_at: block_time.plus_seconds(MIN_EXPIRY + n as u64),
         }, res.asks[(n as usize) - 3]);
     }
 
-    // let ask = match res.asks {
-    //     Some(_) => Err("Ask found"),
-    //     None => Ok(())
-    // }.unwrap();
+    let query_asks = QueryMsg::AsksBySeller {
+        seller: creator.to_string(),
+        query_options: AskQueryOptions {
+            descending: None,
+            filter_expiry: Some(block_time.plus_seconds(MIN_EXPIRY + 2u64)),
+            start_after: None,
+            limit: None,
+        }
+    };
+    let res: AsksResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_asks)
+        .unwrap();
+    
+    for n in 3..6 {
+        assert_eq!(Ask {
+            token_id: n.to_string(),
+            price: coin(100 + n, NATIVE_DENOM),
+            seller: creator.clone(),
+            funds_recipient: None,
+            reserve_for: None,
+            expires_at: block_time.plus_seconds(MIN_EXPIRY + n as u64),
+        }, res.asks[(n as usize) - 3]);
+    }
+
+    let query_asks = QueryMsg::AskCount { };
+    let res: AskCountResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_asks)
+        .unwrap();
+    assert_eq!(res.count, 5u32);
 }
 
 // #[test]
