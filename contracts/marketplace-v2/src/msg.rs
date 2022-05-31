@@ -1,8 +1,6 @@
-use crate::{
-    helpers::ExpiryRange,
-    state::{Ask, TokenId},
-    // state::{Ask, Bid, CollectionBid, SaleType, SudoParams, TokenId},
-};
+use crate::helpers::ExpiryRange;
+use crate::state::{Ask, TokenId, Bid};
+// state::{Ask, Bid, CollectionBid, SaleType, SudoParams, TokenId},
 use cosmwasm_std::{to_binary, Addr, Binary, Coin, StdResult, Timestamp, Uint128};
 use cw_utils::Duration;
 use schemars::JsonSchema;
@@ -14,6 +12,8 @@ pub struct InstantiateMsg {
     pub cw721_address: String,
     /// The token used to pay for NFTs
     pub denom: String,
+    /// The address collecting marketplace fees
+    pub collector_address: String,
     /// Fair Burn fee for winning bids
     /// 0.25% = 25, 0.5% = 50, 1% = 100, 2.5% = 250
     pub trading_fee_bps: u64,
@@ -50,12 +50,12 @@ pub enum ExecuteMsg {
         token_id: TokenId,
         price: Coin,
     },
-    // /// Place a bid on an existing ask
-    // SetBid {
-    //     collection: String,
-    //     token_id: TokenId,
-    //     expires: Timestamp,
-    // },
+    /// Place a bid on an existing ask
+    SetBid {
+        token_id: TokenId,
+        price: Coin,
+        expires_at: Timestamp,
+    },
     // /// Remove an existing bid from an ask
     // RemoveBid {
     //     collection: String,
@@ -231,14 +231,13 @@ pub enum QueryMsg {
     },
     /// Count of all asks
     /// Return type: `AskCountResponse`
-    AskCount { },
-    // /// Get data for a specific bid
-    // /// Return type: `BidResponse`
-    // Bid {
-    //     collection: Collection,
-    //     token_id: TokenId,
-    //     bidder: Bidder,
-    // },
+    AskCount {},
+    /// Get data for a specific bid
+    /// Return type: `BidResponse`
+    Bid {
+        token_id: TokenId,
+        bidder: Bidder,
+    },
     // /// Get all bids by a bidder
     // /// Return type: `BidsResponse`
     // BidsByBidder {
@@ -338,15 +337,10 @@ pub struct AskCountResponse {
     pub count: u32,
 }
 
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-// pub struct CollectionsResponse {
-//     pub collections: Vec<Addr>,
-// }
-
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-// pub struct BidResponse {
-//     pub bid: Option<Bid>,
-// }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct BidResponse {
+    pub bid: Option<Bid>,
+}
 
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 // pub struct BidsResponse {
