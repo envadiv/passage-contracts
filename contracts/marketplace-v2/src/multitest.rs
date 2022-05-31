@@ -9,12 +9,13 @@ use crate::helpers::ExpiryRange;
 //     BidsResponse, CollectionBidResponse, CollectionBidsResponse, ExecuteMsg, QueryMsg,
 // };
 use crate::msg::{
-    ExecuteMsg, QueryMsg, AskResponse, AsksResponse, AskQueryOptions, AskPriceOffset, AskCountResponse
+    ExecuteMsg, QueryMsg, AskResponse, AsksResponse, AskQueryOptions, AskPriceOffset, AskCountResponse,
+    BidResponse
 };
-use crate::state::{Ask};
+use crate::state::{Ask, Bid};
 // use crate::state::{Bid, SaleType};
 // use crate::hooks::HooksResponse;
-use cosmwasm_std::{Addr, Empty, Timestamp};
+use cosmwasm_std::{Addr, Empty, Timestamp, Attribute};
 use cw721::{Cw721QueryMsg, OwnerOfResponse};
 use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMsg, MintMsg};
 use cw_multi_test::{App, AppBuilder, BankSudo, Contract, ContractWrapper, Executor, SudoMsg as CwSudoMsg};
@@ -119,6 +120,7 @@ fn setup_contracts(
     let msg = crate::msg::InstantiateMsg {
         cw721_address: collection.to_string(),
         denom: String::from(NATIVE_DENOM),
+        collector_address: creator.to_string(),
         trading_fee_bps: TRADING_FEE_BPS,
         ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
         bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
@@ -301,12 +303,13 @@ fn ask(
     token_id: String,
     price: u128,
     expires_at: Timestamp,
+    reserve_for: Option<String>
 ) {
     let set_ask = ExecuteMsg::SetAsk {
         token_id: token_id,
         price: coin(price, NATIVE_DENOM),
         funds_recipient: None,
-        reserve_for: None,
+        reserve_for: reserve_for,
         expires_at: expires_at,
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
@@ -502,7 +505,7 @@ fn try_ask_queries() {
         approve(&mut router, &creator, &collection, &marketplace, n.to_string());
 
         let ts = block_time.plus_seconds(MIN_EXPIRY + n as u64);
-        ask(&mut router, &creator, &marketplace, n.to_string(), 100 + n, ts);
+        ask(&mut router, &creator, &marketplace, n.to_string(), 100 + n, ts, None);
     }
 
     let query_asks = QueryMsg::AsksSortedByExpiry {
@@ -588,6 +591,62 @@ fn try_ask_queries() {
         .query_wasm_smart(marketplace.clone(), &query_asks)
         .unwrap();
     assert_eq!(res.count, 5u32);
+}
+
+#[test]
+fn try_set_bid() {
+    let mut router = custom_mock_app();
+    let block_time = router.block_info().time;
+    // Setup intial accounts
+    let (owner, bidder, creator) = setup_accounts(&mut router).unwrap();
+
+    // Instantiate and configure contracts
+    let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
+
+    let n = 1;
+    let ts = block_time.plus_seconds(MIN_EXPIRY + n as u64);
+    mint(&mut router, &creator, &collection, n.to_string());
+    approve(&mut router, &creator, &collection, &marketplace, n.to_string());
+    ask(&mut router, &creator, &marketplace, n.to_string(), 100, ts, None);
+
+    // Create bid
+    let coin_send = coin(100, NATIVE_DENOM);
+    let set_bid = ExecuteMsg::SetBid {
+        token_id: n.to_string(),
+        price: coin(100, NATIVE_DENOM),
+        expires_at: block_time.plus_seconds(MIN_EXPIRY + 100 as u64),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &set_bid, &[coin_send.clone()]).unwrap();
+
+    assert_eq!(res.events[1].ty, "wasm-match-bid");
+    assert_eq!(res.events[1].attributes[2], Attribute {
+        key: String::from("outcome"),
+        value: String::from("match")
+    });
+
+    assert_eq!(res.events[2].ty, "wasm-payout-market");
+    assert_eq!(res.events[2].attributes[1], Attribute {
+        key: String::from("coin"),
+        value: String::from("2ujunox")
+    });
+
+    assert_eq!(res.events[3].ty, "wasm-payout-royalty");
+    assert_eq!(res.events[3].attributes[1], Attribute {
+        key: String::from("coin"),
+        value: String::from("10ujunox")
+    });
+
+    assert_eq!(res.events[4].ty, "wasm-payout-seller");
+    assert_eq!(res.events[4].attributes[1], Attribute {
+        key: String::from("coin"),
+        value: String::from("88ujunox")
+    });
+
+    assert_eq!(res.events[6].ty, "wasm-finalize-sale");
+    assert_eq!(res.events[6].attributes[5], Attribute {
+        key: String::from("price"),
+        value: String::from("100")
+    });
 }
 
 // #[test]

@@ -5,14 +5,14 @@
 // };
 use crate::msg::{
     QueryMsg, AskResponse, AsksResponse, AskQueryOptions, AskExpiryOffset, AskPriceOffset,
-    AskCountResponse
+    AskCountResponse, BidResponse
 };
 // use crate::state::{
 //     ask_key, asks, bid_key, bids, collection_bid_key, collection_bids, BidKey, CollectionBidKey,
 //     TokenId, ASK_HOOKS, BID_HOOKS, SALE_HOOKS, SUDO_PARAMS,
 // };
 use crate::state::{
-    PARAMS, asks, TokenId
+    PARAMS, asks, TokenId, bids
 };
 use crate::helpers::option_bool_to_order;
 use cosmwasm_std::{entry_point, to_binary, Addr, Binary, Deps, Env, Order, StdResult, Timestamp};
@@ -52,16 +52,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             &query_options,
         )?),
         QueryMsg::AskCount { } => to_binary(&query_ask_count(deps)?),
-        // QueryMsg::Bid {
-        //     collection,
-        //     token_id,
-        //     bidder,
-        // } => to_binary(&query_bid(
-        //     deps,
-        //     api.addr_validate(&collection)?,
-        //     token_id,
-        //     api.addr_validate(&bidder)?,
-        // )?),
+        QueryMsg::Bid {
+            token_id,
+            bidder,
+        } => to_binary(&query_bid(
+            deps,
+            token_id,
+            api.addr_validate(&bidder)?,
+        )?),
         // QueryMsg::Bids {
         //     collection,
         //     token_id,
@@ -272,16 +270,15 @@ pub fn query_ask_count(deps: Deps) -> StdResult<AskCountResponse> {
     Ok(AskCountResponse { count })
 }
 
-// pub fn query_bid(
-//     deps: Deps,
-//     collection: Addr,
-//     token_id: TokenId,
-//     bidder: Addr,
-// ) -> StdResult<BidResponse> {
-//     let bid = bids().may_load(deps.storage, (collection, token_id, bidder))?;
+pub fn query_bid(
+    deps: Deps,
+    token_id: TokenId,
+    bidder: Addr,
+) -> StdResult<BidResponse> {
+    let bid = bids().may_load(deps.storage, (token_id, bidder))?;
 
-//     Ok(BidResponse { bid })
-// }
+    Ok(BidResponse { bid })
+}
 
 // pub fn query_bids_by_bidder(
 //     deps: Deps,

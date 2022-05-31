@@ -13,13 +13,13 @@ use crate::msg::{
 //     PARAMS,
 // };
 use crate::state::{
-    Params, PARAMS, Ask, asks, TokenId
+    Params, PARAMS, Ask, asks, TokenId, bid_key, bids, Order, Bid
 };
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Coin, Decimal, Deps, DepsMut, Env, Event, MessageInfo, Reply,
-    StdResult, Storage, Timestamp, Uint128, WasmMsg, Response, SubMsg
+    StdResult, Storage, Timestamp, Uint128, WasmMsg, Response, SubMsg, Attribute
 };
 use cw2::set_contract_version;
 use cw721::{Cw721ExecuteMsg, OwnerOfResponse};
@@ -47,6 +47,7 @@ pub fn instantiate(
     let params = Params {
         cw721_address: api.addr_validate(&msg.cw721_address)?,
         denom: msg.denom,
+        collector_address: api.addr_validate(&msg.collector_address)?,
         trading_fee_percent: Decimal::percent(msg.trading_fee_bps),
         ask_expiry: msg.ask_expiry,
         bid_expiry: msg.bid_expiry,
@@ -96,24 +97,21 @@ pub fn execute(
             token_id,
             price,
         } => execute_update_ask_price(deps, info, token_id, price),
-        // ExecuteMsg::SetBid {
-        //     collection,
-        //     token_id,
-        //     expires,
-        //     finder,
-        //     finders_fee_bps,
-        // } => execute_set_bid(
-        //     deps,
-        //     env,
-        //     info,
-        //     BidInfo {
-        //         collection: api.addr_validate(&collection)?,
-        //         token_id,
-        //         expires,
-        //         finder: maybe_addr(api, finder)?,
-        //         finders_fee_bps,
-        //     },
-        // ),
+        ExecuteMsg::SetBid {
+            token_id,
+            price,
+            expires_at,
+        } => execute_set_bid(
+            deps,
+            env,
+            info,
+            Bid {
+                token_id,
+                bidder: message_info.sender,
+                price,
+                expires_at,
+            },
+        ),
         // ExecuteMsg::RemoveBid {
         //     collection,
         //     token_id,
@@ -205,20 +203,18 @@ pub fn execute_set_ask(
 
     store_ask(deps.storage, &ask)?;
 
-    let mut res = Response::new();
+    let mut response = Response::new();
 
-    // Transfer NFT
-    let transfer_nft_msg = generate_transfer_nft_msg(&ask.token_id, &env.contract.address, &params.cw721_address)?;
-    res.messages.push(transfer_nft_msg);
+    transfer_nft(&ask.token_id, &env.contract.address, &params.cw721_address, &mut response)?;
 
     let event = Event::new("set-ask")
-        .add_attribute("cw721_address", params.cw721_address.to_string())
+        .add_attribute("collection", params.cw721_address.to_string())
         .add_attribute("token_id", ask.token_id.to_string())
         .add_attribute("seller", ask.seller)
         .add_attribute("price", ask.price.to_string())
-        .add_attribute("expires", ask.expires_at.to_string());
+        .add_attribute("expires_at", ask.expires_at.to_string());
 
-    Ok(res.add_event(event))
+    Ok(response.add_event(event))
 }
 
 /// Removes the ask on a particular NFT
@@ -237,11 +233,10 @@ pub fn execute_remove_ask(
     let params = PARAMS.load(deps.storage)?;
     let mut res = Response::new();
 
-    // Transfer NFT
-    let transfer_nft_msg = generate_transfer_nft_msg(&ask.token_id, &ask.seller, &params.cw721_address)?;
-    res.messages.push(transfer_nft_msg);
+    transfer_nft(&ask.token_id, &ask.seller, &params.cw721_address, &mut res)?;
 
     let event = Event::new("remove-ask")
+        .add_attribute("collection", params.cw721_address.to_string())
         .add_attribute("token_id", token_id.to_string());
 
     Ok(res.add_event(event))
@@ -266,115 +261,69 @@ pub fn execute_update_ask_price(
     asks().save(deps.storage, token_id.clone(), &ask)?;
 
     let event = Event::new("update-ask")
-        .add_attribute("token_id", token_id.to_string())
-        .add_attribute("price amount", ask.price.amount.to_string())
-        .add_attribute("price denom", ask.price.denom);
+        .add_attribute("collection", params.cw721_address.to_string())
+        .add_attribute("token_id", ask.token_id.to_string())
+        .add_attribute("seller", ask.seller)
+        .add_attribute("price", ask.price.to_string())
+        .add_attribute("expires_at", ask.expires_at.to_string());
 
     Ok(Response::new().add_event(event))
 }
 
-// /// Places a bid on a listed or unlisted NFT. The bid is escrowed in the contract.
-// pub fn execute_set_bid(
-//     deps: DepsMut,
-//     env: Env,
-//     info: MessageInfo,
-//     bid_info: BidInfo,
-// ) -> Result<Response, ContractError> {
-//     let BidInfo {
-//         collection,
-//         token_id,
-//         finders_fee_bps,
-//         expires,
-//         finder,
-//     } = bid_info;
-//     let params = PARAMS.load(deps.storage)?;
+/// Places a bid on a listed or unlisted NFT. The bid is escrowed in the contract.
+pub fn execute_set_bid(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    bid: Bid,
+) -> Result<Response, ContractError> {
+    let params = PARAMS.load(deps.storage)?;
 
-//     let bid_price = must_pay(&info, NATIVE_DENOM)?;
-//     if bid_price < params.min_price {
-//         return Err(ContractError::PriceTooSmall(bid_price));
-//     }
-//     params.bid_expiry.is_valid(&env.block, expires)?;
+    let payment_amount = must_pay(&info, &params.denom)?;
+    price_validate(&bid.price, &params)?;
+    params.bid_expiry.is_valid(&env.block, bid.expires_at)?;
 
-//     let bidder = info.sender;
-//     let mut res = Response::new();
-//     let bid_key = bid_key(&collection, token_id, &bidder);
-//     let ask_key = ask_key(&collection, token_id);
+    let mut response = Response::new();
+    let bid_key = bid_key(bid.token_id.clone(), &bid.bidder);
+    let ask_key = &bid.token_id;
 
-//     if let Some(existing_bid) = bids().may_load(deps.storage, bid_key.clone())? {
-//         bids().remove(deps.storage, bid_key)?;
-//         let refund_bidder = BankMsg::Send {
-//             to_address: bidder.to_string(),
-//             amount: vec![coin(existing_bid.price.u128(), NATIVE_DENOM)],
-//         };
-//         res = res.add_message(refund_bidder)
-//     }
+    // If bid exists, refund the escrowed tokens
+    if let Some(existing_bid) = bids().may_load(deps.storage, bid_key.clone())? {
+        bids().remove(deps.storage, bid_key)?;
+        let refund_bidder = BankMsg::Send {
+            to_address: bid.bidder.to_string(),
+            amount: vec![existing_bid.price],
+        };
+        response = response.add_message(refund_bidder)
+    }
 
-//     let existing_ask = asks().may_load(deps.storage, ask_key.clone())?;
+    let matching_ask = match_bid(deps.as_ref(), env, &bid, &mut response)?;
 
-//     if let Some(ask) = existing_ask.clone() {
-//         if ask.is_expired(&env.block) {
-//             return Err(ContractError::AskExpired {});
-//         }
-//         if !ask.is_active {
-//             return Err(ContractError::AskNotActive {});
-//         }
-//         if let Some(reserved_for) = ask.reserve_for {
-//             if reserved_for != bidder {
-//                 return Err(ContractError::TokenReserved {});
-//             }
-//         }
-//     }
+    // If existing ask found, finalize the sale
+    match matching_ask {
+        Some(ask) => {
+            asks().remove(deps.storage, ask_key.clone())?;
+            finalize_sale(
+                deps.as_ref(),
+                payment_amount,
+                &ask,
+                &bid,
+                &params,
+                &mut response,
+            )?
+        },
+        None => store_bid(deps.storage, &bid)?,
+    };
 
-//     let save_bid = |store| -> StdResult<_> {
-//         let bid = Bid::new(
-//             collection.clone(),
-//             token_id,
-//             bidder.clone(),
-//             bid_price,
-//             finders_fee_bps,
-//             expires,
-//         );
-//         store_bid(store, &bid)?;
-//         Ok(Some(bid))
-//     };
+    let event = Event::new("set-bid")
+        .add_attribute("token_id", bid.token_id.to_string())
+        .add_attribute("bidder", bid.bidder)
+        .add_attribute("price", bid.price.to_string())
+        .add_attribute("expires_at", bid.expires_at.to_string());
+    response.events.push(event);
 
-//     let bid = match existing_ask {
-//         Some(ask) => match ask.sale_type {
-//             SaleType::FixedPrice => {
-//                 if ask.price != bid_price {
-//                     return Err(ContractError::InvalidPrice {});
-//                 }
-//                 asks().remove(deps.storage, ask_key)?;
-//                 finalize_sale(
-//                     deps.as_ref(),
-//                     ask,
-//                     bid_price,
-//                     bidder.clone(),
-//                     finder,
-//                     &mut res,
-//                 )?;
-//                 None
-//             }
-//             SaleType::Auction => save_bid(deps.storage)?,
-//         },
-//         None => save_bid(deps.storage)?,
-//     };
-
-//     let hook = if let Some(bid) = bid {
-//         prepare_bid_hook(deps.as_ref(), &bid, HookAction::Create)?
-//     } else {
-//         vec![]
-//     };
-
-//     let event = Event::new("set-bid")
-//         .add_attribute("collection", collection.to_string())
-//         .add_attribute("token_id", token_id.to_string())
-//         .add_attribute("bidder", bidder)
-//         .add_attribute("bid_price", bid_price.to_string())
-//         .add_attribute("expires", expires.to_string());
-
-//     Ok(res.add_submessages(hook).add_event(event))
-// }
+    Ok(response)
+}
 
 // /// Removes a bid made by the bidder. Bidders can only remove their own bids
 // pub fn execute_remove_bid(
@@ -770,129 +719,82 @@ pub fn execute_update_ask_price(
 //         .add_submessages(hook))
 // }
 
-// /// Transfers funds and NFT, updates bid
-// fn finalize_sale(
-//     deps: Deps,
-//     ask: Ask,
-//     price: Uint128,
-//     buyer: Addr,
-//     finder: Option<Addr>,
-//     res: &mut Response,
-// ) -> StdResult<()> {
-//     payout(
-//         deps,
-//         ask.collection.clone(),
-//         price,
-//         ask.funds_recipient
-//             .clone()
-//             .unwrap_or_else(|| ask.seller.clone()),
-//         finder,
-//         ask.finders_fee_bps,
-//         res,
-//     )?;
+/// Transfers funds and NFT, updates bid
+fn finalize_sale(
+    deps: Deps,
+    payment_amount: Uint128,
+    ask: &Ask,
+    bid: &Bid,
+    params: &Params,
+    res: &mut Response,
+) -> StdResult<()> {
+    payout(deps, payment_amount, &ask, &params, res)?;
 
-//     let cw721_transfer_msg = Cw721ExecuteMsg::TransferNft {
-//         token_id: ask.token_id.to_string(),
-//         recipient: buyer.to_string(),
-//     };
+    transfer_nft(&ask.token_id, &bid.bidder, &params.cw721_address, res)?;
 
-//     let exec_cw721_transfer = WasmMsg::Execute {
-//         contract_addr: ask.collection.to_string(),
-//         msg: to_binary(&cw721_transfer_msg)?,
-//         funds: vec![],
-//     };
-//     res.messages.push(SubMsg::new(exec_cw721_transfer));
+    let event = Event::new("finalize-sale")
+        .add_attribute("collection", params.cw721_address.to_string())
+        .add_attribute("token_id", ask.token_id.to_string())
+        .add_attribute("seller", ask.seller.to_string())
+        .add_attribute("buyer", bid.bidder.to_string())
+        .add_attribute("price", payment_amount.to_string());
+    res.events.push(event);
 
-//     res.messages
-//         .append(&mut prepare_sale_hook(deps, &ask, buyer.clone())?);
+    Ok(())
+}
 
-//     let event = Event::new("finalize-sale")
-//         .add_attribute("collection", ask.collection.to_string())
-//         .add_attribute("token_id", ask.token_id.to_string())
-//         .add_attribute("seller", ask.seller.to_string())
-//         .add_attribute("buyer", buyer.to_string())
-//         .add_attribute("price", price.to_string());
-//     res.events.push(event);
+/// Payout a bid
+fn payout(
+    deps: Deps,
+    payment_amount: Uint128,
+    ask: &Ask,
+    params: &Params,
+    response: &mut Response,
+) -> StdResult<()> {
+    let cw721_address = params.cw721_address.to_string();
 
-//     Ok(())
-// }
+    // Charge market fee
+    let market_fee = payment_amount * params.trading_fee_percent / Uint128::from(100u128);
+    transfer_token(
+        coin(market_fee.u128(), &params.denom),
+        params.collector_address.to_string(),
+        "payout-market",
+        response
+    )?;
 
-// /// Payout a bid
-// fn payout(
-//     deps: Deps,
-//     collection: Addr,
-//     payment: Uint128,
-//     payment_recipient: Addr,
-//     finder: Option<Addr>,
-//     finders_fee_bps: Option<u64>,
-//     res: &mut Response,
-// ) -> StdResult<()> {
-//     let params = PARAMS.load(deps.storage)?;
+    // Query royalties
+    let collection_info: CollectionInfoResponse = deps
+        .querier
+        .query_wasm_smart(&cw721_address, &Pg721QueryMsg::CollectionInfo {})?;
 
-//     // Append Fair Burn message
-//     let network_fee = payment * params.trading_fee_percent / Uint128::from(100u128);
-//     println!("network_fee: {:?}", network_fee);
-//     // fair_burn(network_fee.u128(), None, res);
+    // Charge royalties if they exist
+    let royalties = match &collection_info.royalty_info {
+        Some(royalty) => Some((ask.price.amount * royalty.share, &royalty.payment_address)),
+        None => None
+    };
+    if let Some(_royalties) = &royalties {
+        transfer_token(
+            coin(_royalties.0.u128(), &params.denom),
+            _royalties.1.to_string(),
+            "payout-royalty",
+            response
+        )?;
+    };
 
-//     let collection_info: CollectionInfoResponse = deps
-//         .querier
-//         .query_wasm_smart(collection.clone(), &Pg721QueryMsg::CollectionInfo {})?;
+    // Pay seller
+    let mut seller_amount = payment_amount - market_fee;
+    if let Some(_royalties) = &royalties {
+        seller_amount -= _royalties.0;
+    };
+    transfer_token(
+        coin(seller_amount.u128(), &params.denom),
+        ask.seller.to_string(),
+        "payout-seller",
+        response
+    )?;
 
-//     let finders_fee = match finder {
-//         Some(finder) => {
-//             let finders_fee = finders_fee_bps
-//                 .map(|fee| (payment * Decimal::percent(fee) / Uint128::from(100u128)).u128())
-//                 .unwrap_or(0);
-//             if finders_fee > 0 {
-//                 res.messages.push(SubMsg::new(BankMsg::Send {
-//                     to_address: finder.to_string(),
-//                     amount: vec![coin(finders_fee, NATIVE_DENOM)],
-//                 }));
-//             }
-//             finders_fee
-//         }
-//         None => 0,
-//     };
-
-//     match collection_info.royalty_info {
-//         // If token supports royalities, payout shares to royalty recipient
-//         Some(royalty) => {
-//             let amount = coin((payment * royalty.share).u128(), NATIVE_DENOM);
-//             res.messages.push(SubMsg::new(BankMsg::Send {
-//                 to_address: royalty.payment_address.to_string(),
-//                 amount: vec![amount.clone()],
-//             }));
-
-//             let event = Event::new("royalty-payout")
-//                 .add_attribute("collection", collection.to_string())
-//                 .add_attribute("amount", amount.to_string())
-//                 .add_attribute("recipient", royalty.payment_address.to_string());
-//             res.events.push(event);
-
-//             let seller_share_msg = BankMsg::Send {
-//                 to_address: payment_recipient.to_string(),
-//                 amount: vec![coin(
-//                     (payment * (Decimal::one() - royalty.share) - network_fee).u128() - finders_fee,
-//                     NATIVE_DENOM.to_string(),
-//                 )],
-//             };
-//             res.messages.push(SubMsg::new(seller_share_msg));
-//         }
-//         None => {
-//             // If token doesn't support royalties, pay seller in full
-//             let seller_share_msg = BankMsg::Send {
-//                 to_address: payment_recipient.to_string(),
-//                 amount: vec![coin(
-//                     (payment - network_fee).u128() - finders_fee,
-//                     NATIVE_DENOM.to_string(),
-//                 )],
-//             };
-//             res.messages.push(SubMsg::new(seller_share_msg));
-//         }
-//     }
-
-//     Ok(())
-// }
+    Ok(())
+}
 
 fn price_validate(price: &Coin, params: &Params) -> Result<(), ContractError> {
     if
@@ -906,13 +808,13 @@ fn price_validate(price: &Coin, params: &Params) -> Result<(), ContractError> {
     Ok(())
 }
 
-// fn store_bid(store: &mut dyn Storage, bid: &Bid) -> StdResult<()> {
-//     bids().save(
-//         store,
-//         bid_key(&bid.collection, bid.token_id, &bid.bidder),
-//         bid,
-//     )
-// }
+fn store_bid(store: &mut dyn Storage, bid: &Bid) -> StdResult<()> {
+    bids().save(
+        store,
+        bid_key(bid.token_id.clone(), &bid.bidder),
+        bid,
+    )
+}
 
 fn store_ask(store: &mut dyn Storage, ask: &Ask) -> StdResult<()> {
     asks().save(store, ask.token_id.clone(), ask)
@@ -1079,16 +981,85 @@ fn only_seller(
 //     Ok(submsgs)
 // }
 
-fn generate_transfer_nft_msg(token_id: &TokenId, recipient: &Addr, collection: &Addr) -> StdResult<SubMsg> {
+fn transfer_nft(token_id: &TokenId, recipient: &Addr, collection: &Addr, response: &mut Response,) -> StdResult<()> {
     let cw721_transfer_msg = Cw721ExecuteMsg::TransferNft {
         token_id: token_id.to_string(),
         recipient: recipient.to_string(),
     };
 
-    let exec_cw721_transfer = WasmMsg::Execute {
+    let exec_cw721_transfer = SubMsg::new(WasmMsg::Execute {
         contract_addr: collection.to_string(),
         msg: to_binary(&cw721_transfer_msg)?,
         funds: vec![],
+    });
+    response.messages.push(exec_cw721_transfer);
+
+    let event = Event::new("transfer-nft")
+        .add_attribute("collection", collection.to_string())
+        .add_attribute("token_id", token_id.to_string())
+        .add_attribute("recipient", recipient.to_string());
+    response.events.push(event);
+    
+    Ok(())
+}
+
+fn transfer_token(coin_send: Coin, recipient: String, event_label: &str, response: &mut Response) -> StdResult<()> {
+    let token_transfer_msg = BankMsg::Send {
+        to_address: recipient.clone(),
+        amount: vec![coin_send.clone()]
     };
-    Ok(SubMsg::new(exec_cw721_transfer))
+    response.messages.push(SubMsg::new(token_transfer_msg));
+
+    let event = Event::new(event_label)
+        .add_attribute("coin", coin_send.to_string())
+        .add_attribute("recipient", recipient.to_string());
+    response.events.push(event);
+
+    Ok(())
+}
+
+fn match_bid(deps: Deps, env: Env, bid: &Bid, response: &mut Response) -> StdResult<Option<Ask>> {
+    let matching_ask = asks().may_load(deps.storage, bid.token_id.clone())?;
+
+    if let None = matching_ask {
+        return Ok(None)
+    }
+
+    let existing_ask = matching_ask.unwrap();
+    let mut event = Event::new("match-bid")
+        .add_attribute("token-id", bid.token_id.clone())
+        .add_attribute("outcome", "match");
+    
+    if existing_ask.is_expired(&env.block.time) {
+        set_match_bid_outcome(&mut event, "ask-expired");
+        response.events.push(event);
+        return Ok(None)
+    }
+    if let Some(reserved_for) = &existing_ask.reserve_for {
+        if reserved_for != &bid.bidder {
+            set_match_bid_outcome(&mut event, "token-reserved");
+            response.events.push(event);
+            return Ok(None)
+        }
+    }
+    if existing_ask.price != bid.price {
+        set_match_bid_outcome(&mut event, "invalid-price");
+        response.events.push(event);
+        return Ok(None)
+    }
+
+    response.events.push(event);
+    return Ok(Some(existing_ask))
+}
+
+fn set_match_bid_outcome(event: &mut Event, outcome: &str) -> () {
+    event.attributes = event.attributes.iter_mut().map(|attr| {
+        if attr.key == "outcome" {
+            return Attribute {
+                key: String::from("outcome"),
+                value: String::from(outcome),
+            }
+        }
+        attr.clone()
+    }).collect();
 }

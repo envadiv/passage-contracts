@@ -22,9 +22,6 @@ pub enum ContractError {
     #[error("AskExpired")]
     AskExpired {},
 
-    #[error("AskNotActive")]
-    AskNotActive {},
-
     #[error("AskUnchanged")]
     AskUnchanged {},
 
@@ -40,14 +37,8 @@ pub enum ContractError {
     #[error("Token reserved")]
     TokenReserved {},
 
-    #[error("Invalid finders fee bps: {0}")]
-    InvalidFindersFeeBps(u64),
-
     #[error("{0}")]
     BidPaymentError(#[from] PaymentError),
-
-    // #[error("{0}")]
-    // Hook(#[from] HookError),
 
     #[error("{0}")]
     ExpiryRange(#[from] ExpiryRangeError),
