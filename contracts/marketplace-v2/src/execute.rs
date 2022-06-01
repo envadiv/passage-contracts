@@ -112,10 +112,9 @@ pub fn execute(
                 expires_at,
             },
         ),
-        // ExecuteMsg::RemoveBid {
-        //     collection,
-        //     token_id,
-        // } => execute_remove_bid(deps, env, info, api.addr_validate(&collection)?, token_id),
+        ExecuteMsg::RemoveBid {
+            token_id,
+        } => execute_remove_bid(deps, env, info, token_id),
         // ExecuteMsg::AcceptBid {
         //     collection,
         //     token_id,
@@ -290,11 +289,7 @@ pub fn execute_set_bid(
     // If bid exists, refund the escrowed tokens
     if let Some(existing_bid) = bids().may_load(deps.storage, bid_key.clone())? {
         bids().remove(deps.storage, bid_key)?;
-        let refund_bidder = BankMsg::Send {
-            to_address: bid.bidder.to_string(),
-            amount: vec![existing_bid.price],
-        };
-        response = response.add_message(refund_bidder)
+        transfer_token(existing_bid.price, bid.bidder.to_string(), "refund-bidder", &mut response)?;
     }
 
     let matching_ask = match_bid(deps.as_ref(), env, &bid, &mut response)?;
@@ -325,40 +320,30 @@ pub fn execute_set_bid(
     Ok(response)
 }
 
-// /// Removes a bid made by the bidder. Bidders can only remove their own bids
-// pub fn execute_remove_bid(
-//     deps: DepsMut,
-//     _env: Env,
-//     info: MessageInfo,
-//     collection: Addr,
-//     token_id: TokenId,
-// ) -> Result<Response, ContractError> {
-//     nonpayable(&info)?;
-//     let bidder = info.sender;
+/// Removes a bid made by the bidder. Bidders can only remove their own bids
+pub fn execute_remove_bid(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    token_id: TokenId,
+) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
+    let bidder = info.sender;
 
-//     let key = bid_key(&collection, token_id, &bidder);
-//     let bid = bids().load(deps.storage, key.clone())?;
-//     bids().remove(deps.storage, key)?;
+    let key = bid_key(token_id.clone(), &bidder);
+    let bid = bids().load(deps.storage, key.clone())?;
+    bids().remove(deps.storage, key)?;
 
-//     let refund_bidder_msg = BankMsg::Send {
-//         to_address: bid.bidder.to_string(),
-//         amount: vec![coin(bid.price.u128(), NATIVE_DENOM)],
-//     };
+    let mut response = Response::new();
+    transfer_token(bid.price, bid.bidder.to_string(), "refund-bidder", &mut response)?;
 
-//     let hook = prepare_bid_hook(deps.as_ref(), &bid, HookAction::Delete)?;
+    let event = Event::new("remove-bid")
+        .add_attribute("token_id", token_id.clone())
+        .add_attribute("bidder", bidder);
+    response.events.push(event);
 
-//     let event = Event::new("remove-bid")
-//         .add_attribute("collection", collection)
-//         .add_attribute("token_id", token_id.to_string())
-//         .add_attribute("bidder", bidder);
-
-//     let res = Response::new()
-//         .add_message(refund_bidder_msg)
-//         .add_event(event)
-//         .add_submessages(hook);
-
-//     Ok(res)
-// }
+    Ok(response)
+}
 
 // /// Seller can accept a bid which transfers funds as well as the token. The bid may or may not be associated with an ask.
 // pub fn execute_accept_bid(
