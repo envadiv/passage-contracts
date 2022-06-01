@@ -131,30 +131,48 @@ pub type Collection = String;
 pub type Bidder = String;
 pub type Seller = String;
 
-/// Offset for ask price pagination
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AskPriceOffset {
-    pub price: Uint128,
-    pub token_id: TokenId,
-}
-
-/// Offset for ask expiry pagination
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AskExpiryOffset {
     pub expires_at: Timestamp,
     pub token_id: TokenId,
 }
 
-/// Offset for ask expiry pagination
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AskPriceOffset {
+    pub price: Uint128,
+    pub token_id: TokenId,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AskSellerExpiryOffset {
     pub expires_at: Timestamp,
     pub token_id: TokenId,
 }
 
-/// Offset for ask expiry pagination
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AskQueryOptions<T> {
+pub struct BidExpiryOffset {
+    pub expires_at: Timestamp,
+    pub bidder: Addr,
+    pub token_id: TokenId,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct BidTokenPriceOffset {
+    pub price: u128,
+    pub bidder: Addr,
+    pub token_id: TokenId,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct BidBidderExpiryOffset {
+    pub expires_at: Timestamp,
+    pub bidder: Addr,
+    pub token_id: TokenId,
+}
+
+/// Options when querying for Asks and Bids
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct QueryOptions<T> {
     pub descending: Option<bool>,
     pub filter_expiry: Option<Timestamp>,
     pub start_after: Option<T>,
@@ -223,18 +241,18 @@ pub enum QueryMsg {
     /// Get all asks sorted by expiry
     /// Return type: `AsksResponse`
     AsksSortedByExpiry {
-        query_options: AskQueryOptions<AskExpiryOffset>
+        query_options: QueryOptions<AskExpiryOffset>
     },
     /// Get all asks sorted by price
     /// Return type: `AsksResponse`
     AsksSortedByPrice {
-        query_options: AskQueryOptions<AskPriceOffset>
+        query_options: QueryOptions<AskPriceOffset>
     },
     /// Get all asks by seller
     /// Return type: `AsksResponse`
     AsksBySellerExpiry {
         seller: Seller,
-        query_options: AskQueryOptions<AskSellerExpiryOffset>
+        query_options: QueryOptions<AskSellerExpiryOffset>
     },
     /// Count of all asks
     /// Return type: `AskCountResponse`
@@ -245,26 +263,29 @@ pub enum QueryMsg {
         token_id: TokenId,
         bidder: Bidder,
     },
-    // /// Get all bids by a bidder
-    // /// Return type: `BidsResponse`
-    // BidsByBidder {
-    //     bidder: Bidder,
-    //     start_after: Option<CollectionOffset>,
-    //     limit: Option<u32>,
-    // },
+    /// Get all bids sorted by expiry
+    /// Return type: `BidsResponse`
+    BidsSortedByExpiry {
+        query_options: QueryOptions<BidExpiryOffset>
+    },
+    /// Get all bids for a token sorted by price
+    /// Return type: `BidsResponse`
+    BidsByTokenPrice {
+        token_id: TokenId,
+        query_options: QueryOptions<BidTokenPriceOffset>
+    },
+    /// Get all bids by bidders sorted by expiry
+    /// Return type: `BidsResponse`
+    BidsByBidderExpiry {
+        bidder: Bidder,
+        query_options: QueryOptions<BidBidderExpiryOffset>
+    },
+
     // /// Get all bids by a bidder, sorted by expiration
     // /// Return type: `BidsResponse`
     // BidsByBidderSortedByExpiration {
     //     bidder: Bidder,
     //     start_after: Option<CollectionOffset>,
-    //     limit: Option<u32>,
-    // },
-    // /// Get all bids for a specific NFT
-    // /// Return type: `BidsResponse`
-    // Bids {
-    //     collection: Collection,
-    //     token_id: TokenId,
-    //     start_after: Option<Bidder>,
     //     limit: Option<u32>,
     // },
     // /// Get all bids for a collection, sorted by price
@@ -349,10 +370,10 @@ pub struct BidResponse {
     pub bid: Option<Bid>,
 }
 
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-// pub struct BidsResponse {
-//     pub bids: Vec<Bid>,
-// }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct BidsResponse {
+    pub bids: Vec<Bid>,
+}
 
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 // pub struct ParamsResponse {

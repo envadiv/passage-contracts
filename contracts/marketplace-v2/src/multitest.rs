@@ -9,8 +9,8 @@ use crate::helpers::ExpiryRange;
 //     BidsResponse, CollectionBidResponse, CollectionBidsResponse, ExecuteMsg, QueryMsg,
 // };
 use crate::msg::{
-    ExecuteMsg, QueryMsg, AskResponse, AsksResponse, AskQueryOptions, AskPriceOffset, AskCountResponse,
-    BidResponse
+    ExecuteMsg, QueryMsg, AskResponse, AsksResponse, QueryOptions, AskPriceOffset, AskCountResponse,
+    BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset, BidBidderExpiryOffset
 };
 use crate::state::{Ask, Bid};
 // use crate::state::{Bid, SaleType};
@@ -316,6 +316,24 @@ fn ask(
     assert!(res.is_ok());
 }
 
+fn bid(
+    router: &mut App,
+    creator: &Addr,
+    marketplace: &Addr,
+    token_id: String,
+    price: u128,
+    expires_at: Timestamp,
+) {
+    let coin_send = coin(price, NATIVE_DENOM);
+    let set_bid = ExecuteMsg::SetBid {
+        token_id: token_id,
+        price: coin_send.clone(),
+        expires_at: expires_at,
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_bid, &[coin_send]);
+    assert!(res.is_ok());
+}
+
 fn transfer(
     router: &mut App,
     creator: &Addr,
@@ -509,7 +527,7 @@ fn try_ask_queries() {
     }
 
     let query_asks = QueryMsg::AsksSortedByExpiry {
-        query_options: AskQueryOptions {
+        query_options: QueryOptions {
             descending: Some(true),
             filter_expiry: None,
             start_after: None,
@@ -534,7 +552,7 @@ fn try_ask_queries() {
     }
 
     let query_asks = QueryMsg::AsksSortedByPrice {
-        query_options: AskQueryOptions {
+        query_options: QueryOptions {
             descending: Some(false),
             filter_expiry: None,
             start_after: Some(AskPriceOffset {
@@ -562,7 +580,7 @@ fn try_ask_queries() {
 
     let query_asks = QueryMsg::AsksBySellerExpiry {
         seller: creator.to_string(),
-        query_options: AskQueryOptions {
+        query_options: QueryOptions {
             descending: None,
             filter_expiry: Some(block_time.plus_seconds(MIN_EXPIRY + 2u64)),
             start_after: None,
@@ -613,7 +631,7 @@ fn try_set_bid() {
     let coin_send = coin(100, NATIVE_DENOM);
     let set_bid = ExecuteMsg::SetBid {
         token_id: n.to_string(),
-        price: coin(100, NATIVE_DENOM),
+        price: coin_send.clone(),
         expires_at: block_time.plus_seconds(MIN_EXPIRY + 100 as u64),
     };
     let res = router.execute_contract(bidder.clone(), marketplace.clone(), &set_bid, &[coin_send.clone()]).unwrap();
@@ -647,6 +665,99 @@ fn try_set_bid() {
         key: String::from("price"),
         value: String::from("100")
     });
+}
+
+#[test]
+fn try_bid_queries() {
+    let mut router = custom_mock_app();
+
+    // Setup intial accounts
+    let (owner, bidder, creator) = setup_accounts(&mut router).unwrap();
+
+    // Instantiate and configure contracts
+    let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
+
+    let block_time = router.block_info().time;
+
+    // Mint NFT for creator
+    for n in 1..6 {
+        let ts = block_time.plus_seconds(MIN_EXPIRY + n as u64);
+        bid(&mut router, &bidder, &marketplace, n.to_string(), 100 + n, ts);
+    }
+
+    let query_bids = QueryMsg::BidsSortedByExpiry {
+        query_options: QueryOptions {
+            descending: Some(true),
+            filter_expiry: None,
+            start_after: Some(BidExpiryOffset {
+                expires_at: block_time.plus_seconds(MIN_EXPIRY + 3 as u64),
+                bidder: bidder.clone(),
+                token_id: String::from("3"),
+            }),
+            limit: None,
+        }
+    };
+    let res: BidsResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_bids)
+        .unwrap();
+    
+    for n in 1..3 {
+        let idx = 6 - n;
+        let ts = block_time.plus_seconds(MIN_EXPIRY + idx as u64);
+        assert_eq!(Bid {
+            token_id: idx.to_string(),
+            price: coin(100 + idx, NATIVE_DENOM),
+            bidder: bidder.clone(),
+            expires_at: ts,
+        }, res.bids[(n as usize) - 1]);
+    }
+
+    let query_bids = QueryMsg::BidsByTokenPrice {
+        token_id: String::from("3"),
+        query_options: QueryOptions {
+            descending: Some(false),
+            filter_expiry: None,
+            start_after: None,
+            limit: None,
+        }
+    };
+    let res: BidsResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_bids)
+        .unwrap();
+
+    assert_eq!(1, res.bids.len());
+    assert_eq!(Bid {
+        token_id: String::from("3"),
+        price: coin(103, NATIVE_DENOM),
+        bidder: bidder.clone(),
+        expires_at: block_time.plus_seconds(MIN_EXPIRY + 3u64),
+    }, res.bids[0]);
+
+    let query_bids = QueryMsg::BidsByBidderExpiry {
+        bidder: bidder.to_string(),
+        query_options: QueryOptions {
+            descending: None,
+            filter_expiry: Some(block_time.plus_seconds(MIN_EXPIRY + 3u64)),
+            start_after: None,
+            limit: None,
+        }
+    };
+    let res: BidsResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_bids)
+        .unwrap();
+    
+    for n in 4..6 {
+        let ts = block_time.plus_seconds(MIN_EXPIRY + n as u64);
+        assert_eq!(Bid {
+            token_id: n.to_string(),
+            price: coin(100 + n, NATIVE_DENOM),
+            bidder: bidder.clone(),
+            expires_at: ts,
+        }, res.bids[(n as usize) - 4]);
+    }
 }
 
 // #[test]
