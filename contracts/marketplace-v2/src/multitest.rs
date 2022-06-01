@@ -560,7 +560,7 @@ fn try_ask_queries() {
         }, res.asks[(n as usize) - 3]);
     }
 
-    let query_asks = QueryMsg::AsksBySeller {
+    let query_asks = QueryMsg::AsksBySellerExpiry {
         seller: creator.to_string(),
         query_options: AskQueryOptions {
             descending: None,

@@ -147,6 +147,13 @@ pub struct AskExpiryOffset {
 
 /// Offset for ask expiry pagination
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AskSellerExpiryOffset {
+    pub expires_at: Timestamp,
+    pub token_id: TokenId,
+}
+
+/// Offset for ask expiry pagination
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AskQueryOptions<T> {
     pub descending: Option<bool>,
     pub filter_expiry: Option<Timestamp>,
@@ -225,9 +232,9 @@ pub enum QueryMsg {
     },
     /// Get all asks by seller
     /// Return type: `AsksResponse`
-    AsksBySeller {
+    AsksBySellerExpiry {
         seller: Seller,
-        query_options: AskQueryOptions<TokenId>
+        query_options: AskQueryOptions<AskSellerExpiryOffset>
     },
     /// Count of all asks
     /// Return type: `AskCountResponse`

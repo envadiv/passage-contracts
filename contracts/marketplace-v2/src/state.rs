@@ -66,21 +66,21 @@ pub type AskKey = TokenId;
 pub struct AskIndicies<'a> {
     pub expiry: MultiIndex<'a, u64, Ask, AskKey>,
     pub price: MultiIndex<'a, u128, Ask, AskKey>,
-    pub seller: MultiIndex<'a, Addr, Ask, AskKey>,
+    pub seller_expiry: MultiIndex<'a, (Addr, u64), Ask, AskKey>,
 }
 
 impl<'a> IndexList<Ask> for AskIndicies<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Ask>> + '_> {
-        let v: Vec<&dyn Index<Ask>> = vec![&self.expiry, &self.price, &self.seller];
+        let v: Vec<&dyn Index<Ask>> = vec![&self.expiry, &self.price, &self.seller_expiry];
         Box::new(v.into_iter())
     }
 }
 
 pub fn asks<'a>() -> IndexedMap<'a, AskKey, Ask, AskIndicies<'a>> {
     let indexes = AskIndicies {
-        expiry: MultiIndex::new(|d: &Ask|  d.expires_at.nanos(), "asks", "asks__expiry"),
+        expiry: MultiIndex::new(|d: &Ask|  d.expires_at.seconds(), "asks", "asks__expiry"),
         price: MultiIndex::new(|d: &Ask|  d.price.amount.u128(), "asks", "asks__price"),
-        seller: MultiIndex::new(|d: &Ask| d.seller.clone(), "asks", "asks__seller"),
+        seller_expiry: MultiIndex::new(|d: &Ask| (d.seller.clone(), d.expires_at.seconds()), "asks", "asks__seller"),
     };
     IndexedMap::new("asks", indexes)
 }

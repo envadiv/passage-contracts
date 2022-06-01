@@ -4,7 +4,7 @@
 //     CollectionOffset, CollectionsResponse, ParamsResponse, QueryMsg,
 // };
 use crate::msg::{
-    QueryMsg, AskResponse, AsksResponse, AskQueryOptions, AskExpiryOffset, AskPriceOffset,
+    QueryMsg, AskResponse, AsksResponse, AskQueryOptions, AskExpiryOffset, AskPriceOffset, AskSellerExpiryOffset,
     AskCountResponse, BidResponse
 };
 // use crate::state::{
@@ -43,10 +43,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             deps,
             &query_options,
         )?),
-        QueryMsg::AsksBySeller {
+        QueryMsg::AsksBySellerExpiry {
             seller,
             query_options,
-        } => to_binary(&query_asks_by_seller(
+        } => to_binary(&query_asks_by_seller_expiry(
             deps,
             api.addr_validate(&seller)?,
             &query_options,
@@ -175,10 +175,8 @@ pub fn query_asks_sorted_by_expiry(
     query_options: &AskQueryOptions<AskExpiryOffset>
 ) -> StdResult<AsksResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
-    let params = PARAMS.load(deps.storage)?;
-
     let start = query_options.start_after.as_ref().map(|offset| {
-        Bound::exclusive((offset.expires_at.nanos(), offset.token_id.clone()))
+        Bound::exclusive((offset.expires_at.seconds(), offset.token_id.clone()))
     });
     let order = option_bool_to_order(query_options.descending);
 
@@ -188,7 +186,7 @@ pub fn query_asks_sorted_by_expiry(
         .range(deps.storage, start, None, order)
         .filter(|item| match item {
             Ok((_, ask)) => match query_options.filter_expiry {
-                Some(ts) => ask.expires_at > ts,
+                Some(ts) => ts < ask.expires_at,
                 _ => true,
             },
             Err(_) => true,
@@ -205,8 +203,6 @@ pub fn query_asks_sorted_by_price(
     query_options: &AskQueryOptions<AskPriceOffset>
 ) -> StdResult<AsksResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
-    let params = PARAMS.load(deps.storage)?;
-
     let start = query_options.start_after.as_ref().map(|offset| {
         Bound::exclusive((offset.price.u128(), offset.token_id.clone()))
     });
@@ -218,7 +214,7 @@ pub fn query_asks_sorted_by_price(
         .range(deps.storage, start, None, order)
         .filter(|item| match item {
             Ok((_, ask)) => match query_options.filter_expiry {
-                Some(ts) => ask.expires_at > ts,
+                Some(ts) => ts < ask.expires_at,
                 _ => true,
             },
             Err(_) => true,
@@ -230,27 +226,25 @@ pub fn query_asks_sorted_by_price(
     Ok(AsksResponse { asks })
 }
 
-pub fn query_asks_by_seller(
+pub fn query_asks_by_seller_expiry(
     deps: Deps,
     seller: Addr,
-    query_options: &AskQueryOptions<TokenId>
+    query_options: &AskQueryOptions<AskSellerExpiryOffset>
 ) -> StdResult<AsksResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
-    let params = PARAMS.load(deps.storage)?;
-
-    let start = query_options.start_after.as_ref().map(|token_id| {
-        Bound::exclusive(token_id)
+    let start = query_options.start_after.as_ref().map(|offset| {
+        Bound::exclusive((offset.expires_at.seconds(), offset.token_id.clone()))
     });
     let order = option_bool_to_order(query_options.descending);
 
     let asks = asks()
         .idx
-        .seller
-        .prefix(seller)
+        .seller_expiry
+        .sub_prefix(seller)
         .range(deps.storage, start, None, order)
         .filter(|item| match item {
             Ok((_, ask)) => match query_options.filter_expiry {
-                Some(ts) => ask.expires_at > ts,
+                Some(ts) => ts < ask.expires_at,
                 _ => true,
             },
             Err(_) => true,
