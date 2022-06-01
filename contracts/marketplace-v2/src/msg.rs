@@ -60,13 +60,11 @@ pub enum ExecuteMsg {
     RemoveBid {
         token_id: TokenId,
     },
-    // /// Accept a bid on an existing ask
-    // AcceptBid {
-    //     collection: String,
-    //     token_id: TokenId,
-    //     bidder: String,
-    //     finder: Option<String>,
-    // },
+    /// Accept a bid on an existing ask
+    AcceptBid {
+        token_id: TokenId,
+        bidder: String,
+    },
     // /// Place a bid (limit order) across an entire collection
     // SetCollectionBid {
     //     collection: String,
@@ -279,7 +277,6 @@ pub enum QueryMsg {
         bidder: Bidder,
         query_options: QueryOptions<BidBidderExpiryOffset>
     },
-
     // /// Get all bids by a bidder, sorted by expiration
     // /// Return type: `BidsResponse`
     // BidsByBidderSortedByExpiration {
