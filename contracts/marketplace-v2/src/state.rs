@@ -143,10 +143,8 @@ pub fn bids<'a>() -> IndexedMap<'a, BidKey, Bid, BidIndices<'a>> {
 // /// Represents a bid (offer) across an entire collection in the marketplace
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 // pub struct CollectionBid {
-//     pub collection: Addr,
 //     pub bidder: Addr,
-//     pub price: Uint128,
-//     pub finders_fee_bps: Option<u64>,
+//     pub price: Coin,
 //     pub expires_at: Timestamp,
 // }
 
@@ -156,57 +154,30 @@ pub fn bids<'a>() -> IndexedMap<'a, BidKey, Bid, BidIndices<'a>> {
 //     }
 // }
 
-// /// Primary key for bids: (collection, token_id, bidder)
-// pub type CollectionBidKey = (Addr, Addr);
-// /// Convenience collection bid key constructor
-// pub fn collection_bid_key(collection: &Addr, bidder: &Addr) -> CollectionBidKey {
-//     (collection.clone(), bidder.clone())
-// }
+// /// Primary key for collection bids
+// pub type CollectionBidKey = TokenId;
 
 // /// Defines incides for accessing collection bids
 // pub struct CollectionBidIndices<'a> {
-//     pub collection: MultiIndex<'a, Addr, CollectionBid, CollectionBidKey>,
-//     pub collection_price: MultiIndex<'a, (Addr, u128), CollectionBid, CollectionBidKey>,
-//     pub bidder: MultiIndex<'a, Addr, CollectionBid, CollectionBidKey>,
-//     // Cannot include `Timestamp` in index, converted `Timestamp` to `seconds` and stored as `u64`
-//     pub bidder_expires_at: MultiIndex<'a, (Addr, u64), CollectionBid, CollectionBidKey>,
+//     pub expiry: MultiIndex<'a, u64, CollectionBid, CollectionBidKey>,
+//     pub price: MultiIndex<'a, u128, CollectionBid, CollectionBidKey>,
 // }
 
 // impl<'a> IndexList<CollectionBid> for CollectionBidIndices<'a> {
 //     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<CollectionBid>> + '_> {
 //         let v: Vec<&dyn Index<CollectionBid>> = vec![
-//             &self.collection,
-//             &self.collection_price,
-//             &self.bidder,
-//             &self.bidder_expires_at,
+//             &self.expiry,
+//             &self.price,
 //         ];
 //         Box::new(v.into_iter())
 //     }
 // }
 
 // pub fn collection_bids<'a>(
-// ) -> IndexedMap<'a, CollectionBidKey, CollectionBid, CollectionBidIndices<'a>> {
+// ) -> IndexedMap<'a, Addr, CollectionBid, CollectionBidIndices<'a>> {
 //     let indexes = CollectionBidIndices {
-//         collection: MultiIndex::new(
-//             |d: &CollectionBid| d.collection.clone(),
-//             "col_bids",
-//             "col_bids__collection",
-//         ),
-//         collection_price: MultiIndex::new(
-//             |d: &CollectionBid| (d.collection.clone(), d.price.u128()),
-//             "col_bids",
-//             "col_bids__collection_price",
-//         ),
-//         bidder: MultiIndex::new(
-//             |d: &CollectionBid| d.bidder.clone(),
-//             "col_bids",
-//             "col_bids__bidder",
-//         ),
-//         bidder_expires_at: MultiIndex::new(
-//             |d: &CollectionBid| (d.bidder.clone(), d.expires_at.seconds()),
-//             "col_bids",
-//             "col_bids__bidder_expires_at",
-//         ),
+//         expiry: MultiIndex::new(|d: &CollectionBid|  d.expires_at.seconds(), "col_bids", "col_bids__expiry"),
+//         price: MultiIndex::new(|d: &CollectionBid|  d.price.amount.u128(), "col_bids", "col_bids__price"),
 //     };
 //     IndexedMap::new("col_bids", indexes)
 // }

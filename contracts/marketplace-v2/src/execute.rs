@@ -1,19 +1,10 @@
 use crate::error::ContractError;
 use crate::helpers::map_validate;
-// use crate::msg::{
-//     AskHookMsg, BidHookMsg, CollectionBidHookMsg, ExecuteMsg, HookAction, InstantiateMsg,
-//     SaleHookMsg,
-// };
 use crate::msg::{
     InstantiateMsg, ExecuteMsg
 };
-// use crate::state::{
-//     ask_key, asks, bid_key, bids, collection_bid_key, collection_bids, Ask, Bid, CollectionBid,
-//     Order, SaleType, Params, TokenId, ASK_HOOKS, BID_HOOKS, COLLECTION_BID_HOOKS, SALE_HOOKS,
-//     PARAMS,
-// };
 use crate::state::{
-    Params, PARAMS, Ask, asks, TokenId, bid_key, bids, Order, Bid
+    Params, PARAMS, Ask, asks, TokenId, bid_key, bids, Order, Bid, collection_bids
 };
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -115,30 +106,22 @@ pub fn execute(
         ExecuteMsg::RemoveBid {
             token_id,
         } => execute_remove_bid(deps, env, info, token_id),
-        // ExecuteMsg::AcceptBid {
-        //     collection,
-        //     token_id,
-        //     bidder,
-        //     finder,
-        // } => execute_accept_bid(
-        //     deps,
-        //     env,
-        //     info,
-        //     api.addr_validate(&collection)?,
-        //     token_id,
-        //     api.addr_validate(&bidder)?,
-        //     maybe_addr(api, finder)?,
-        // ),
+        ExecuteMsg::AcceptBid {
+            token_id,
+            bidder,
+        } => execute_accept_bid(
+            deps,
+            env,
+            info,
+            token_id,
+            api.addr_validate(&bidder)?,
+        ),
         // ExecuteMsg::SetCollectionBid {
-        //     collection,
         //     expires,
-        //     finders_fee_bps,
         // } => execute_set_collection_bid(
         //     deps,
         //     env,
         //     info,
-        //     api.addr_validate(&collection)?,
-        //     finders_fee_bps,
         //     expires,
         // ),
         // ExecuteMsg::RemoveCollectionBid { collection } => {
@@ -158,31 +141,6 @@ pub fn execute(
         //     api.addr_validate(&bidder)?,
         //     maybe_addr(api, finder)?,
         // ),
-        // ExecuteMsg::SyncAsk {
-        //     collection,
-        //     token_id,
-        // } => execute_sync_ask(deps, info, api.addr_validate(&collection)?, token_id),
-        // ExecuteMsg::RemoveStaleBid {
-        //     collection,
-        //     token_id,
-        //     bidder,
-        // } => execute_remove_stale_bid(
-        //     deps,
-        //     env,
-        //     info,
-        //     api.addr_validate(&collection)?,
-        //     token_id,
-        //     api.addr_validate(&bidder)?,
-        // ),
-        // ExecuteMsg::RemoveStaleCollectionBid { collection, bidder } => {
-        //     execute_remove_stale_collection_bid(
-        //         deps,
-        //         env,
-        //         info,
-        //         api.addr_validate(&collection)?,
-        //         api.addr_validate(&bidder)?,
-        //     )
-        // }
     }
 }
 
@@ -345,75 +303,67 @@ pub fn execute_remove_bid(
     Ok(response)
 }
 
-// /// Seller can accept a bid which transfers funds as well as the token. The bid may or may not be associated with an ask.
-// pub fn execute_accept_bid(
-//     deps: DepsMut,
-//     env: Env,
-//     info: MessageInfo,
-//     collection: Addr,
-//     token_id: TokenId,
-//     bidder: Addr,
-//     finder: Option<Addr>,
-// ) -> Result<Response, ContractError> {
-//     nonpayable(&info)?;
-//     only_owner(deps.as_ref(), &info, &collection, token_id)?;
+/// Seller can accept a bid which transfers funds as well as the token. The bid may or may not be associated with an ask.
+pub fn execute_accept_bid(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    token_id: TokenId,
+    bidder: Addr,
+) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
 
-//     let bid_key = bid_key(&collection, token_id, &bidder);
-//     let ask_key = ask_key(&collection, token_id);
+    let bid_key = bid_key(token_id.clone(), &bidder);
+    let bid = bids().load(deps.storage, bid_key.clone())?;
+    if bid.is_expired(&env.block.time) {
+        return Err(ContractError::BidExpired {});
+    }
 
-//     let bid = bids().load(deps.storage, bid_key.clone())?;
-//     if bid.is_expired(&env.block) {
-//         return Err(ContractError::BidExpired {});
-//     }
+    let params = PARAMS.load(deps.storage)?;
+    let existing_ask = asks().load(deps.storage, token_id.clone());
 
-//     let ask = if let Some(existing_ask) = asks().may_load(deps.storage, ask_key.clone())? {
-//         if existing_ask.is_expired(&env.block) {
-//             return Err(ContractError::AskExpired {});
-//         }
-//         if !existing_ask.is_active {
-//             return Err(ContractError::AskNotActive {});
-//         }
-//         asks().remove(deps.storage, ask_key)?;
-//         existing_ask
-//     } else {
-//         // Create a temporary Ask
-//         Ask {
-//             sale_type: SaleType::Auction,
-//             collection: collection.clone(),
-//             token_id,
-//             price: bid.price,
-//             expires_at: bid.expires_at,
-//             is_active: true,
-//             seller: info.sender,
-//             funds_recipient: None,
-//             reserve_for: None,
-//             finders_fee_bps: bid.finders_fee_bps,
-//         }
-//     };
+    // Validate sender, formalize Ask
+    let ask = match existing_ask {
+        Ok(_ask) => {
+            only_seller(&info, &_ask)?;
+            _ask
+        },
+        Err(_) => {
+            only_owner(deps.as_ref(), &info, &params.cw721_address.clone(), &token_id)?;
+            Ask {
+                token_id: token_id.clone(),
+                seller: info.sender.clone(),
+                price: bid.price.clone(),
+                funds_recipient: None,
+                reserve_for: None,
+                expires_at: bid.expires_at.clone(),
+            }
+        }
+    };
 
-//     // Remove accepted bid
-//     bids().remove(deps.storage, bid_key)?;
+    let mut response = Response::new();
 
-//     let mut res = Response::new();
+    // Transfer funds and NFT
+    finalize_sale(
+        deps.as_ref(),
+        bid.price.amount,
+        &ask,
+        &bid,
+        &params,
+        &mut response,
+    )?;
 
-//     // Transfer funds and NFT
-//     finalize_sale(
-//         deps.as_ref(),
-//         ask,
-//         bid.price,
-//         bidder.clone(),
-//         finder,
-//         &mut res,
-//     )?;
+    // Remove accepted bid
+    bids().remove(deps.storage, bid_key)?;
 
-//     let event = Event::new("accept-bid")
-//         .add_attribute("collection", collection.to_string())
-//         .add_attribute("token_id", token_id.to_string())
-//         .add_attribute("bidder", bidder)
-//         .add_attribute("price", bid.price.to_string());
+    let event = Event::new("accept-bid")
+        .add_attribute("token_id", token_id.to_string())
+        .add_attribute("bidder", bidder)
+        .add_attribute("price", bid.price.to_string())
+        .add_attribute("expires_at", bid.expires_at.to_string());
 
-//     Ok(res.add_event(event))
-// }
+    Ok(response.add_event(event))
+}
 
 // /// Place a collection bid (limit order) across an entire collection
 // pub fn execute_set_collection_bid(
