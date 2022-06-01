@@ -24,8 +24,8 @@ pub struct Params {
     /// Valid time range for Bids
     /// (min, max) in seconds
     pub bid_expiry: ExpiryRange,
-    /// The admin addresses that have access to certain functionality
-    pub admins: Vec<Addr>,
+    /// The operator addresses that have access to certain functionality
+    pub operators: Vec<Addr>,
     /// Min value for a bid
     pub min_price: Uint128,
 }

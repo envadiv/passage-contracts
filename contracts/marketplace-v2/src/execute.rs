@@ -1,10 +1,10 @@
 use crate::error::ContractError;
-use crate::helpers::map_validate;
+use crate::helpers::{map_validate, ExpiryRange};
 use crate::msg::{
     InstantiateMsg, ExecuteMsg
 };
 use crate::state::{
-    Params, PARAMS, Ask, asks, TokenId, bid_key, bids, Order, Bid, collection_bids
+    Params, PARAMS, Ask, asks, TokenId, bid_key, bids, Order, Bid
 };
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -42,7 +42,7 @@ pub fn instantiate(
         trading_fee_percent: Decimal::percent(msg.trading_fee_bps),
         ask_expiry: msg.ask_expiry,
         bid_expiry: msg.bid_expiry,
-        admins: map_validate(deps.api, &msg.operators)?,
+        operators: map_validate(deps.api, &msg.operators)?,
         min_price: msg.min_price,
     };
     PARAMS.save(deps.storage, &params)?;
@@ -62,6 +62,22 @@ pub fn execute(
     let message_info = info.clone();
 
     match msg {
+        ExecuteMsg::UpdateParams {
+            trading_fee_bps,
+            ask_expiry,
+            bid_expiry,
+            operators,
+            min_price,
+        } => execute_update_params(
+            deps,
+            env,
+            info,
+            trading_fee_bps,
+            ask_expiry,
+            bid_expiry,
+            operators,
+            min_price,
+        ),
         ExecuteMsg::SetAsk {
             token_id,
             price,
@@ -144,6 +160,42 @@ pub fn execute(
     }
 }
 
+/// An operator may update the marketplace params
+pub fn execute_update_params(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    trading_fee_bps: Option<u64>,
+    ask_expiry: Option<ExpiryRange>,
+    bid_expiry: Option<ExpiryRange>,
+    operators: Option<Vec<String>>,
+    min_price: Option<Uint128>,
+) -> Result<Response, ContractError> {
+    let mut params = PARAMS.load(deps.storage)?;
+    only_operator(&info, &params);
+
+    if let Some(_trading_fee_bps) = trading_fee_bps {
+        params.trading_fee_percent = Decimal::percent(_trading_fee_bps);
+    }
+    if let Some(_ask_expiry) = ask_expiry {
+        _ask_expiry.validate()?;
+        params.ask_expiry = _ask_expiry;
+    }
+    if let Some(_bid_expiry) = bid_expiry {
+        _bid_expiry.validate()?;
+        params.bid_expiry = _bid_expiry;
+    }
+    if let Some(_operators) = operators {
+        params.operators = map_validate(deps.api, &_operators)?;
+    }
+    if let Some(_min_price) = min_price {
+        params.min_price = _min_price;
+    }
+    
+    PARAMS.save(deps.storage, &params)?;
+    Ok(Response::new())
+}
+
 /// A seller may set an Ask on their NFT to list it on Marketplace
 pub fn execute_set_ask(
     deps: DepsMut,
@@ -188,15 +240,15 @@ pub fn execute_remove_ask(
     asks().remove(deps.storage, token_id.clone())?;
 
     let params = PARAMS.load(deps.storage)?;
-    let mut res = Response::new();
+    let mut response = Response::new();
 
-    transfer_nft(&ask.token_id, &ask.seller, &params.cw721_address, &mut res)?;
+    transfer_nft(&ask.token_id, &ask.seller, &params.cw721_address, &mut response)?;
 
     let event = Event::new("remove-ask")
         .add_attribute("collection", params.cw721_address.to_string())
         .add_attribute("token_id", token_id.to_string());
 
-    Ok(res.add_event(event))
+    Ok(response.add_event(event))
 }
 
 /// Updates the ask price on a particular NFT
@@ -782,139 +834,18 @@ fn only_seller(
     Ok(())
 }
 
-// /// Checks to enforce only privileged operators
-// fn only_operator(store: &dyn Storage, info: &MessageInfo) -> Result<Addr, ContractError> {
-//     let params = PARAMS.load(store)?;
-//     if !params
-//         .operators
-//         .iter()
-//         .any(|a| a.as_ref() == info.sender.as_ref())
-//     {
-//         return Err(ContractError::UnauthorizedOperator {});
-//     }
+/// Checks to enforce only privileged operators
+fn only_operator(info: &MessageInfo, params: &Params) -> Result<Addr, ContractError> {
+    if !params
+        .operators
+        .iter()
+        .any(|a| a.as_ref() == info.sender.as_ref())
+    {
+        return Err(ContractError::UnauthorizedOperator {});
+    }
 
-//     Ok(info.sender.clone())
-// }
-
-// enum HookReply {
-//     Ask = 1,
-//     Sale,
-//     Bid,
-//     CollectionBid,
-// }
-
-// impl From<u64> for HookReply {
-//     fn from(item: u64) -> Self {
-//         match item {
-//             1 => HookReply::Ask,
-//             2 => HookReply::Sale,
-//             3 => HookReply::Bid,
-//             4 => HookReply::CollectionBid,
-//             _ => panic!("invalid reply type"),
-//         }
-//     }
-// }
-
-// #[cfg_attr(not(feature = "library"), entry_point)]
-// pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-//     match HookReply::from(msg.id) {
-//         HookReply::Ask => {
-//             let res = Response::new()
-//                 .add_attribute("action", "ask-hook-failed")
-//                 .add_attribute("error", msg.result.unwrap_err());
-//             Ok(res)
-//         }
-//         HookReply::Sale => {
-//             let res = Response::new()
-//                 .add_attribute("action", "sale-hook-failed")
-//                 .add_attribute("error", msg.result.unwrap_err());
-//             Ok(res)
-//         }
-//         HookReply::Bid => {
-//             let res = Response::new()
-//                 .add_attribute("action", "bid-hook-failed")
-//                 .add_attribute("error", msg.result.unwrap_err());
-//             Ok(res)
-//         }
-//         HookReply::CollectionBid => {
-//             let res = Response::new()
-//                 .add_attribute("action", "collection-bid-hook-failed")
-//                 .add_attribute("error", msg.result.unwrap_err());
-//             Ok(res)
-//         }
-//     }
-// }
-
-// fn prepare_ask_hook(deps: Deps, ask: &Ask, action: HookAction) -> StdResult<Vec<SubMsg>> {
-//     let submsgs = ASK_HOOKS.prepare_hooks(deps.storage, |h| {
-//         let msg = AskHookMsg { ask: ask.clone() };
-//         let execute = WasmMsg::Execute {
-//             contract_addr: h.to_string(),
-//             msg: msg.into_binary(action.clone())?,
-//             funds: vec![],
-//         };
-//         Ok(SubMsg::reply_on_error(execute, HookReply::Ask as u64))
-//     })?;
-
-//     Ok(submsgs)
-// }
-
-// fn prepare_sale_hook(deps: Deps, ask: &Ask, buyer: Addr) -> StdResult<Vec<SubMsg>> {
-//     let submsgs = SALE_HOOKS.prepare_hooks(deps.storage, |h| {
-//         let msg = SaleHookMsg {
-//             collection: ask.collection.to_string(),
-//             token_id: ask.token_id,
-//             price: coin(ask.price.clone().u128(), NATIVE_DENOM),
-//             seller: ask.seller.to_string(),
-//             buyer: buyer.to_string(),
-//         };
-//         let execute = WasmMsg::Execute {
-//             contract_addr: h.to_string(),
-//             msg: msg.into_binary()?,
-//             funds: vec![],
-//         };
-//         Ok(SubMsg::reply_on_error(execute, HookReply::Sale as u64))
-//     })?;
-
-//     Ok(submsgs)
-// }
-
-// fn prepare_bid_hook(deps: Deps, bid: &Bid, action: HookAction) -> StdResult<Vec<SubMsg>> {
-//     let submsgs = BID_HOOKS.prepare_hooks(deps.storage, |h| {
-//         let msg = BidHookMsg { bid: bid.clone() };
-//         let execute = WasmMsg::Execute {
-//             contract_addr: h.to_string(),
-//             msg: msg.into_binary(action.clone())?,
-//             funds: vec![],
-//         };
-//         Ok(SubMsg::reply_on_error(execute, HookReply::Bid as u64))
-//     })?;
-
-//     Ok(submsgs)
-// }
-
-// fn prepare_collection_bid_hook(
-//     deps: Deps,
-//     collection_bid: &CollectionBid,
-//     action: HookAction,
-// ) -> StdResult<Vec<SubMsg>> {
-//     let submsgs = COLLECTION_BID_HOOKS.prepare_hooks(deps.storage, |h| {
-//         let msg = CollectionBidHookMsg {
-//             collection_bid: collection_bid.clone(),
-//         };
-//         let execute = WasmMsg::Execute {
-//             contract_addr: h.to_string(),
-//             msg: msg.into_binary(action.clone())?,
-//             funds: vec![],
-//         };
-//         Ok(SubMsg::reply_on_error(
-//             execute,
-//             HookReply::CollectionBid as u64,
-//         ))
-//     })?;
-
-//     Ok(submsgs)
-// }
+    Ok(info.sender.clone())
+}
 
 fn transfer_nft(token_id: &TokenId, recipient: &Addr, collection: &Addr, response: &mut Response,) -> StdResult<()> {
     let cw721_transfer_msg = Cw721ExecuteMsg::TransferNft {

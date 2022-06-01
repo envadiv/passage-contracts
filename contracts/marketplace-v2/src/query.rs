@@ -1,6 +1,7 @@
 use crate::msg::{
     QueryMsg, AskResponse, AsksResponse, QueryOptions, AskExpiryOffset, AskPriceOffset, AskSellerExpiryOffset,
-    AskCountResponse, BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset, BidBidderExpiryOffset
+    AskCountResponse, BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset, BidBidderExpiryOffset,
+    ParamsResponse
 };
 use crate::state::{
     PARAMS, asks, TokenId, bids, bid_key
@@ -19,6 +20,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let api = deps.api;
 
     match msg {
+        QueryMsg::Params { } => to_binary(&query_params(deps)?),
         QueryMsg::Ask {
             token_id,
         } => to_binary(&query_ask(deps, token_id)?),
@@ -123,6 +125,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         // QueryMsg::SaleHooks {} => to_binary(&SALE_HOOKS.query_hooks(deps)?),
         // QueryMsg::Params {} => to_binary(&query_params(deps)?),
     }
+}
+
+pub fn query_params(deps: Deps) -> StdResult<ParamsResponse> {
+    let params = PARAMS.load(deps.storage)?;
+
+    Ok(ParamsResponse { params })
 }
 
 pub fn query_ask(deps: Deps, token_id: TokenId) -> StdResult<AskResponse> {
