@@ -56,11 +56,10 @@ pub enum ExecuteMsg {
         price: Coin,
         expires_at: Timestamp,
     },
-    // /// Remove an existing bid from an ask
-    // RemoveBid {
-    //     collection: String,
-    //     token_id: TokenId,
-    // },
+    /// Remove an existing bid from an ask
+    RemoveBid {
+        token_id: TokenId,
+    },
     // /// Accept a bid on an existing ask
     // AcceptBid {
     //     collection: String,

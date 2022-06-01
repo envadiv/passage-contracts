@@ -15,7 +15,7 @@ use crate::msg::{
 use crate::state::{Ask, Bid};
 // use crate::state::{Bid, SaleType};
 // use crate::hooks::HooksResponse;
-use cosmwasm_std::{Addr, Empty, Timestamp, Attribute};
+use cosmwasm_std::{Addr, Empty, Timestamp, Attribute, BankQuery};
 use cw721::{Cw721QueryMsg, OwnerOfResponse};
 use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMsg, MintMsg};
 use cw_multi_test::{App, AppBuilder, BankSudo, Contract, ContractWrapper, Executor, SudoMsg as CwSudoMsg};
@@ -665,6 +665,41 @@ fn try_set_bid() {
         key: String::from("price"),
         value: String::from("100")
     });
+
+    let n = 2;
+    let ts = block_time.plus_seconds(MIN_EXPIRY + n as u64);
+    bid(&mut router, &bidder, &marketplace, n.to_string(), 100 + n, ts);
+
+    let query_bid_msg = QueryMsg::Bid {
+        token_id: n.to_string(),
+        bidder: bidder.to_string(),
+    };
+    let res: BidResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_bid_msg)
+        .unwrap();
+    assert_eq!(Some(Bid {
+        token_id: n.to_string(),
+        bidder: bidder.clone(),
+        price: coin(100 + n, NATIVE_DENOM),
+        expires_at: ts,
+    }), res.bid);
+
+    // Remove bid
+    let remove_bid = ExecuteMsg::RemoveBid {
+        token_id: n.to_string(),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &remove_bid, &[]).unwrap();
+
+    let query_bid_msg = QueryMsg::Bid {
+        token_id: n.to_string(),
+        bidder: bidder.to_string(),
+    };
+    let res: BidResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace, &query_bid_msg)
+        .unwrap();
+    assert_eq!(res.bid, None);
 }
 
 #[test]
