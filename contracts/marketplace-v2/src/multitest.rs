@@ -10,9 +10,9 @@ use crate::helpers::ExpiryRange;
 // };
 use crate::msg::{
     ExecuteMsg, QueryMsg, AskResponse, AsksResponse, QueryOptions, AskPriceOffset, AskCountResponse,
-    BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset, BidBidderExpiryOffset
+    BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset, BidBidderExpiryOffset, ParamsResponse
 };
-use crate::state::{Ask, Bid};
+use crate::state::{Ask, Bid, Params};
 // use crate::state::{Bid, SaleType};
 // use crate::hooks::HooksResponse;
 use cosmwasm_std::{Addr, Empty, Timestamp, Attribute, BankQuery};
@@ -514,6 +514,22 @@ fn try_ask_queries() {
 
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
+
+    let query_asks = QueryMsg::Params {};
+    let res: ParamsResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_asks)
+        .unwrap();
+    assert_eq!(Params {
+        cw721_address: Addr::unchecked("contract0"),
+        denom: String::from("ujunox"),
+        collector_address: Addr::unchecked("creator"),
+        trading_fee_percent: Decimal::percent(TRADING_FEE_BPS),
+        ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+        bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+        operators: vec![Addr::unchecked("operator")],
+        min_price: Uint128::from(5u128)
+    }, res.params);
 
     let block_time = router.block_info().time;
 

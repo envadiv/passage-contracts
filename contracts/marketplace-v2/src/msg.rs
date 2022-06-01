@@ -1,5 +1,5 @@
 use crate::helpers::ExpiryRange;
-use crate::state::{Ask, TokenId, Bid};
+use crate::state::{Ask, TokenId, Bid, Params};
 // state::{Ask, Bid, CollectionBid, SaleType, SudoParams, TokenId},
 use cosmwasm_std::{to_binary, Addr, Binary, Coin, StdResult, Timestamp, Uint128};
 use cw_utils::Duration;
@@ -33,6 +33,14 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    /// Update the contract parameters
+    UpdateParams {
+        trading_fee_bps: Option<u64>,
+        ask_expiry: Option<ExpiryRange>,
+        bid_expiry: Option<ExpiryRange>,
+        operators: Option<Vec<String>>,
+        min_price: Option<Uint128>,
+    },
     /// List an NFT on the marketplace by creating a new ask
     SetAsk {
         token_id: TokenId,
@@ -230,6 +238,9 @@ pub struct QueryOptions<T> {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    /// Get the config for the contract
+    /// Return type: `ParamsResponse`
+    Params {},
     /// Get the current ask for specific NFT
     /// Return type: `CurrentAskResponse`
     Ask {
@@ -332,18 +343,6 @@ pub enum QueryMsg {
     //     start_before: Option<CollectionBidOffset>,
     //     limit: Option<u32>,
     // },
-    // /// Show all registered ask hooks
-    // /// Return type: `HooksResponse`
-    // AskHooks {},
-    // /// Show all registered bid hooks
-    // /// Return type: `HooksResponse`
-    // BidHooks {},
-    // /// Show all registered sale hooks
-    // /// Return type: `HooksResponse`
-    // SaleHooks {},
-    // /// Get the config for the contract
-    // /// Return type: `ParamsResponse`
-    // Params {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -371,10 +370,10 @@ pub struct BidsResponse {
     pub bids: Vec<Bid>,
 }
 
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-// pub struct ParamsResponse {
-//     pub params: SudoParams,
-// }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ParamsResponse {
+    pub params: Params,
+}
 
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 // pub struct CollectionBidResponse {
