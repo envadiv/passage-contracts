@@ -109,37 +109,33 @@ pub fn bid_key(token_id: TokenId, bidder: &Addr) -> BidKey {
 }
 
 /// Defines incides for accessing bids
-pub struct BidIndicies<'a> {
-    pub price: MultiIndex<'a, u128, Bid, BidKey>,
-    pub bidder: MultiIndex<'a, Addr, Bid, BidKey>,
+pub struct BidIndices<'a> {
     // Cannot include `Timestamp` in index, converted `Timestamp` to `seconds` and stored as `u64`
-    pub bidder_expires_at: MultiIndex<'a, (Addr, u64), Bid, BidKey>,
+    pub expiry: MultiIndex<'a, u64, Bid, BidKey>,
+    pub token_price: MultiIndex<'a, (String, u128), Bid, BidKey>,
+    pub bidder_expiry: MultiIndex<'a, (Addr, u64), Bid, BidKey>,
 }
 
-impl<'a> IndexList<Bid> for BidIndicies<'a> {
+impl<'a> IndexList<Bid> for BidIndices<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Bid>> + '_> {
         let v: Vec<&dyn Index<Bid>> = vec![
-            &self.price,
-            &self.bidder,
-            &self.bidder_expires_at,
+            &self.expiry,
+            &self.token_price,
+            &self.bidder_expiry,
         ];
         Box::new(v.into_iter())
     }
 }
 
-pub fn bids<'a>() -> IndexedMap<'a, BidKey, Bid, BidIndicies<'a>> {
-    let indexes = BidIndicies {
-        price: MultiIndex::new(
-            |d: &Bid| d.price.amount.u128(),
+pub fn bids<'a>() -> IndexedMap<'a, BidKey, Bid, BidIndices<'a>> {
+    let indexes = BidIndices {
+        expiry: MultiIndex::new(|d: &Bid|  d.expires_at.seconds(), "bids", "bids__expiry"),
+        token_price: MultiIndex::new(
+            |d: &Bid| (d.token_id.clone(), d.price.amount.u128()),
             "bids",
-            "bids__collection_price",
+            "bids__token_price",
         ),
-        bidder: MultiIndex::new(|d: &Bid| d.bidder.clone(), "bids", "bids__bidder"),
-        bidder_expires_at: MultiIndex::new(
-            |d: &Bid| (d.bidder.clone(), d.expires_at.seconds()),
-            "bids",
-            "bids__bidder_expires_at",
-        ),
+        bidder_expiry: MultiIndex::new(|d: &Bid| (d.bidder.clone(), d.expires_at.seconds()), "bids", "bids__bidder_expiry"),
     };
     IndexedMap::new("bids", indexes)
 }
@@ -168,7 +164,7 @@ pub fn bids<'a>() -> IndexedMap<'a, BidKey, Bid, BidIndicies<'a>> {
 // }
 
 // /// Defines incides for accessing collection bids
-// pub struct CollectionBidIndicies<'a> {
+// pub struct CollectionBidIndices<'a> {
 //     pub collection: MultiIndex<'a, Addr, CollectionBid, CollectionBidKey>,
 //     pub collection_price: MultiIndex<'a, (Addr, u128), CollectionBid, CollectionBidKey>,
 //     pub bidder: MultiIndex<'a, Addr, CollectionBid, CollectionBidKey>,
@@ -176,7 +172,7 @@ pub fn bids<'a>() -> IndexedMap<'a, BidKey, Bid, BidIndicies<'a>> {
 //     pub bidder_expires_at: MultiIndex<'a, (Addr, u64), CollectionBid, CollectionBidKey>,
 // }
 
-// impl<'a> IndexList<CollectionBid> for CollectionBidIndicies<'a> {
+// impl<'a> IndexList<CollectionBid> for CollectionBidIndices<'a> {
 //     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<CollectionBid>> + '_> {
 //         let v: Vec<&dyn Index<CollectionBid>> = vec![
 //             &self.collection,
@@ -189,8 +185,8 @@ pub fn bids<'a>() -> IndexedMap<'a, BidKey, Bid, BidIndicies<'a>> {
 // }
 
 // pub fn collection_bids<'a>(
-// ) -> IndexedMap<'a, CollectionBidKey, CollectionBid, CollectionBidIndicies<'a>> {
-//     let indexes = CollectionBidIndicies {
+// ) -> IndexedMap<'a, CollectionBidKey, CollectionBid, CollectionBidIndices<'a>> {
+//     let indexes = CollectionBidIndices {
 //         collection: MultiIndex::new(
 //             |d: &CollectionBid| d.collection.clone(),
 //             "col_bids",
