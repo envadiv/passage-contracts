@@ -2,8 +2,6 @@ use cosmwasm_std::{Addr, Decimal, Timestamp, Uint128, Coin};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-// use crate::hooks::Hooks;
 use crate::helpers::ExpiryRange;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
