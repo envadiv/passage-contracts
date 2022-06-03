@@ -292,6 +292,9 @@ pub fn execute_set_bid(
     let params = PARAMS.load(deps.storage)?;
 
     let payment_amount = must_pay(&info, &params.denom)?;
+    if bid.price.amount != payment_amount  {
+        return Err(ContractError::IncorrectBidPayment(bid.price.amount, payment_amount));
+    }
     price_validate(&bid.price, &params)?;
     params.bid_expiry.is_valid(&env.block, bid.expires_at)?;
 
@@ -386,6 +389,7 @@ pub fn execute_accept_bid(
     let ask = match existing_ask {
         Ok(_ask) => {
             only_seller(&info, &_ask)?;
+            asks().remove(deps.storage, token_id.clone())?;
             _ask
         },
         Err(_) => {
@@ -436,11 +440,13 @@ pub fn execute_set_collection_bid(
     let params = PARAMS.load(deps.storage)?;
     
     // Escrows the amount (price * units)
-    let price = must_pay(&info, &params.denom)?;
+    let payment_amount = must_pay(&info, &params.denom)?;
     price_validate(&coin(collection_bid.total_cost(), &params.denom), &params)?;
-    
-    if price < params.min_price {
-        return Err(ContractError::PriceTooSmall(price));
+    if Uint128::from(collection_bid.total_cost()) != payment_amount  {
+        return Err(ContractError::IncorrectBidPayment(
+            Uint128::from(collection_bid.total_cost()),
+            payment_amount,
+        ));
     }
     params.bid_expiry.is_valid(&env.block, collection_bid.expires_at)?;
 
@@ -520,6 +526,7 @@ pub fn execute_accept_collection_bid(
     let ask = match existing_ask {
         Ok(_ask) => {
             only_seller(&info, &_ask)?;
+            asks().remove(deps.storage, token_id.clone())?;
             _ask
         },
         Err(_) => {
@@ -619,7 +626,7 @@ fn payout(
 
     // Charge royalties if they exist
     let royalties = match &collection_info.royalty_info {
-        Some(royalty) => Some((ask.price.amount * royalty.share, &royalty.payment_address)),
+        Some(royalty) => Some((payment_amount * royalty.share, &royalty.payment_address)),
         None => None
     };
     if let Some(_royalties) = &royalties {
@@ -646,6 +653,7 @@ fn payout(
     Ok(())
 }
 
+// Validate Bid or Ask price
 fn price_validate(price: &Coin, params: &Params) -> Result<(), ContractError> {
     if
         price.amount.is_zero() ||
