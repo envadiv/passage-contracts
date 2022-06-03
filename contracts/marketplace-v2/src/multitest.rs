@@ -3,17 +3,15 @@ use crate::error::ContractError;
 use crate::helpers::ExpiryRange;
 use crate::msg::{
     ExecuteMsg, QueryMsg, AskResponse, AsksResponse, QueryOptions, AskPriceOffset, AskCountResponse,
-    BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset, BidBidderExpiryOffset, ParamsResponse,
-    CollectionBidResponse, CollectionBidsResponse,
+    BidResponse, BidsResponse, BidExpiryOffset, ParamsResponse, CollectionBidResponse, CollectionBidsResponse,
 };
 use crate::state::{Ask, Bid, Params, CollectionBid};
-use cosmwasm_std::{Addr, Empty, Timestamp, Attribute, BankQuery};
+use cosmwasm_std::{Addr, Empty, Timestamp, Attribute};
 use cw721::{Cw721QueryMsg, OwnerOfResponse};
 use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMsg, MintMsg};
 use cw_multi_test::{App, AppBuilder, BankSudo, Contract, ContractWrapper, Executor, SudoMsg as CwSudoMsg};
 
 use cosmwasm_std::{coin, coins, Coin, Decimal, Uint128};
-use cw_utils::Duration;
 use pg721::msg::{InstantiateMsg as Pg721InstantiateMsg, RoyaltyInfoResponse};
 use pg721::state::CollectionInfo;
 
@@ -27,8 +25,6 @@ const USER: &str = "USER";
 const TRADING_FEE_BPS: u64 = 200; // 2%
 const MIN_EXPIRY: u64 = 24 * 60 * 60; // 24 hours (in seconds)
 const MAX_EXPIRY: u64 = 180 * 24 * 60 * 60; // 6 months (in seconds)
-const MAX_FINDERS_FEE_BPS: u64 = 1000; // 10%
-const BID_REMOVAL_REWARD_BPS: u64 = 500; // 5%
 
 fn custom_mock_app() -> App {
     AppBuilder::new().build(|router, _, storage| {
@@ -133,39 +129,6 @@ fn setup_contracts(
     Ok((marketplace, collection))
 }
 
-fn setup_collection(router: &mut App, creator: &Addr) -> Result<Addr, ContractError> {
-    // Setup media contract
-    let pg721_id = router.store_code(contract_pg721());
-    let msg = Pg721InstantiateMsg {
-        name: String::from("Test Collection 2"),
-        symbol: String::from("TEST 2"),
-        minter: creator.to_string(),
-        collection_info: CollectionInfo {
-            creator: creator.to_string(),
-            description: String::from("Passage Monkeys 2"),
-            image:
-                "ipfs://bafybeigi3bwpvyvsmnbj46ra4hyffcxdeaj6ntfk5jpic5mx27x6ih2qvq/images/1.png"
-                    .to_string(),
-            external_link: Some("https://example.com/external.html".to_string()),
-            royalty_info: Some(RoyaltyInfoResponse {
-                payment_address: creator.to_string(),
-                share: Decimal::percent(10),
-            }),
-        },
-    };
-    let collection = router
-        .instantiate_contract(
-            pg721_id,
-            creator.clone(),
-            &msg,
-            &coins(CREATION_FEE, NATIVE_DENOM),
-            "NFT",
-            None,
-        )
-        .unwrap();
-    Ok(collection)
-}
-
 // Intializes accounts with balances
 fn setup_accounts(router: &mut App) -> Result<(Addr, Addr, Addr), ContractError> {
     let owner: Addr = Addr::unchecked("owner");
@@ -212,53 +175,11 @@ fn setup_accounts(router: &mut App) -> Result<(Addr, Addr, Addr), ContractError>
     Ok((owner, bidder, creator))
 }
 
-fn setup_second_bidder_account(router: &mut App) -> Result<Addr, ContractError> {
-    let bidder2: Addr = Addr::unchecked("bidder2");
-    let funds: Vec<Coin> = coins(CREATION_FEE + INITIAL_BALANCE, NATIVE_DENOM);
-    router
-        .sudo(CwSudoMsg::Bank({
-            BankSudo::Mint {
-                to_address: bidder2.to_string(),
-                amount: funds.clone(),
-            }
-        }))
-        .map_err(|err| println!("{:?}", err))
-        .ok();
-
-    // Check native balances
-    let bidder_native_balances = router.wrap().query_all_balances(bidder2.clone()).unwrap();
-    assert_eq!(bidder_native_balances, funds);
-
-    Ok(bidder2)
-}
-
 // Mints an NFT for a creator
 fn mint(router: &mut App, creator: &Addr, collection: &Addr, token_id: String) {
     let mint_for_creator_msg = Cw721ExecuteMsg::Mint(MintMsg {
         token_id: token_id,
         owner: creator.clone().to_string(),
-        token_uri: Some("https://starships.example.com/Starship/Enterprise.json".into()),
-        extension: Empty {},
-    });
-    let res = router.execute_contract(
-        creator.clone(),
-        collection.clone(),
-        &mint_for_creator_msg,
-        &[],
-    );
-    assert!(res.is_ok());
-}
-
-fn mint_for(
-    router: &mut App,
-    owner: &Addr,
-    creator: &Addr,
-    collection: &Addr,
-    token_id: u32,
-) {
-    let mint_for_creator_msg = Cw721ExecuteMsg::Mint(MintMsg {
-        token_id: token_id.to_string(),
-        owner: owner.to_string(),
         token_uri: Some("https://starships.example.com/Starship/Enterprise.json".into()),
         extension: Empty {},
     });
@@ -325,27 +246,12 @@ fn bid(
     assert!(res.is_ok());
 }
 
-fn transfer(
-    router: &mut App,
-    creator: &Addr,
-    recipient: &Addr,
-    collection: &Addr,
-    token_id: String,
-) {
-    let transfer_msg = Cw721ExecuteMsg::<Empty>::TransferNft {
-        recipient: recipient.to_string(),
-        token_id: token_id,
-    };
-    let res = router.execute_contract(creator.clone(), collection.clone(), &transfer_msg, &[]);
-    assert!(res.is_ok());
-}
-
 #[test]
 fn try_add_update_remove_ask() {
     let mut router = custom_mock_app();
 
     // Setup intial accounts
-    let (owner, bidder, creator) = setup_accounts(&mut router).unwrap();
+    let (_owner, _bidder, creator) = setup_accounts(&mut router).unwrap();
 
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
@@ -477,7 +383,7 @@ fn try_add_update_remove_ask() {
         .query_wasm_smart(marketplace.clone(), &query_ask)
         .unwrap();
 
-    let ask = match res.ask {
+    let _ask = match res.ask {
         Some(_) => Err("Ask found"),
         None => Ok(())
     }.unwrap();
@@ -499,7 +405,7 @@ fn try_ask_queries() {
     let mut router = custom_mock_app();
 
     // Setup intial accounts
-    let (owner, bidder, creator) = setup_accounts(&mut router).unwrap();
+    let (_owner, _bidder, creator) = setup_accounts(&mut router).unwrap();
 
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
@@ -621,7 +527,7 @@ fn try_set_bid() {
     let mut router = custom_mock_app();
     let block_time = router.block_info().time;
     // Setup intial accounts
-    let (owner, bidder, creator) = setup_accounts(&mut router).unwrap();
+    let (_owner, bidder, creator) = setup_accounts(&mut router).unwrap();
 
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
@@ -694,7 +600,7 @@ fn try_set_bid() {
     let remove_bid = ExecuteMsg::RemoveBid {
         token_id: n.to_string(),
     };
-    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &remove_bid, &[]).unwrap();
+    let _res = router.execute_contract(bidder.clone(), marketplace.clone(), &remove_bid, &[]).unwrap();
 
     let query_bid_msg = QueryMsg::Bid {
         token_id: n.to_string(),
@@ -712,10 +618,10 @@ fn try_bid_queries() {
     let mut router = custom_mock_app();
 
     // Setup intial accounts
-    let (owner, bidder, creator) = setup_accounts(&mut router).unwrap();
+    let (_owner, bidder, creator) = setup_accounts(&mut router).unwrap();
 
     // Instantiate and configure contracts
-    let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
+    let (marketplace, _collection) = setup_contracts(&mut router, &creator).unwrap();
 
     let block_time = router.block_info().time;
 
@@ -805,7 +711,7 @@ fn try_collection_bid_flow() {
     let mut router = custom_mock_app();
     let block_time = router.block_info().time;
     // Setup intial accounts
-    let (owner, bidder, creator) = setup_accounts(&mut router).unwrap();
+    let (_owner, bidder, creator) = setup_accounts(&mut router).unwrap();
 
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
