@@ -1,7 +1,5 @@
-use std::fmt;
-use cosmwasm_std::{Addr, BlockInfo, Decimal, Timestamp, Uint128, Coin};
+use cosmwasm_std::{Addr, Decimal, Timestamp, Uint128, Coin};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
-use cw_utils::Duration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -140,44 +138,51 @@ pub fn bids<'a>() -> IndexedMap<'a, BidKey, Bid, BidIndices<'a>> {
     IndexedMap::new("bids", indexes)
 }
 
-// /// Represents a bid (offer) across an entire collection in the marketplace
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-// pub struct CollectionBid {
-//     pub bidder: Addr,
-//     pub price: Coin,
-//     pub expires_at: Timestamp,
-// }
+/// Represents a bid (offer) across an entire collection in the marketplace
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CollectionBid {
+    pub bidder: Addr,
+    pub units: u32,
+    pub price: Coin,
+    pub expires_at: Timestamp,
+}
 
-// impl Order for CollectionBid {
-//     fn expires_at(&self) -> Timestamp {
-//         self.expires_at
-//     }
-// }
+impl CollectionBid {
+    pub fn total_cost(&self) -> u128 {
+        &self.price.amount.u128() * u128::from(self.units)
+    }
+}
 
-// /// Primary key for collection bids
-// pub type CollectionBidKey = TokenId;
+impl Order for CollectionBid {
+    fn expires_at(&self) -> Timestamp {
+        self.expires_at
+    }
+}
 
-// /// Defines incides for accessing collection bids
-// pub struct CollectionBidIndices<'a> {
-//     pub expiry: MultiIndex<'a, u64, CollectionBid, CollectionBidKey>,
-//     pub price: MultiIndex<'a, u128, CollectionBid, CollectionBidKey>,
-// }
+/// Primary key for collection bids
+pub type CollectionBidKey = Addr;
 
-// impl<'a> IndexList<CollectionBid> for CollectionBidIndices<'a> {
-//     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<CollectionBid>> + '_> {
-//         let v: Vec<&dyn Index<CollectionBid>> = vec![
-//             &self.expiry,
-//             &self.price,
-//         ];
-//         Box::new(v.into_iter())
-//     }
-// }
+/// Defines incides for accessing collection bids
+pub struct CollectionBidIndices<'a> {
+    pub expiry: MultiIndex<'a, u64, CollectionBid, CollectionBidKey>,
+    pub price: MultiIndex<'a, u128, CollectionBid, CollectionBidKey>,
+}
 
-// pub fn collection_bids<'a>(
-// ) -> IndexedMap<'a, Addr, CollectionBid, CollectionBidIndices<'a>> {
-//     let indexes = CollectionBidIndices {
-//         expiry: MultiIndex::new(|d: &CollectionBid|  d.expires_at.seconds(), "col_bids", "col_bids__expiry"),
-//         price: MultiIndex::new(|d: &CollectionBid|  d.price.amount.u128(), "col_bids", "col_bids__price"),
-//     };
-//     IndexedMap::new("col_bids", indexes)
-// }
+impl<'a> IndexList<CollectionBid> for CollectionBidIndices<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<CollectionBid>> + '_> {
+        let v: Vec<&dyn Index<CollectionBid>> = vec![
+            &self.expiry,
+            &self.price,
+        ];
+        Box::new(v.into_iter())
+    }
+}
+
+pub fn collection_bids<'a>(
+) -> IndexedMap<'a, Addr, CollectionBid, CollectionBidIndices<'a>> {
+    let indexes = CollectionBidIndices {
+        expiry: MultiIndex::new(|d: &CollectionBid|  d.expires_at.seconds(), "col_bids", "col_bids__expiry"),
+        price: MultiIndex::new(|d: &CollectionBid|  d.price.amount.u128(), "col_bids", "col_bids__price"),
+    };
+    IndexedMap::new("col_bids", indexes)
+}

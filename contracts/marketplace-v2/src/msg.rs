@@ -1,8 +1,7 @@
 use crate::helpers::ExpiryRange;
 use crate::state::{Ask, TokenId, Bid, Params};
 // state::{Ask, Bid, CollectionBid, SaleType, SudoParams, TokenId},
-use cosmwasm_std::{to_binary, Addr, Binary, Coin, StdResult, Timestamp, Uint128};
-use cw_utils::Duration;
+use cosmwasm_std::{Addr, Coin, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -73,68 +72,20 @@ pub enum ExecuteMsg {
         token_id: TokenId,
         bidder: String,
     },
-    // /// Place a bid (limit order) across an entire collection
-    // SetCollectionBid {
-    //     collection: String,
-    //     expires: Timestamp,
-    //     finders_fee_bps: Option<u64>,
-    // },
-    // /// Remove a bid (limit order) across an entire collection
-    // RemoveCollectionBid { collection: String },
-    // /// Accept a collection bid
-    // AcceptCollectionBid {
-    //     collection: String,
-    //     token_id: TokenId,
-    //     bidder: String,
-    //     finder: Option<String>,
-    // },
-    // /// Priviledged operation to change the active state of an ask when an NFT is transferred
-    // SyncAsk {
-    //     collection: String,
-    //     token_id: TokenId,
-    // },
-    // /// Privileged operation to remove stale bids
-    // RemoveStaleBid {
-    //     collection: String,
-    //     token_id: TokenId,
-    //     bidder: String,
-    // },
-    // /// Privileged operation to remove stale collection bids
-    // RemoveStaleCollectionBid { collection: String, bidder: String },
+    /// Place a bid (limit order) across an entire collection
+    SetCollectionBid {
+        units: u32,
+        price: Coin,
+        expires_at: Timestamp,
+    },
+    /// Remove a bid (limit order) across an entire collection
+    RemoveCollectionBid { },
+    /// Accept a collection bid
+    AcceptCollectionBid {
+        token_id: TokenId,
+        bidder: String,
+    },
 }
-
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-// #[serde(rename_all = "snake_case")]
-// pub enum SudoMsg {
-//     /// Update the contract parameters
-//     /// Can only be called by governance
-//     UpdateParams {
-//         trading_fee_bps: Option<u64>,
-//         ask_expiry: Option<ExpiryRange>,
-//         bid_expiry: Option<ExpiryRange>,
-//         operators: Option<Vec<String>>,
-//         max_finders_fee_bps: Option<u64>,
-//         min_price: Option<Uint128>,
-//         stale_bid_duration: Option<u64>,
-//         bid_removal_reward_bps: Option<u64>,
-//     },
-//     /// Add a new hook to be informed of all asks
-//     AddAskHook { hook: String },
-//     /// Add a new hook to be informed of all bids
-//     AddBidHook { hook: String },
-//     /// Remove a ask hook
-//     RemoveAskHook { hook: String },
-//     /// Remove a bid hook
-//     RemoveBidHook { hook: String },
-//     /// Add a new hook to be informed of all trades
-//     AddSaleHook { hook: String },
-//     /// Remove a trade hook
-//     RemoveSaleHook { hook: String },
-// }
-
-pub type Collection = String;
-pub type Bidder = String;
-pub type Seller = String;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AskExpiryOffset {
@@ -259,7 +210,7 @@ pub enum QueryMsg {
     /// Get all asks by seller
     /// Return type: `AsksResponse`
     AsksBySellerExpiry {
-        seller: Seller,
+        seller: String,
         query_options: QueryOptions<AskSellerExpiryOffset>
     },
     /// Count of all asks
@@ -269,7 +220,7 @@ pub enum QueryMsg {
     /// Return type: `BidResponse`
     Bid {
         token_id: TokenId,
-        bidder: Bidder,
+        bidder: String,
     },
     /// Get all bids sorted by expiry
     /// Return type: `BidsResponse`
@@ -285,7 +236,7 @@ pub enum QueryMsg {
     /// Get all bids by bidders sorted by expiry
     /// Return type: `BidsResponse`
     BidsByBidderExpiry {
-        bidder: Bidder,
+        bidder: String,
         query_options: QueryOptions<BidBidderExpiryOffset>
     },
     // /// Get all bids by a bidder, sorted by expiration
