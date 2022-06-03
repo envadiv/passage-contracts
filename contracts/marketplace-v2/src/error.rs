@@ -18,26 +18,14 @@ pub enum ContractError {
     #[error("InvalidPrice")]
     InvalidPrice {},
 
-    #[error("AskExpired")]
-    AskExpired {},
-
-    #[error("AskUnchanged")]
-    AskUnchanged {},
-
     #[error("BidExpired")]
     BidExpired {},
 
-    #[error("BidNotStale")]
-    BidNotStale {},
-
-    #[error("PriceTooSmall: {0}")]
-    PriceTooSmall(Uint128),
-
-    #[error("Token reserved")]
-    TokenReserved {},
-
     #[error("{0}")]
     BidPaymentError(#[from] PaymentError),
+
+    #[error("Expected: {0}, Received: {1}")]
+    IncorrectBidPayment(Uint128, Uint128),
 
     #[error("{0}")]
     ExpiryRange(#[from] ExpiryRangeError),
