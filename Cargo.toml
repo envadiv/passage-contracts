@@ -1,11 +1,15 @@
 [workspace]
 members = ["contracts/*"]
 
-[profile.release.package.minter]
+[profile.release.package.marketplace-legacy]
 codegen-units = 1
 incremental = false
 
-[profile.release.package.marketplace-legacy]
+[profile.release.package.marketplace-v2]
+codegen-units = 1
+incremental = false
+
+[profile.release.package.minter]
 codegen-units = 1
 incremental = false
 
