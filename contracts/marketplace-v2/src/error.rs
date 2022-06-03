@@ -2,7 +2,6 @@ use cosmwasm_std::{StdError, Uint128};
 use cw_utils::PaymentError;
 use thiserror::Error;
 
-// use crate::hooks::HookError;
 use crate::helpers::ExpiryRangeError;
 
 #[derive(Error, Debug, PartialEq)]
