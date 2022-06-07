@@ -744,6 +744,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pg721-metadata-onchain"
+version = "0.10.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-storage-plus 0.13.2",
+ "cw-utils 0.13.2",
+ "cw2 0.13.2",
+ "cw721 0.13.2",
+ "cw721-base 0.13.2",
+ "schemars",
+ "serde",
+ "thiserror",
+ "url",
+]
+
+[[package]]
 name = "pkcs8"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
