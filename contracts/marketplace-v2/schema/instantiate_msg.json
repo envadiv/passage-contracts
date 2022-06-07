@@ -5,11 +5,11 @@
   "required": [
     "ask_expiry",
     "bid_expiry",
-    "bid_removal_reward_bps",
-    "max_finders_fee_bps",
+    "collector_address",
+    "cw721_address",
+    "denom",
     "min_price",
     "operators",
-    "stale_bid_duration",
     "trading_fee_bps"
   ],
   "properties": {
@@ -29,17 +29,17 @@
         }
       ]
     },
-    "bid_removal_reward_bps": {
-      "description": "Stale bid removal reward",
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
+    "collector_address": {
+      "description": "The address collecting marketplace fees",
+      "type": "string"
     },
-    "max_finders_fee_bps": {
-      "description": "Max basis points for the finders fee",
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
+    "cw721_address": {
+      "description": "The NFT contract",
+      "type": "string"
+    },
+    "denom": {
+      "description": "The token used to pay for NFTs",
+      "type": "string"
     },
     "min_price": {
       "description": "Min value for bids and asks",
@@ -56,21 +56,6 @@
         "type": "string"
       }
     },
-    "sale_hook": {
-      "description": "The address of the airdrop claim contract to detect sales",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "stale_bid_duration": {
-      "description": "Duration after expiry when a bid becomes stale (in seconds)",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Duration"
-        }
-      ]
-    },
     "trading_fee_bps": {
       "description": "Fair Burn fee for winning bids 0.25% = 25, 0.5% = 50, 1% = 100, 2.5% = 250",
       "type": "integer",
@@ -79,40 +64,6 @@
     }
   },
   "definitions": {
-    "Duration": {
-      "description": "Duration is a delta of time. You can add it to a BlockInfo or Expiration to move that further in the future. Note that an height-based Duration and a time-based Expiration cannot be combined",
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "height"
-          ],
-          "properties": {
-            "height": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "description": "Time in seconds",
-          "type": "object",
-          "required": [
-            "time"
-          ],
-          "properties": {
-            "time": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
     "ExpiryRange": {
       "type": "object",
       "required": [

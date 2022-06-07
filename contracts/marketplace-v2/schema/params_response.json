@@ -7,7 +7,7 @@
   ],
   "properties": {
     "params": {
-      "$ref": "#/definitions/SudoParams"
+      "$ref": "#/definitions/Params"
     }
   },
   "definitions": {
@@ -18,40 +18,6 @@
     "Decimal": {
       "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
       "type": "string"
-    },
-    "Duration": {
-      "description": "Duration is a delta of time. You can add it to a BlockInfo or Expiration to move that further in the future. Note that an height-based Duration and a time-based Expiration cannot be combined",
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "height"
-          ],
-          "properties": {
-            "height": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "description": "Time in seconds",
-          "type": "object",
-          "required": [
-            "time"
-          ],
-          "properties": {
-            "time": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
     },
     "ExpiryRange": {
       "type": "object",
@@ -72,16 +38,16 @@
         }
       }
     },
-    "SudoParams": {
+    "Params": {
       "type": "object",
       "required": [
         "ask_expiry",
         "bid_expiry",
-        "bid_removal_reward_percent",
-        "max_finders_fee_percent",
+        "collector_address",
+        "cw721_address",
+        "denom",
         "min_price",
         "operators",
-        "stale_bid_duration",
         "trading_fee_percent"
       ],
       "properties": {
@@ -101,21 +67,25 @@
             }
           ]
         },
-        "bid_removal_reward_percent": {
-          "description": "Stale bid removal reward",
+        "collector_address": {
+          "description": "Marketplace fee collector address",
           "allOf": [
             {
-              "$ref": "#/definitions/Decimal"
+              "$ref": "#/definitions/Addr"
             }
           ]
         },
-        "max_finders_fee_percent": {
-          "description": "Max value for the finders fee",
+        "cw721_address": {
+          "description": "The NFT contract",
           "allOf": [
             {
-              "$ref": "#/definitions/Decimal"
+              "$ref": "#/definitions/Addr"
             }
           ]
+        },
+        "denom": {
+          "description": "The token used to pay for NFTs",
+          "type": "string"
         },
         "min_price": {
           "description": "Min value for a bid",
@@ -126,22 +96,14 @@
           ]
         },
         "operators": {
-          "description": "Operators are entites that are responsible for maintaining the active state of Asks They listen to NFT transfer events, and update the active state of Asks",
+          "description": "The operator addresses that have access to certain functionality",
           "type": "array",
           "items": {
             "$ref": "#/definitions/Addr"
           }
         },
-        "stale_bid_duration": {
-          "description": "Duration after expiry when a bid becomes stale",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Duration"
-            }
-          ]
-        },
         "trading_fee_percent": {
-          "description": "Fair Burn fee for winning bids",
+          "description": "Marketplace fee",
           "allOf": [
             {
               "$ref": "#/definitions/Decimal"

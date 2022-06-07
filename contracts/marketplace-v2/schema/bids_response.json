@@ -23,7 +23,6 @@
       "type": "object",
       "required": [
         "bidder",
-        "collection",
         "expires_at",
         "price",
         "token_id"
@@ -32,27 +31,29 @@
         "bidder": {
           "$ref": "#/definitions/Addr"
         },
-        "collection": {
-          "$ref": "#/definitions/Addr"
-        },
         "expires_at": {
           "$ref": "#/definitions/Timestamp"
         },
-        "finders_fee_bps": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0.0
-        },
         "price": {
-          "$ref": "#/definitions/Uint128"
+          "$ref": "#/definitions/Coin"
         },
         "token_id": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0.0
+          "type": "string"
+        }
+      }
+    },
+    "Coin": {
+      "type": "object",
+      "required": [
+        "amount",
+        "denom"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "denom": {
+          "type": "string"
         }
       }
     },

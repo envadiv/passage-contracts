@@ -3,6 +3,68 @@
   "title": "ExecuteMsg",
   "oneOf": [
     {
+      "description": "Update the contract parameters",
+      "type": "object",
+      "required": [
+        "update_params"
+      ],
+      "properties": {
+        "update_params": {
+          "type": "object",
+          "properties": {
+            "ask_expiry": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ExpiryRange"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "bid_expiry": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ExpiryRange"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "min_price": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Uint128"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "operators": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "trading_fee_bps": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "List an NFT on the marketplace by creating a new ask",
       "type": "object",
       "required": [
@@ -12,26 +74,13 @@
         "set_ask": {
           "type": "object",
           "required": [
-            "collection",
-            "expires",
+            "expires_at",
             "price",
-            "sale_type",
             "token_id"
           ],
           "properties": {
-            "collection": {
-              "type": "string"
-            },
-            "expires": {
+            "expires_at": {
               "$ref": "#/definitions/Timestamp"
-            },
-            "finders_fee_bps": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
             },
             "funds_recipient": {
               "type": [
@@ -48,13 +97,8 @@
                 "null"
               ]
             },
-            "sale_type": {
-              "$ref": "#/definitions/SaleType"
-            },
             "token_id": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
+              "type": "string"
             }
           }
         }
@@ -71,17 +115,11 @@
         "remove_ask": {
           "type": "object",
           "required": [
-            "collection",
             "token_id"
           ],
           "properties": {
-            "collection": {
-              "type": "string"
-            },
             "token_id": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
+              "type": "string"
             }
           }
         }
@@ -98,21 +136,15 @@
         "update_ask_price": {
           "type": "object",
           "required": [
-            "collection",
             "price",
             "token_id"
           ],
           "properties": {
-            "collection": {
-              "type": "string"
-            },
             "price": {
               "$ref": "#/definitions/Coin"
             },
             "token_id": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
+              "type": "string"
             }
           }
         }
@@ -129,35 +161,19 @@
         "set_bid": {
           "type": "object",
           "required": [
-            "collection",
-            "expires",
+            "expires_at",
+            "price",
             "token_id"
           ],
           "properties": {
-            "collection": {
-              "type": "string"
-            },
-            "expires": {
+            "expires_at": {
               "$ref": "#/definitions/Timestamp"
             },
-            "finder": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "finders_fee_bps": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
+            "price": {
+              "$ref": "#/definitions/Coin"
             },
             "token_id": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
+              "type": "string"
             }
           }
         }
@@ -174,17 +190,11 @@
         "remove_bid": {
           "type": "object",
           "required": [
-            "collection",
             "token_id"
           ],
           "properties": {
-            "collection": {
-              "type": "string"
-            },
             "token_id": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
+              "type": "string"
             }
           }
         }
@@ -202,26 +212,14 @@
           "type": "object",
           "required": [
             "bidder",
-            "collection",
             "token_id"
           ],
           "properties": {
             "bidder": {
               "type": "string"
             },
-            "collection": {
-              "type": "string"
-            },
-            "finder": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
             "token_id": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
+              "type": "string"
             }
           }
         }
@@ -238,22 +236,20 @@
         "set_collection_bid": {
           "type": "object",
           "required": [
-            "collection",
-            "expires"
+            "expires_at",
+            "price",
+            "units"
           ],
           "properties": {
-            "collection": {
-              "type": "string"
-            },
-            "expires": {
+            "expires_at": {
               "$ref": "#/definitions/Timestamp"
             },
-            "finders_fee_bps": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
+            "price": {
+              "$ref": "#/definitions/Coin"
+            },
+            "units": {
+              "type": "integer",
+              "format": "uint32",
               "minimum": 0.0
             }
           }
@@ -269,15 +265,7 @@
       ],
       "properties": {
         "remove_collection_bid": {
-          "type": "object",
-          "required": [
-            "collection"
-          ],
-          "properties": {
-            "collection": {
-              "type": "string"
-            }
-          }
+          "type": "object"
         }
       },
       "additionalProperties": false
@@ -293,108 +281,13 @@
           "type": "object",
           "required": [
             "bidder",
-            "collection",
             "token_id"
           ],
           "properties": {
             "bidder": {
               "type": "string"
             },
-            "collection": {
-              "type": "string"
-            },
-            "finder": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
             "token_id": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Priviledged operation to change the active state of an ask when an NFT is transferred",
-      "type": "object",
-      "required": [
-        "sync_ask"
-      ],
-      "properties": {
-        "sync_ask": {
-          "type": "object",
-          "required": [
-            "collection",
-            "token_id"
-          ],
-          "properties": {
-            "collection": {
-              "type": "string"
-            },
-            "token_id": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Privileged operation to remove stale bids",
-      "type": "object",
-      "required": [
-        "remove_stale_bid"
-      ],
-      "properties": {
-        "remove_stale_bid": {
-          "type": "object",
-          "required": [
-            "bidder",
-            "collection",
-            "token_id"
-          ],
-          "properties": {
-            "bidder": {
-              "type": "string"
-            },
-            "collection": {
-              "type": "string"
-            },
-            "token_id": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Privileged operation to remove stale collection bids",
-      "type": "object",
-      "required": [
-        "remove_stale_collection_bid"
-      ],
-      "properties": {
-        "remove_stale_collection_bid": {
-          "type": "object",
-          "required": [
-            "bidder",
-            "collection"
-          ],
-          "properties": {
-            "bidder": {
-              "type": "string"
-            },
-            "collection": {
               "type": "string"
             }
           }
@@ -419,12 +312,24 @@
         }
       }
     },
-    "SaleType": {
-      "type": "string",
-      "enum": [
-        "fixed_price",
-        "auction"
-      ]
+    "ExpiryRange": {
+      "type": "object",
+      "required": [
+        "max",
+        "min"
+      ],
+      "properties": {
+        "max": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "min": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
     },
     "Timestamp": {
       "description": "A point in time in nanosecond precision.\n\nThis type can represent times from 1970-01-01T00:00:00Z to 2554-07-21T23:34:33Z.\n\n## Examples\n\n``` # use cosmwasm_std::Timestamp; let ts = Timestamp::from_nanos(1_000_000_202); assert_eq!(ts.nanos(), 1_000_000_202); assert_eq!(ts.seconds(), 1); assert_eq!(ts.subsec_nanos(), 202);\n\nlet ts = ts.plus_seconds(2); assert_eq!(ts.nanos(), 3_000_000_202); assert_eq!(ts.seconds(), 3); assert_eq!(ts.subsec_nanos(), 202); ```",
