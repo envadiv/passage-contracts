@@ -37,6 +37,7 @@ thiserror = { version = "1.0.30" }
 url = "2.2.2"
 cw721 = "0.13.1"
 cw721-base = { version = "0.13.1", features = ["library"] }
+pg721 = { path = "../pg721", features = ["library"] }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "1.0.0-beta7" }

@@ -9,8 +9,8 @@ use cw721_base::ContractError as BaseError;
 use url::Url;
 
 use crate::msg::{
-    CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, RoyaltyInfoResponse,
-    Extension
+    CollectionInfoResponse, InstantiateMsg, QueryMsg, RoyaltyInfoResponse,
+    Extension, ExecuteMsg
 };
 use crate::state::{CollectionInfo, RoyaltyInfo, COLLECTION_INFO};
 
