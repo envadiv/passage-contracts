@@ -128,11 +128,11 @@ pub fn execute(
         ExecuteMsg::UpdatePerAddressLimit { per_address_limit } => {
             execute_update_per_address_limit(deps, env, info, per_address_limit)
         }
-        ExecuteMsg::MintTo { recipient } => execute_mint_to(deps, info, recipient),
+        ExecuteMsg::MintTo { recipient } => execute_mint_to(deps, env, info, recipient),
         ExecuteMsg::MintFor {
             token_id,
             recipient,
-        } => execute_mint_for(deps, info, token_id, recipient),
+        } => execute_mint_for(deps, env, info, token_id, recipient),
         ExecuteMsg::SetWhitelist { whitelist } => {
             execute_set_whitelist(deps, env, info, &whitelist)
         }
@@ -226,7 +226,7 @@ pub fn execute_mint_sender(
         return Err(ContractError::MaxPerAddressLimitExceeded {});
     }
 
-    _execute_mint(deps, info, action, false, None, None)
+    _execute_mint(deps, env, info, action, false, None, None)
 }
 
 // Check if a whitelist exists and not ended
@@ -272,6 +272,7 @@ fn is_public_mint(deps: Deps, info: &MessageInfo) -> Result<bool, ContractError>
 
 pub fn execute_mint_to(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     recipient: String,
 ) -> Result<Response, ContractError> {
@@ -286,11 +287,12 @@ pub fn execute_mint_to(
         ));
     }
 
-    _execute_mint(deps, info, action, true, Some(recipient), None)
+    _execute_mint(deps, env, info, action, true, Some(recipient), None)
 }
 
 pub fn execute_mint_for(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     token_id: u32,
     recipient: String,
@@ -306,7 +308,7 @@ pub fn execute_mint_for(
         ));
     }
 
-    _execute_mint(deps, info, action, true, Some(recipient), Some(token_id))
+    _execute_mint(deps, env, info, action, true, Some(recipient), Some(token_id))
 }
 
 // Generalize checks and mint message creation
@@ -315,6 +317,7 @@ pub fn execute_mint_for(
 // mint_for(recipient: "friend2", token_id: 420) -> _execute_mint(recipient, token_id)
 fn _execute_mint(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     action: &str,
     is_admin: bool,
@@ -339,6 +342,8 @@ fn _execute_mint(
         ));
     }
 
+    let mintable_num_tokens = MINTABLE_NUM_TOKENS.load(deps.storage)?;
+
     let mintable_token_id = match token_id {
         Some(token_id) => {
             if token_id == 0 || token_id > config.num_tokens {
@@ -353,13 +358,13 @@ fn _execute_mint(
         None => {
             let mintable_tokens_result: StdResult<Vec<u32>> = MINTABLE_TOKEN_IDS
                 .keys(deps.storage, None, None, Order::Ascending)
-                .take(1)
                 .collect();
             let mintable_tokens = mintable_tokens_result?;
             if mintable_tokens.is_empty() {
                 return Err(ContractError::SoldOut {});
             }
-            mintable_tokens[0]
+            let random_index = env.block.time.nanos() % mintable_num_tokens as u64;
+            mintable_tokens[random_index as usize]
         }
     };
 
@@ -378,7 +383,6 @@ fn _execute_mint(
 
     // Remove mintable token id from map
     MINTABLE_TOKEN_IDS.remove(deps.storage, mintable_token_id);
-    let mintable_num_tokens = MINTABLE_NUM_TOKENS.load(deps.storage)?;
     // Decrement mintable num tokens
     MINTABLE_NUM_TOKENS.save(deps.storage, &(mintable_num_tokens - 1))?;
     // Save the new mint count for the sender's address
