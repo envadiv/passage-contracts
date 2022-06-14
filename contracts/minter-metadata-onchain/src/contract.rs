@@ -23,7 +23,7 @@ use whitelist::msg::{
 };
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:passage-minter";
+const CONTRACT_NAME: &str = "crates.io:passage-minter-metadata-onchain";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const INSTANTIATE_CW721_REPLY_ID: u64 = 1;

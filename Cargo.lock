@@ -705,6 +705,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "minter-metadata-onchain"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 0.13.2",
+ "cw-utils 0.13.2",
+ "cw2 0.13.2",
+ "cw721 0.13.2",
+ "cw721-base 0.13.2",
+ "pg721",
+ "pg721-metadata-onchain",
+ "schemars",
+ "serde",
+ "thiserror",
+ "url",
+ "whitelist",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
