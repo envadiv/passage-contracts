@@ -13,7 +13,15 @@ incremental = false
 codegen-units = 1
 incremental = false
 
+[profile.release.package.minter-metadata-onchain]
+codegen-units = 1
+incremental = false
+
 [profile.release.package.pg721]
+codegen-units = 1
+incremental = false
+
+[profile.release.package.pg721-metadata-onchain]
 codegen-units = 1
 incremental = false
 

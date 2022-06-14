@@ -2,7 +2,7 @@ use cosmwasm_std::{Coin, Timestamp};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use pg721::msg::InstantiateMsg as Pg721InstantiateMsg;
+use pg721_metadata_onchain::msg::{InstantiateMsg as Pg721InstantiateMsg, Metadata};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -19,6 +19,7 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    UpsertTokenMetadatas { token_metadatas: Vec<TokenMetadata> },
     Mint {},
     SetWhitelist { whitelist: String },
     UpdateStartTime(Timestamp),
@@ -72,4 +73,10 @@ pub struct MintPriceResponse {
 pub struct MintCountResponse {
     pub address: String,
     pub count: u32,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TokenMetadata {
+    pub token_id: u32,
+    pub metadata: Metadata
 }

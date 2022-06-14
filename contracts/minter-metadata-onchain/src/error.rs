@@ -65,8 +65,11 @@ pub enum ContractError {
     #[error("Max minting limit per address exceeded")]
     MaxPerAddressLimitExceeded {},
 
-    #[error("Token id: {token_id} already sold")]
-    TokenIdAlreadySold { token_id: u32 },
+    #[error("Token id: {token_id} did not have matching metadata")]
+    MetadataNotFound { token_id: u32 },
+
+    #[error("Full set of metadata not found on the contract. expected: {expected}, actual: {actual}")]
+    MissingMetadata { expected: u32, actual: u32 },
 
     #[error("ZeroBalance")]
     ZeroBalance {},
