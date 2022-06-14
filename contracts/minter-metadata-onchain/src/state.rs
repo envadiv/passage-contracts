@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Coin, Timestamp};
 use cw_storage_plus::{Item, Map};
-use pg721_metadata_onchain::msg::Trait;
+use pg721_metadata_onchain::msg::Metadata;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -19,6 +19,6 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const CW721_ADDRESS: Item<Addr> = Item::new("cw721_address");
-pub const MINTABLE_TOKEN_IDS: Map<u32, bool> = Map::new("mt");
+pub const TOKEN_METADATA_MAP: Map<u32, Metadata> = Map::new("mt");
 pub const MINTABLE_NUM_TOKENS: Item<u32> = Item::new("mintable_num_tokens");
 pub const MINTER_ADDRS: Map<Addr, u32> = Map::new("ma");

@@ -1,22 +1,24 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
+    coin, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Order, Reply, ReplyOn, StdError, StdResult, Timestamp, WasmMsg, Response, SubMsg
 };
 use cw2::set_contract_version;
-use cw721_base::{msg::ExecuteMsg as Cw721ExecuteMsg, MintMsg};
+use cw721_base::MintMsg;
 use cw_utils::{may_pay, parse_reply_instantiate_data};
-use pg721::msg::InstantiateMsg as Pg721InstantiateMsg;
+use pg721_metadata_onchain::msg::{
+    InstantiateMsg as Pg721InstantiateMsg, ExecuteMsg as Pg721ExecuteMsg, Metadata
+};
 use url::Url;
 
 use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
-    MintableNumTokensResponse, QueryMsg, StartTimeResponse,
+    MintableNumTokensResponse, QueryMsg, StartTimeResponse, TokenMetadata,
 };
 use crate::state::{
-    Config, CONFIG, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_IDS, MINTER_ADDRS, CW721_ADDRESS,
+    Config, CONFIG, MINTABLE_NUM_TOKENS, TOKEN_METADATA_MAP, MINTER_ADDRS, CW721_ADDRESS,
 };
 use whitelist::msg::{
     ConfigResponse as WhitelistConfigResponse, HasMemberResponse, QueryMsg as WhitelistQueryMsg,
@@ -82,11 +84,6 @@ pub fn instantiate(
     CONFIG.save(deps.storage, &config)?;
     MINTABLE_NUM_TOKENS.save(deps.storage, &msg.num_tokens)?;
 
-    // Save mintable token ids map
-    for token_id in 1..=msg.num_tokens {
-        MINTABLE_TOKEN_IDS.save(deps.storage, token_id, &true)?;
-    }
-
     // Submessage to instantiate cw721 contract
     let sub_msgs: Vec<SubMsg> = vec![SubMsg {
         msg: WasmMsg::Instantiate {
@@ -123,6 +120,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::UpsertTokenMetadatas { token_metadatas } => execute_upsert_token_metadatas(deps, info, token_metadatas ),
         ExecuteMsg::Mint {} => execute_mint_sender(deps, env, info),
         ExecuteMsg::UpdateStartTime(time) => execute_update_start_time(deps, env, info, time),
         ExecuteMsg::UpdatePerAddressLimit { per_address_limit } => {
@@ -138,6 +136,25 @@ pub fn execute(
         }
         ExecuteMsg::Withdraw {} => execute_withdraw(deps, env, info),
     }
+}
+
+pub fn execute_upsert_token_metadatas(
+    deps: DepsMut,
+    info: MessageInfo,
+    token_metadatas: Vec<TokenMetadata>
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if config.admin != info.sender {
+        return Err(ContractError::Unauthorized(
+            "Sender is not an admin".to_owned(),
+        ));
+    };
+
+    for token_metadata in token_metadatas {
+        TOKEN_METADATA_MAP.save(deps.storage, token_metadata.token_id, &token_metadata.metadata)?;
+    }
+
+    Ok(Response::new())
 }
 
 pub fn execute_withdraw(
@@ -343,6 +360,18 @@ fn _execute_mint(
     }
 
     let mintable_num_tokens = MINTABLE_NUM_TOKENS.load(deps.storage)?;
+    let token_metadata_results: StdResult<Vec<u32>> = TOKEN_METADATA_MAP
+        .keys(deps.storage, None, None, Order::Ascending)
+        .collect();
+    let token_metadatas = token_metadata_results?;
+    if token_metadatas.is_empty() {
+        return Err(ContractError::SoldOut {});
+    }
+
+    let num_token_metadatas = token_metadatas.len() as u32;
+    if mintable_num_tokens != num_token_metadatas as u32 {
+        return Err(ContractError::MissingMetadata { expected: mintable_num_tokens, actual: num_token_metadatas });
+    }
 
     let mintable_token_id = match token_id {
         Some(token_id) => {
@@ -350,30 +379,25 @@ fn _execute_mint(
                 return Err(ContractError::InvalidTokenId {});
             }
             // If token_id not on mintable map, throw err
-            if !MINTABLE_TOKEN_IDS.has(deps.storage, token_id) {
-                return Err(ContractError::TokenIdAlreadySold { token_id });
+            if !TOKEN_METADATA_MAP.has(deps.storage, token_id) {
+                return Err(ContractError::MetadataNotFound { token_id });
             }
             token_id
         }
         None => {
-            let mintable_tokens_result: StdResult<Vec<u32>> = MINTABLE_TOKEN_IDS
-                .keys(deps.storage, None, None, Order::Ascending)
-                .collect();
-            let mintable_tokens = mintable_tokens_result?;
-            if mintable_tokens.is_empty() {
-                return Err(ContractError::SoldOut {});
-            }
             let random_index = env.block.time.nanos() % mintable_num_tokens as u64;
-            mintable_tokens[random_index as usize]
+            token_metadatas[random_index as usize]
         }
     };
 
+    let metadata = TOKEN_METADATA_MAP.load(deps.storage, mintable_token_id)?;
+
     // Create mint msgs
-    let mint_msg = Cw721ExecuteMsg::Mint(MintMsg::<Empty> {
+    let mint_msg = Pg721ExecuteMsg::Mint(MintMsg::<Option<Metadata>> {
         token_id: mintable_token_id.to_string(),
         owner: recipient_addr.to_string(),
         token_uri: Some(format!("{}/{}", config.base_token_uri, mintable_token_id)),
-        extension: Empty {},
+        extension: Some(metadata),
     });
     let msg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: cw721_address.to_string(),
@@ -382,7 +406,7 @@ fn _execute_mint(
     });
 
     // Remove mintable token id from map
-    MINTABLE_TOKEN_IDS.remove(deps.storage, mintable_token_id);
+    TOKEN_METADATA_MAP.remove(deps.storage, mintable_token_id);
     // Decrement mintable num tokens
     MINTABLE_NUM_TOKENS.save(deps.storage, &(mintable_num_tokens - 1))?;
     // Save the new mint count for the sender's address

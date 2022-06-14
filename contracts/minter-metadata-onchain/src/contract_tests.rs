@@ -1,18 +1,21 @@
 use cosmwasm_std::testing::{mock_dependencies_with_balance, mock_env, mock_info};
-use cosmwasm_std::{coin, coins, Addr, Decimal, Empty, Timestamp, Uint128};
+use cosmwasm_std::{coin, coins, Addr, Decimal, Empty, Timestamp, Uint128, Attribute};
 use cosmwasm_std::{Api, Coin};
-use cw721::{Cw721QueryMsg, OwnerOfResponse};
+use cw721::{Cw721QueryMsg, OwnerOfResponse, NftInfoResponse};
 use cw721_base::ExecuteMsg as Cw721ExecuteMsg;
 use cw_multi_test::{App, AppBuilder, BankSudo, Contract, ContractWrapper, Executor, SudoMsg};
-use pg721::msg::{InstantiateMsg as Pg721InstantiateMsg, RoyaltyInfoResponse};
-use pg721::state::CollectionInfo;
+use pg721_metadata_onchain::msg::{
+    InstantiateMsg as Pg721InstantiateMsg, RoyaltyInfoResponse, Metadata
+};
+use pg721_metadata_onchain::state::CollectionInfo;
 use whitelist::msg::InstantiateMsg as WhitelistInstantiateMsg;
 use whitelist::msg::{AddMembersMsg, ExecuteMsg as WhitelistExecuteMsg};
 
 use crate::contract::instantiate;
 use crate::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
-    MintableNumTokensResponse, QueryMsg, StartTimeResponse,
+    MintableNumTokensResponse, QueryMsg, StartTimeResponse, ExecuteMsg as Pg721MinterExecuteMsg,
+    TokenMetadata
 };
 use crate::ContractError;
 
@@ -64,9 +67,9 @@ pub fn contract_minter() -> Box<dyn Contract<Empty>> {
 
 pub fn contract_cw721() -> Box<dyn Contract<Empty>> {
     let contract = ContractWrapper::new(
-        pg721::contract::execute,
-        pg721::contract::instantiate,
-        pg721::contract::query,
+        pg721_metadata_onchain::contract::execute,
+        pg721_metadata_onchain::contract::instantiate,
+        pg721_metadata_onchain::contract::query,
     );
     Box::new(contract)
 }
@@ -147,6 +150,41 @@ fn setup_minter_contract(
         .unwrap();
 
     (minter_addr, config)
+}
+
+// Upload contract code and instantiate minter contract
+fn upsert_metadata(
+    router: &mut App,
+    admin: &Addr,
+    minter_addr: &Addr,
+    num_tokens: u32,
+    start_index: Option<u32>,
+) {
+    let _start_index = match start_index {
+        Some(_start_index) => _start_index,
+        None => 1,
+    };
+
+    let mut token_metadatas = vec![];
+    for idx in _start_index..(_start_index+num_tokens) {
+        token_metadatas.push(TokenMetadata {
+            token_id: idx,
+            metadata: Metadata {
+                image: Some(format!("image-{}.png", idx)),
+                image_data: None,
+                external_url: None,
+                description: None,
+                name: None,
+                attributes: None,
+                background_color: None,
+                animation_url: None,
+                youtube_url: None,
+            }
+        })
+    }
+    let upsert_message = Pg721MinterExecuteMsg::UpsertTokenMetadatas { token_metadatas };
+    let res = router.execute_contract(admin.clone(), minter_addr.clone(), &upsert_message, &[]);
+    assert!(res.is_ok());
 }
 
 // Add a creator account with initial balances
@@ -277,6 +315,7 @@ fn happy_path() {
     let (creator, buyer) = setup_accounts(&mut router);
     let num_tokens = 2;
     let (minter_addr, config) = setup_minter_contract(&mut router, &creator, num_tokens);
+    upsert_metadata(&mut router, &creator, &minter_addr, num_tokens, None);
 
     // Default start time genesis mint time
     let res: StartTimeResponse = router
@@ -436,6 +475,8 @@ fn mint_count_query() {
     let (creator, buyer) = setup_accounts(&mut router);
     let num_tokens = 10;
     let (minter_addr, config) = setup_minter_contract(&mut router, &creator, num_tokens);
+    upsert_metadata(&mut router, &creator, &minter_addr, num_tokens, None);
+
     let cw721_addr = Addr::unchecked(config.cw721_address);
     let whitelist_addr = setup_whitelist_contract(&mut router, &creator);
     const EXPIRATION_TIME: Timestamp = Timestamp::from_nanos(START_TIME + 10_000);
@@ -620,6 +661,7 @@ fn whitelist_already_started() {
     let (creator, _) = setup_accounts(&mut router);
     let num_tokens = 1;
     let (minter_addr, _) = setup_minter_contract(&mut router, &creator, num_tokens);
+    upsert_metadata(&mut router, &creator, &minter_addr, num_tokens, None);
     let whitelist_addr = setup_whitelist_contract(&mut router, &creator);
 
     setup_block_time(&mut router, START_TIME + 101);
@@ -644,6 +686,7 @@ fn whitelist_can_update_before_start() {
     let (creator, _) = setup_accounts(&mut router);
     let num_tokens = 1;
     let (minter_addr, _) = setup_minter_contract(&mut router, &creator, num_tokens);
+    upsert_metadata(&mut router, &creator, &minter_addr, num_tokens, None);
     let whitelist_addr = setup_whitelist_contract(&mut router, &creator);
 
     setup_block_time(&mut router, START_TIME - 1000);
@@ -678,6 +721,8 @@ fn whitelist_access_len_add_remove_expiration() {
     let (creator, buyer) = setup_accounts(&mut router);
     let num_tokens = 1;
     let (minter_addr, config) = setup_minter_contract(&mut router, &creator, num_tokens);
+    upsert_metadata(&mut router, &creator, &minter_addr, num_tokens, None);
+    
     let cw721_addr = config.cw721_address;
     let whitelist_addr = setup_whitelist_contract(&mut router, &creator);
     const AFTER_GENESIS_TIME: Timestamp = Timestamp::from_nanos(START_TIME + 100);
@@ -837,6 +882,7 @@ fn before_start_time() {
     let (creator, buyer) = setup_accounts(&mut router);
     let num_tokens = 1;
     let (minter_addr, _) = setup_minter_contract(&mut router, &creator, num_tokens);
+    upsert_metadata(&mut router, &creator, &minter_addr, num_tokens, None);
 
     // Set to before genesis mint start time
     setup_block_time(&mut router, START_TIME - 10);
@@ -891,6 +937,7 @@ fn check_per_address_limit() {
     let (creator, buyer) = setup_accounts(&mut router);
     let num_tokens = 2;
     let (minter_addr, _config) = setup_minter_contract(&mut router, &creator, num_tokens);
+    upsert_metadata(&mut router, &creator, &minter_addr, num_tokens, None);
 
     // Set to genesis mint start time
     setup_block_time(&mut router, START_TIME);
@@ -959,6 +1006,7 @@ fn mint_for_token_id_addr() {
     let (creator, buyer) = setup_accounts(&mut router);
     let num_tokens = 4;
     let (minter_addr, _config) = setup_minter_contract(&mut router, &creator, num_tokens);
+    upsert_metadata(&mut router, &creator, &minter_addr, num_tokens, None);
 
     // Set to genesis mint start time
     setup_block_time(&mut router, START_TIME);
@@ -1044,7 +1092,7 @@ fn mint_for_token_id_addr() {
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::TokenIdAlreadySold { token_id }.to_string(),
+        ContractError::MetadataNotFound { token_id }.to_string(),
         err.source().unwrap().to_string()
     );
 
@@ -1283,6 +1331,7 @@ fn unhappy_path() {
     let (creator, buyer) = setup_accounts(&mut router);
     let num_tokens = 1;
     let (minter_addr, _config) = setup_minter_contract(&mut router, &creator, num_tokens);
+    upsert_metadata(&mut router, &creator, &minter_addr, num_tokens, None);
 
     // Fails if too little funds are sent
     let mint_msg = ExecuteMsg::Mint {};
@@ -1317,6 +1366,7 @@ fn can_withdraw() {
     let (creator, buyer) = setup_accounts(&mut router);
     let num_tokens = 4;
     let (minter_addr, _config) = setup_minter_contract(&mut router, &creator, num_tokens);
+    upsert_metadata(&mut router, &creator, &minter_addr, num_tokens, None);
 
     setup_block_time(&mut router, START_TIME + 1);
 
@@ -1362,4 +1412,62 @@ fn can_withdraw() {
         creator_balances,
         coins(INITIAL_BALANCE + UNIT_PRICE, NATIVE_DENOM)
     );
+}
+
+#[test]
+fn metadata_test() {
+    let mut router = custom_mock_app();
+    setup_block_time(&mut router, START_TIME - 1);
+    let (creator, buyer) = setup_accounts(&mut router);
+    let num_tokens = 4;
+    let (minter_addr, config) = setup_minter_contract(&mut router, &creator, num_tokens);
+
+    // Default start time genesis mint time
+    let res: StartTimeResponse = router
+        .wrap()
+        .query_wasm_smart(minter_addr.clone(), &QueryMsg::StartTime {})
+        .unwrap();
+
+    assert_eq!(
+        res.start_time,
+        Timestamp::from_nanos(START_TIME).to_string()
+    );
+
+    setup_block_time(&mut router, START_TIME + 1);
+    
+    // Fails with missing metadata
+    upsert_metadata(&mut router, &creator, &minter_addr, 2, None);
+    let mint_msg = ExecuteMsg::Mint {};
+    let res = router.execute_contract(
+        buyer.clone(),
+        minter_addr.clone(),
+        &mint_msg,
+        &coins(UNIT_PRICE, NATIVE_DENOM),
+    );
+    assert_eq!(res.unwrap_err().source().unwrap().to_string(), "Full set of metadata not found on the contract. expected: 4, actual: 2");
+
+    // Succeeds with enough metadata
+    upsert_metadata(&mut router, &creator, &minter_addr, 2, Some(3));
+    let mint_msg = ExecuteMsg::Mint {};
+    let res = router.execute_contract(
+        buyer.clone(),
+        minter_addr.clone(),
+        &mint_msg,
+        &coins(UNIT_PRICE, NATIVE_DENOM),
+    );
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap().events[1].attributes[4], Attribute {
+        key: String::from("token_id"),
+        value: String::from("2")
+    });
+
+    // Check NFT is transferred
+    let query_info = Cw721QueryMsg::NftInfo {
+        token_id: String::from("2"),
+    };
+    let res: NftInfoResponse<Metadata> = router
+        .wrap()
+        .query_wasm_smart(config.cw721_address.clone(), &query_info)
+        .unwrap();
+    assert_eq!(res.extension.image, Some(String::from("image-2.png")));
 }
