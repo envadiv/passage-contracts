@@ -2,7 +2,8 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Order, Reply, ReplyOn, StdError, StdResult, Timestamp, WasmMsg, Response, SubMsg
+    MessageInfo, Order, Reply, ReplyOn, StdError, StdResult, Timestamp, WasmMsg,
+    Response, SubMsg, Event
 };
 use cw2::set_contract_version;
 use cw721_base::MintMsg;
@@ -18,7 +19,8 @@ use crate::msg::{
     MintableNumTokensResponse, QueryMsg, StartTimeResponse, TokenMetadata,
 };
 use crate::state::{
-    Config, CONFIG, MINTABLE_NUM_TOKENS, TOKEN_METADATA_MAP, MINTER_ADDRS, CW721_ADDRESS,
+    CONFIG, MINTER_ADDRS, CW721_ADDRESS,
+    Config, TokenMint, token_mints
 };
 use whitelist::msg::{
     ConfigResponse as WhitelistConfigResponse, HasMemberResponse, QueryMsg as WhitelistQueryMsg,
@@ -40,7 +42,7 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     // Check the number of tokens is more than zero
-    if msg.num_tokens == 0 {
+    if msg.max_num_tokens == 0 {
         return Err(ContractError::InvalidNumTokens {
             min: 1,
         });
@@ -74,7 +76,7 @@ pub fn instantiate(
     let config = Config {
         admin: info.sender.clone(),
         base_token_uri: msg.base_token_uri,
-        num_tokens: msg.num_tokens,
+        max_num_tokens: msg.max_num_tokens,
         cw721_code_id: msg.cw721_code_id,
         unit_price: msg.unit_price,
         per_address_limit: msg.per_address_limit,
@@ -82,7 +84,6 @@ pub fn instantiate(
         start_time: msg.start_time,
     };
     CONFIG.save(deps.storage, &config)?;
-    MINTABLE_NUM_TOKENS.save(deps.storage, &msg.num_tokens)?;
 
     // Submessage to instantiate cw721 contract
     let sub_msgs: Vec<SubMsg> = vec![SubMsg {
@@ -150,11 +151,38 @@ pub fn execute_upsert_token_metadatas(
         ));
     };
 
+    let mut append_token_ids = vec![];
     for token_metadata in token_metadatas {
-        TOKEN_METADATA_MAP.save(deps.storage, token_metadata.token_id, &token_metadata.metadata)?;
+        if token_metadata.token_id == 0 || token_metadata.token_id > config.max_num_tokens {
+            return Err(ContractError::InvalidTokenId {});
+        }
+        token_mints().update(
+            deps.storage,
+            token_metadata.token_id.clone(),
+            |existing_token_mint| -> Result<TokenMint, ContractError> {
+                if let Some(_existing_token_mint) = existing_token_mint {
+                    if let true = _existing_token_mint.is_minted {
+                        return Err(ContractError::TokenAlreadyMinted { token_id: _existing_token_mint.token_id });
+                    }
+                };
+                Ok(TokenMint {
+                    token_id: token_metadata.clone().token_id,
+                    metadata: token_metadata.clone().metadata,
+                    is_minted: false,
+                })
+            }
+        )?;
+        append_token_ids.push(token_metadata.token_id);
     }
 
-    Ok(Response::new())
+    let mut response = Response::new();
+    let append_token_ids_fmt: Vec<String> = append_token_ids
+        .into_iter().map(|token_id| token_id.to_string()).collect();
+    let event = Event::new("upsert-metadata")
+        .add_attribute("append-token-ids", append_token_ids_fmt.join(", "));
+    response.events.push(event);
+
+    Ok(response)
 }
 
 pub fn execute_withdraw(
@@ -358,46 +386,42 @@ fn _execute_mint(
             mint_price,
         ));
     }
-
-    let mintable_num_tokens = MINTABLE_NUM_TOKENS.load(deps.storage)?;
-    let token_metadata_results: StdResult<Vec<u32>> = TOKEN_METADATA_MAP
+    
+    let mintable_token_ids_result: StdResult<Vec<u32>> = token_mints()
+        .idx
+        .is_minted
+        .prefix(0)
         .keys(deps.storage, None, None, Order::Ascending)
         .collect();
-    let token_metadatas = token_metadata_results?;
-    if token_metadatas.is_empty() {
+    let mintable_token_ids = mintable_token_ids_result?;
+    if mintable_token_ids.is_empty() {
         return Err(ContractError::SoldOut {});
-    }
-
-    let num_token_metadatas = token_metadatas.len() as u32;
-    if mintable_num_tokens != num_token_metadatas as u32 {
-        return Err(ContractError::MissingMetadata { expected: mintable_num_tokens, actual: num_token_metadatas });
     }
 
     let mintable_token_id = match token_id {
         Some(token_id) => {
-            if token_id == 0 || token_id > config.num_tokens {
+            if token_id == 0 || token_id > config.max_num_tokens {
                 return Err(ContractError::InvalidTokenId {});
-            }
-            // If token_id not on mintable map, throw err
-            if !TOKEN_METADATA_MAP.has(deps.storage, token_id) {
-                return Err(ContractError::MetadataNotFound { token_id });
             }
             token_id
         }
         None => {
-            let random_index = env.block.time.nanos() % mintable_num_tokens as u64;
-            token_metadatas[random_index as usize]
+            let random_index = env.block.time.nanos() % mintable_token_ids.len() as u64;
+            mintable_token_ids[random_index as usize]
         }
     };
 
-    let metadata = TOKEN_METADATA_MAP.load(deps.storage, mintable_token_id)?;
+    let token_mint = token_mints().load(deps.storage, mintable_token_id)?;
+    if token_mint.is_minted {
+        return Err(ContractError::TokenAlreadyMinted { token_id: mintable_token_id });
+    }
 
     // Create mint msgs
     let mint_msg = Pg721ExecuteMsg::Mint(MintMsg::<Option<Metadata>> {
         token_id: mintable_token_id.to_string(),
         owner: recipient_addr.to_string(),
         token_uri: Some(format!("{}/{}", config.base_token_uri, mintable_token_id)),
-        extension: Some(metadata),
+        extension: Some(token_mint.metadata),
     });
     let msg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: cw721_address.to_string(),
@@ -405,10 +429,17 @@ fn _execute_mint(
         funds: vec![],
     });
 
-    // Remove mintable token id from map
-    TOKEN_METADATA_MAP.remove(deps.storage, mintable_token_id);
-    // Decrement mintable num tokens
-    MINTABLE_NUM_TOKENS.save(deps.storage, &(mintable_num_tokens - 1))?;
+    // Mark TokenMint as minted
+    token_mints().update(
+        deps.storage,
+        mintable_token_id,
+        |token_mint| -> Result<TokenMint, StdError> {
+            let mut updated_token_mint = token_mint.unwrap();
+            updated_token_mint.is_minted = true;
+            Ok(updated_token_mint)
+        }
+    )?;
+
     // Save the new mint count for the sender's address
     let new_mint_count = mint_count(deps.as_ref(), &info)? + 1;
     MINTER_ADDRS.save(deps.storage, info.clone().sender, &new_mint_count)?;
@@ -533,7 +564,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         base_token_uri: config.base_token_uri,
         cw721_address: cw721_address.to_string(),
         cw721_code_id: config.cw721_code_id,
-        num_tokens: config.num_tokens,
+        max_num_tokens: config.max_num_tokens,
         start_time: config.start_time,
         unit_price: config.unit_price,
         per_address_limit: config.per_address_limit,
@@ -558,8 +589,14 @@ fn query_start_time(deps: Deps) -> StdResult<StartTimeResponse> {
 }
 
 fn query_mintable_num_tokens(deps: Deps) -> StdResult<MintableNumTokensResponse> {
-    let count = MINTABLE_NUM_TOKENS.load(deps.storage)?;
-    Ok(MintableNumTokensResponse { count })
+    let count: usize = token_mints()
+        .idx
+        .is_minted
+        .prefix(0)
+        .keys(deps.storage, None, None, Order::Ascending)
+        .count();
+
+    Ok(MintableNumTokensResponse { count: count as u32 })
 }
 
 fn query_mint_price(deps: Deps) -> StdResult<MintPriceResponse> {

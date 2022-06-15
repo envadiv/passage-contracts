@@ -37,6 +37,9 @@ pub enum ContractError {
 
     #[error("Invalid token id")]
     InvalidTokenId {},
+    
+    #[error("Token has already been minted {token_id}")]
+    TokenAlreadyMinted { token_id: u32 },
 
     #[error("AlreadyStarted")]
     AlreadyStarted {},

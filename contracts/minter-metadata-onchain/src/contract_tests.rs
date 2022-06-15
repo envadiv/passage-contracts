@@ -111,7 +111,7 @@ fn setup_minter_contract(
     // Instantiate minter contract
     let msg = InstantiateMsg {
         unit_price: coin(UNIT_PRICE, NATIVE_DENOM),
-        num_tokens,
+        max_num_tokens: num_tokens,
         start_time: Timestamp::from_nanos(START_TIME),
         per_address_limit: 5,
         whitelist: None,
@@ -255,7 +255,7 @@ fn initialization() {
     let info = mock_info("creator", &coins(INITIAL_BALANCE, NATIVE_DENOM));
     let msg = InstantiateMsg {
         unit_price: coin(UNIT_PRICE, NATIVE_DENOM),
-        num_tokens: 100,
+        max_num_tokens: 100,
         start_time: Timestamp::from_nanos(START_TIME),
         per_address_limit: 0,
         whitelist: None,
@@ -283,7 +283,7 @@ fn initialization() {
     let info = mock_info("creator", &coins(INITIAL_BALANCE, NATIVE_DENOM));
     let msg = InstantiateMsg {
         unit_price: coin(UNIT_PRICE, NATIVE_DENOM),
-        num_tokens: 0,
+        max_num_tokens: 0,
         start_time: Timestamp::from_nanos(START_TIME),
         per_address_limit: 5,
         whitelist: None,
@@ -1092,7 +1092,7 @@ fn mint_for_token_id_addr() {
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::MetadataNotFound { token_id }.to_string(),
+        ContractError::TokenAlreadyMinted { token_id }.to_string(),
         err.source().unwrap().to_string()
     );
 
@@ -1140,7 +1140,7 @@ fn test_start_time_before_genesis() {
     // Instantiate sale contract
     let msg = InstantiateMsg {
         unit_price: coin(UNIT_PRICE, NATIVE_DENOM),
-        num_tokens,
+        max_num_tokens: num_tokens,
         start_time: Timestamp::from_nanos(START_TIME),
         per_address_limit: 5,
         whitelist: None,
@@ -1190,7 +1190,7 @@ fn test_update_start_time() {
     // Instantiate sale contract
     let msg = InstantiateMsg {
         unit_price: coin(UNIT_PRICE, NATIVE_DENOM),
-        num_tokens,
+        max_num_tokens: num_tokens,
         start_time: Timestamp::from_nanos(START_TIME),
         per_address_limit: 5,
         whitelist: None,
@@ -1248,7 +1248,7 @@ fn test_invalid_start_time() {
     // Instantiate sale contract before genesis mint
     let mut msg = InstantiateMsg {
         unit_price: coin(UNIT_PRICE, NATIVE_DENOM),
-        num_tokens,
+        max_num_tokens: num_tokens,
         start_time: Timestamp::from_nanos(START_TIME - 100),
         per_address_limit: 5,
         whitelist: None,
@@ -1444,7 +1444,7 @@ fn metadata_test() {
         &mint_msg,
         &coins(UNIT_PRICE, NATIVE_DENOM),
     );
-    assert_eq!(res.unwrap_err().source().unwrap().to_string(), "Full set of metadata not found on the contract. expected: 4, actual: 2");
+    assert!(res.is_ok());
 
     // Succeeds with enough metadata
     upsert_metadata(&mut router, &creator, &minter_addr, 2, Some(3));
@@ -1458,16 +1458,16 @@ fn metadata_test() {
     assert!(res.is_ok());
     assert_eq!(res.unwrap().events[1].attributes[4], Attribute {
         key: String::from("token_id"),
-        value: String::from("2")
+        value: String::from("3")
     });
 
     // Check NFT is transferred
     let query_info = Cw721QueryMsg::NftInfo {
-        token_id: String::from("2"),
+        token_id: String::from("3"),
     };
     let res: NftInfoResponse<Metadata> = router
         .wrap()
         .query_wasm_smart(config.cw721_address.clone(), &query_info)
         .unwrap();
-    assert_eq!(res.extension.image, Some(String::from("image-2.png")));
+    assert_eq!(res.extension.image, Some(String::from("image-3.png")));
 }
