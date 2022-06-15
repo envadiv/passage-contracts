@@ -7,7 +7,7 @@ use pg721_metadata_onchain::msg::{InstantiateMsg as Pg721InstantiateMsg, Metadat
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub base_token_uri: String,
-    pub num_tokens: u32,
+    pub max_num_tokens: u32,
     pub cw721_code_id: u64,
     pub cw721_instantiate_msg: Pg721InstantiateMsg,
     pub start_time: Timestamp,
@@ -43,7 +43,7 @@ pub enum QueryMsg {
 pub struct ConfigResponse {
     pub admin: String,
     pub base_token_uri: String,
-    pub num_tokens: u32,
+    pub max_num_tokens: u32,
     pub per_address_limit: u32,
     pub cw721_address: String,
     pub cw721_code_id: u64,
