@@ -3,8 +3,9 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Order, Reply, ReplyOn, StdError, StdResult, Timestamp, WasmMsg,
-    Response, SubMsg, Event
+    Response, SubMsg, Event,
 };
+use cw_storage_plus::{Bound};
 use cw2::set_contract_version;
 use cw721_base::MintMsg;
 use cw_utils::{may_pay, parse_reply_instantiate_data};
@@ -16,7 +17,8 @@ use url::Url;
 use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
-    MintableNumTokensResponse, QueryMsg, StartTimeResponse, TokenMetadata,
+    MintableNumTokensResponse, QueryMsg, StartTimeResponse, TokenMetadata, TokenMintResponse,
+    TokenMintsResponse
 };
 use crate::state::{
     CONFIG, MINTER_ADDRS, CW721_ADDRESS,
@@ -31,6 +33,9 @@ const CONTRACT_NAME: &str = "crates.io:passage-minter-metadata-onchain";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const INSTANTIATE_CW721_REPLY_ID: u64 = 1;
+
+const DEFAULT_QUERY_LIMIT: u32 = 10;
+const MAX_QUERY_LIMIT: u32 = 30;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -552,6 +557,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::MintableNumTokens {} => to_binary(&query_mintable_num_tokens(deps)?),
         QueryMsg::MintPrice {} => to_binary(&query_mint_price(deps)?),
         QueryMsg::MintCount { address } => to_binary(&query_mint_count(deps, address)?),
+        QueryMsg::TokenMint { token_id } => to_binary(&query_token_mint(deps, token_id)?),
+        QueryMsg::TokenMints { descending, filter_minted, start_after, limit } =>
+            to_binary(&query_token_mints(deps, descending, filter_minted, start_after, limit)?),
     }
 }
 
@@ -616,6 +624,43 @@ fn query_mint_price(deps: Deps) -> StdResult<MintPriceResponse> {
         public_price,
         whitelist_price,
     })
+}
+
+fn query_token_mint(deps: Deps, token_id: u32) -> StdResult<TokenMintResponse> {
+    let token_mint = token_mints().may_load(deps.storage, token_id)?;
+    Ok(TokenMintResponse { token_mint })
+}
+
+fn query_token_mints(
+    deps: Deps,
+    descending: Option<bool>,
+    filter_minted: Option<bool>,
+    start_after: Option<u32>,
+    limit: Option<u32>
+) -> StdResult<TokenMintsResponse> {
+    let limit = limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
+    let start = start_after.as_ref().map(|offset| {
+        Bound::exclusive(*offset)
+    });
+    let order = match descending {
+        Some(_descending) => if _descending { Order::Descending } else { Order::Ascending },
+        _ => Order::Ascending
+    };
+
+    let token_mints = token_mints()
+        .range(deps.storage, start, None, order)
+        .filter(|item| match item {
+            Ok((_, token_mint)) => match filter_minted {
+                Some(_filter_minted) => !_filter_minted || !token_mint.is_minted,
+                _ => true,
+            },
+            Err(_) => true,
+        })
+        .take(limit)
+        .map(|res| res.map(|item| item.1))
+        .collect::<StdResult<Vec<_>>>()?;
+
+    Ok(TokenMintsResponse { token_mints })
 }
 
 // Reply callback triggered from cw721 contract instantiation

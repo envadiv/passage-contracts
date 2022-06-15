@@ -15,7 +15,7 @@ use crate::contract::instantiate;
 use crate::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
     MintableNumTokensResponse, QueryMsg, StartTimeResponse, ExecuteMsg as Pg721MinterExecuteMsg,
-    TokenMetadata
+    TokenMetadata, TokenMintsResponse
 };
 use crate::ContractError;
 
@@ -1470,4 +1470,19 @@ fn metadata_test() {
         .query_wasm_smart(config.cw721_address.clone(), &query_info)
         .unwrap();
     assert_eq!(res.extension.image, Some(String::from("image-3.png")));
+
+    // Check minter TokenMints
+    let query_info = QueryMsg::TokenMints {
+        descending: Some(true),
+        filter_minted: Some(true),
+        start_after: Some(2u32),
+        limit: Some(10),
+    };
+    let res: TokenMintsResponse = router
+        .wrap()
+        .query_wasm_smart(minter_addr, &query_info)
+        .unwrap();
+    assert_eq!(res.token_mints.len(), 1);
+    assert_eq!(res.token_mints[0].token_id, 4);
+    assert_eq!(res.token_mints[0].is_minted, false);
 }

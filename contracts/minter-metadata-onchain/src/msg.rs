@@ -3,6 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use pg721_metadata_onchain::msg::{InstantiateMsg as Pg721InstantiateMsg, Metadata};
+use crate::state::{TokenMint};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -37,6 +38,13 @@ pub enum QueryMsg {
     StartTime {},
     MintPrice {},
     MintCount { address: String },
+    TokenMint { token_id: u32 },
+    TokenMints {
+        descending: Option<bool>,
+        filter_minted: Option<bool>,
+        start_after: Option<u32>,
+        limit: Option<u32>
+     },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -73,6 +81,16 @@ pub struct MintPriceResponse {
 pub struct MintCountResponse {
     pub address: String,
     pub count: u32,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TokenMintResponse {
+    pub token_mint: Option<TokenMint>
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TokenMintsResponse {
+    pub token_mints: Vec<TokenMint>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
