@@ -17,7 +17,7 @@ use url::Url;
 use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
-    MintableNumTokensResponse, QueryMsg, StartTimeResponse, TokenMetadata, TokenMintResponse,
+    MintInfoResponse, QueryMsg, StartTimeResponse, TokenMetadata, TokenMintResponse,
     TokenMintsResponse
 };
 use crate::state::{
@@ -554,7 +554,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::StartTime {} => to_binary(&query_start_time(deps)?),
-        QueryMsg::MintableNumTokens {} => to_binary(&query_mintable_num_tokens(deps)?),
+        QueryMsg::MintInfo {} => to_binary(&query_mint_info(deps)?),
         QueryMsg::MintPrice {} => to_binary(&query_mint_price(deps)?),
         QueryMsg::MintCount { address } => to_binary(&query_mint_count(deps, address)?),
         QueryMsg::TokenMint { token_id } => to_binary(&query_token_mint(deps, token_id)?),
@@ -596,15 +596,24 @@ fn query_start_time(deps: Deps) -> StdResult<StartTimeResponse> {
     })
 }
 
-fn query_mintable_num_tokens(deps: Deps) -> StdResult<MintableNumTokensResponse> {
-    let count: usize = token_mints()
+fn query_mint_info(deps: Deps) -> StdResult<MintInfoResponse> {
+    let num_minted: u32 = token_mints()
+        .idx
+        .is_minted
+        .prefix(1)
+        .keys(deps.storage, None, None, Order::Ascending)
+        .count() as u32;
+    
+    let num_remaining: u32 = token_mints()
         .idx
         .is_minted
         .prefix(0)
         .keys(deps.storage, None, None, Order::Ascending)
-        .count();
+        .count() as u32;
+    
+    let max_num_tokens = CONFIG.load(deps.storage)?.max_num_tokens;
 
-    Ok(MintableNumTokensResponse { count: count as u32 })
+    Ok(MintInfoResponse { num_minted, num_remaining, max_num_tokens })
 }
 
 fn query_mint_price(deps: Deps) -> StdResult<MintPriceResponse> {
