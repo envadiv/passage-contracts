@@ -20,7 +20,7 @@ Passage smart contracts written in CosmWasm and deployed to Juno.
 | minter                  | 256     | v0.1.4-alpha | 292dc2a924e56d393a922f2f694503863293f2f173896fa0afd2b42b4ef53a11 | Generates pseudorandom token ids |
 | whitelist               | 257     | v0.1.4-alpha | be256a2235558736018a0bdb4ee9d5c80bf2a73f4411e29be771debe6c6b1c58 |                                  |
 | pg721-metadata-onchain  | 364     | v0.1.5-alpha | d851a25fa640692739e9d4b2e255905b3e6414e00232a134438081ca497aef74 |                                  |
-| minter-metadata-onchain | 365     | v0.1.5-alpha | 0dc2c5230d044b76ebab90e7d95b9a63970c871f7376c68eee68df2c9410bd03 |                                  |
+| minter-metadata-onchain | 390     | v0.1.5-alpha | 4bb6c74f35cf8bacb6b631420578032b1abdddacc0bb557f20ebbcbefb9f5d8f |                                  |
 
 ### Testnet (uni-2)
 
