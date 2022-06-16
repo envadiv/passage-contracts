@@ -6,7 +6,7 @@
     "admin",
     "base_token_uri",
     "cw721_code_id",
-    "num_tokens",
+    "max_num_tokens",
     "per_address_limit",
     "start_time",
     "unit_price"
@@ -23,7 +23,7 @@
       "format": "uint64",
       "minimum": 0.0
     },
-    "num_tokens": {
+    "max_num_tokens": {
       "type": "integer",
       "format": "uint32",
       "minimum": 0.0

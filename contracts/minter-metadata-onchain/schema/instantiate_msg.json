@@ -6,7 +6,7 @@
     "base_token_uri",
     "cw721_code_id",
     "cw721_instantiate_msg",
-    "num_tokens",
+    "max_num_tokens",
     "per_address_limit",
     "start_time",
     "unit_price"
@@ -23,7 +23,7 @@
     "cw721_instantiate_msg": {
       "$ref": "#/definitions/InstantiateMsg"
     },
-    "num_tokens": {
+    "max_num_tokens": {
       "type": "integer",
       "format": "uint32",
       "minimum": 0.0
