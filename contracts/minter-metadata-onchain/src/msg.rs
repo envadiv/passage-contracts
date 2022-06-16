@@ -34,7 +34,7 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
-    MintableNumTokens {},
+    MintInfo {},
     StartTime {},
     MintPrice {},
     MintCount { address: String },
@@ -61,8 +61,10 @@ pub struct ConfigResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MintableNumTokensResponse {
-    pub count: u32,
+pub struct MintInfoResponse {
+    pub num_minted: u32,
+    pub num_remaining: u32,
+    pub max_num_tokens: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

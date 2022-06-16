@@ -14,7 +14,7 @@ use whitelist::msg::{AddMembersMsg, ExecuteMsg as WhitelistExecuteMsg};
 use crate::contract::instantiate;
 use crate::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
-    MintableNumTokensResponse, QueryMsg, StartTimeResponse, ExecuteMsg as Pg721MinterExecuteMsg,
+    MintInfoResponse, QueryMsg, StartTimeResponse, ExecuteMsg as Pg721MinterExecuteMsg,
     TokenMetadata, TokenMintsResponse
 };
 use crate::ContractError;
@@ -1096,11 +1096,15 @@ fn mint_for_token_id_addr() {
         err.source().unwrap().to_string()
     );
 
-    let mintable_num_tokens_response: MintableNumTokensResponse = router
+    let mintable_num_tokens_response: MintInfoResponse = router
         .wrap()
-        .query_wasm_smart(minter_addr.clone(), &QueryMsg::MintableNumTokens {})
+        .query_wasm_smart(minter_addr.clone(), &QueryMsg::MintInfo {})
         .unwrap();
-    assert_eq!(mintable_num_tokens_response.count, 3);
+    assert_eq!(mintable_num_tokens_response, MintInfoResponse {
+        num_minted: 1,
+        num_remaining: 3,
+        max_num_tokens: 4
+    });
 
     // Test mint_for token_id 2 then normal mint
     let token_id = 2;
@@ -1119,11 +1123,15 @@ fn mint_for_token_id_addr() {
     );
     assert!(res.is_ok());
 
-    let mintable_num_tokens_response: MintableNumTokensResponse = router
+    let mintable_num_tokens_response: MintInfoResponse = router
         .wrap()
-        .query_wasm_smart(minter_addr, &QueryMsg::MintableNumTokens {})
+        .query_wasm_smart(minter_addr, &QueryMsg::MintInfo {})
         .unwrap();
-    assert_eq!(mintable_num_tokens_response.count, 2);
+    assert_eq!(mintable_num_tokens_response, MintInfoResponse {
+        num_minted: 2,
+        num_remaining: 2,
+        max_num_tokens: 4
+    });
 }
 
 #[test]
