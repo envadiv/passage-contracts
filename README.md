@@ -4,7 +4,7 @@ Passage smart contracts written in CosmWasm and deployed to Juno.
 
 ## Diagram
 
-![Screen Shot 2022-04-29 at 1 24 18 PM](https://user-images.githubusercontent.com/6496257/165993415-0ca10d74-f875-47b6-b85e-00928bbd3f7a.png)
+![Screen Shot 2022-06-16 at 11 52 41 AM](https://user-images.githubusercontent.com/6496257/174113657-dbe6819a-bee7-401f-b9ff-b95049d3ea26.png)
 
 ## Contracts
 
