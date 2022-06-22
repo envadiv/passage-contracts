@@ -7,7 +7,6 @@ use crate::state::{TokenMint};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub base_token_uri: String,
     pub max_num_tokens: u32,
     pub cw721_code_id: u64,
     pub cw721_instantiate_msg: Pg721InstantiateMsg,
@@ -50,7 +49,6 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub admin: String,
-    pub base_token_uri: String,
     pub max_num_tokens: u32,
     pub per_address_limit: u32,
     pub cw721_address: String,

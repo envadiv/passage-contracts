@@ -4,7 +4,6 @@
   "type": "object",
   "required": [
     "admin",
-    "base_token_uri",
     "cw721_code_id",
     "max_num_tokens",
     "per_address_limit",
@@ -14,9 +13,6 @@
   "properties": {
     "admin": {
       "$ref": "#/definitions/Addr"
-    },
-    "base_token_uri": {
-      "type": "string"
     },
     "cw721_code_id": {
       "type": "integer",

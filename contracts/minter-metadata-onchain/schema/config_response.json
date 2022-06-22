@@ -4,7 +4,6 @@
   "type": "object",
   "required": [
     "admin",
-    "base_token_uri",
     "cw721_address",
     "cw721_code_id",
     "max_num_tokens",
@@ -14,9 +13,6 @@
   ],
   "properties": {
     "admin": {
-      "type": "string"
-    },
-    "base_token_uri": {
       "type": "string"
     },
     "cw721_address": {
