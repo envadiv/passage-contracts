@@ -8,7 +8,6 @@ use pg721_metadata_onchain::msg::Metadata;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub admin: Addr,
-    pub base_token_uri: String,
     pub max_num_tokens: u32,
     pub cw721_code_id: u64,
     pub unit_price: Coin,

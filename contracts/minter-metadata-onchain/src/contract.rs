@@ -12,7 +12,6 @@ use cw_utils::{may_pay, parse_reply_instantiate_data};
 use pg721_metadata_onchain::msg::{
     InstantiateMsg as Pg721InstantiateMsg, ExecuteMsg as Pg721ExecuteMsg, Metadata
 };
-use url::Url;
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -61,10 +60,6 @@ pub fn instantiate(
         });
     }
 
-    // Check that base_token_uri is a valid IPFS uri
-    Url::parse(&msg.base_token_uri)
-    .or_else(|_err: url::ParseError| Err(ContractError::InvalidBaseTokenURI {}))?;
-
     // If current time is beyond the provided start time return error
     if env.block.time > msg.start_time {
         return Err(ContractError::InvalidStartTime(
@@ -80,7 +75,6 @@ pub fn instantiate(
 
     let config = Config {
         admin: info.sender.clone(),
-        base_token_uri: msg.base_token_uri,
         max_num_tokens: msg.max_num_tokens,
         cw721_code_id: msg.cw721_code_id,
         unit_price: msg.unit_price,
@@ -425,7 +419,7 @@ fn _execute_mint(
     let mint_msg = Pg721ExecuteMsg::Mint(MintMsg::<Option<Metadata>> {
         token_id: mintable_token_id.to_string(),
         owner: recipient_addr.to_string(),
-        token_uri: Some(format!("{}/{}", config.base_token_uri, mintable_token_id)),
+        token_uri: None,
         extension: Some(token_mint.metadata),
     });
     let msg = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -569,7 +563,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 
     Ok(ConfigResponse {
         admin: config.admin.to_string(),
-        base_token_uri: config.base_token_uri,
         cw721_address: cw721_address.to_string(),
         cw721_code_id: config.cw721_code_id,
         max_num_tokens: config.max_num_tokens,

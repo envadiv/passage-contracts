@@ -1,7 +1,6 @@
 use cosmwasm_std::{Coin, StdError, Timestamp};
 use cw_utils::PaymentError;
 use thiserror::Error;
-use url::ParseError;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
@@ -79,10 +78,4 @@ pub enum ContractError {
 
     #[error("{0}")]
     Payment(#[from] PaymentError),
-}
-
-impl From<ParseError> for ContractError {
-    fn from(_err: ParseError) -> ContractError {
-        ContractError::InvalidBaseTokenURI {}
-    }
 }

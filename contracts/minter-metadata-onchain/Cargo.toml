@@ -31,7 +31,6 @@ schemars = "0.8"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 pg721-metadata-onchain = { path = "../pg721-metadata-onchain", features = ["library"] }
 thiserror = { version = "1.0" }
-url = "2.2.0"
 whitelist = { path = "../whitelist", features = ["library"] }
 cw721 = "0.13.1"
 cw721-base = { version = "0.13.1", features = ["library"] }

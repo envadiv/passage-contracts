@@ -115,7 +115,6 @@ fn setup_minter_contract(
         start_time: Timestamp::from_nanos(START_TIME),
         per_address_limit: 5,
         whitelist: None,
-        base_token_uri: "ipfs://QmYxw1rURvnbQbBRTfmVaZtxSrkrfsbodNzibgBrVrUrtN".to_string(),
         cw721_code_id,
         cw721_instantiate_msg: Pg721InstantiateMsg {
             name: String::from("TEST"),
@@ -259,7 +258,6 @@ fn initialization() {
         start_time: Timestamp::from_nanos(START_TIME),
         per_address_limit: 0,
         whitelist: None,
-        base_token_uri: "ipfs://QmYxw1rURvnbQbBRTfmVaZtxSrkrfsbodNzibgBrVrUrtN".to_string(),
         cw721_code_id: 1,
         cw721_instantiate_msg: Pg721InstantiateMsg {
             name: String::from("TEST"),
@@ -287,7 +285,6 @@ fn initialization() {
         start_time: Timestamp::from_nanos(START_TIME),
         per_address_limit: 5,
         whitelist: None,
-        base_token_uri: "ipfs://QmYxw1rURvnbQbBRTfmVaZtxSrkrfsbodNzibgBrVrUrtN".to_string(),
         cw721_code_id: 1,
         cw721_instantiate_msg: Pg721InstantiateMsg {
             name: String::from("TEST"),
@@ -1152,7 +1149,6 @@ fn test_start_time_before_genesis() {
         start_time: Timestamp::from_nanos(START_TIME),
         per_address_limit: 5,
         whitelist: None,
-        base_token_uri: "ipfs://QmYxw1rURvnbQbBRTfmVaZtxSrkrfsbodNzibgBrVrUrtN".to_string(),
         cw721_code_id,
         cw721_instantiate_msg: Pg721InstantiateMsg {
             name: String::from("TEST"),
@@ -1202,7 +1198,6 @@ fn test_update_start_time() {
         start_time: Timestamp::from_nanos(START_TIME),
         per_address_limit: 5,
         whitelist: None,
-        base_token_uri: "ipfs://QmYxw1rURvnbQbBRTfmVaZtxSrkrfsbodNzibgBrVrUrtN".to_string(),
         cw721_code_id,
         cw721_instantiate_msg: Pg721InstantiateMsg {
             name: String::from("TEST"),
@@ -1260,7 +1255,6 @@ fn test_invalid_start_time() {
         start_time: Timestamp::from_nanos(START_TIME - 100),
         per_address_limit: 5,
         whitelist: None,
-        base_token_uri: "ipfs://QmYxw1rURvnbQbBRTfmVaZtxSrkrfsbodNzibgBrVrUrtN".to_string(),
         cw721_code_id,
         cw721_instantiate_msg: Pg721InstantiateMsg {
             name: String::from("TEST"),
