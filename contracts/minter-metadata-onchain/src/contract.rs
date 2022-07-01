@@ -16,8 +16,8 @@ use pg721_metadata_onchain::msg::{
 use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
-    MintInfoResponse, QueryMsg, StartTimeResponse, TokenMetadata, TokenMintResponse,
-    TokenMintsResponse
+    QueryMsg, StartTimeResponse, TokenMetadata, TokenMintResponse, TokenMintsResponse,
+    NumMintedResponse, NumRemainingResponse,
 };
 use crate::state::{
     CONFIG, MINTER_ADDRS, CW721_ADDRESS,
@@ -548,7 +548,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::StartTime {} => to_binary(&query_start_time(deps)?),
-        QueryMsg::MintInfo {} => to_binary(&query_mint_info(deps)?),
+        QueryMsg::NumMinted {} => to_binary(&query_num_minted(deps)?),
+        QueryMsg::NumRemaining {} => to_binary(&query_num_remaining(deps)?),
         QueryMsg::MintPrice {} => to_binary(&query_mint_price(deps)?),
         QueryMsg::MintCount { address } => to_binary(&query_mint_count(deps, address)?),
         QueryMsg::TokenMint { token_id } => to_binary(&query_token_mint(deps, token_id)?),
@@ -589,24 +590,25 @@ fn query_start_time(deps: Deps) -> StdResult<StartTimeResponse> {
     })
 }
 
-fn query_mint_info(deps: Deps) -> StdResult<MintInfoResponse> {
+fn query_num_minted(deps: Deps) -> StdResult<NumMintedResponse> {
     let num_minted: u32 = token_mints()
         .idx
         .is_minted
         .prefix(1)
-        .keys(deps.storage, None, None, Order::Ascending)
+        .keys_raw(deps.storage, None, None, Order::Ascending)
         .count() as u32;
-    
+    return Ok(NumMintedResponse { num_minted });
+}
+
+fn query_num_remaining(deps: Deps) -> StdResult<NumRemainingResponse> {
     let num_remaining: u32 = token_mints()
         .idx
         .is_minted
         .prefix(0)
         .keys(deps.storage, None, None, Order::Ascending)
         .count() as u32;
-    
-    let max_num_tokens = CONFIG.load(deps.storage)?.max_num_tokens;
 
-    Ok(MintInfoResponse { num_minted, num_remaining, max_num_tokens })
+    Ok(NumRemainingResponse { num_remaining })
 }
 
 fn query_mint_price(deps: Deps) -> StdResult<MintPriceResponse> {

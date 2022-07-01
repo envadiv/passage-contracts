@@ -14,8 +14,8 @@ use whitelist::msg::{AddMembersMsg, ExecuteMsg as WhitelistExecuteMsg};
 use crate::contract::instantiate;
 use crate::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
-    MintInfoResponse, QueryMsg, StartTimeResponse, ExecuteMsg as Pg721MinterExecuteMsg,
-    TokenMetadata, TokenMintsResponse
+    QueryMsg, StartTimeResponse, ExecuteMsg as Pg721MinterExecuteMsg, TokenMetadata,
+    TokenMintsResponse, NumMintedResponse, NumRemainingResponse
 };
 use crate::ContractError;
 
@@ -1093,15 +1093,17 @@ fn mint_for_token_id_addr() {
         err.source().unwrap().to_string()
     );
 
-    let mintable_num_tokens_response: MintInfoResponse = router
+    let num_minted_response: NumMintedResponse = router
         .wrap()
-        .query_wasm_smart(minter_addr.clone(), &QueryMsg::MintInfo {})
+        .query_wasm_smart(minter_addr.clone(), &QueryMsg::NumMinted {})
         .unwrap();
-    assert_eq!(mintable_num_tokens_response, MintInfoResponse {
-        num_minted: 1,
-        num_remaining: 3,
-        max_num_tokens: 4
-    });
+    assert_eq!(num_minted_response, NumMintedResponse { num_minted: 1 });
+
+    let num_remaining_response: NumRemainingResponse = router
+        .wrap()
+        .query_wasm_smart(minter_addr.clone(), &QueryMsg::NumRemaining {})
+        .unwrap();
+    assert_eq!(num_remaining_response, NumRemainingResponse { num_remaining: 3 });
 
     // Test mint_for token_id 2 then normal mint
     let token_id = 2;
@@ -1120,15 +1122,17 @@ fn mint_for_token_id_addr() {
     );
     assert!(res.is_ok());
 
-    let mintable_num_tokens_response: MintInfoResponse = router
+    let num_minted_response: NumMintedResponse = router
         .wrap()
-        .query_wasm_smart(minter_addr, &QueryMsg::MintInfo {})
+        .query_wasm_smart(minter_addr.clone(), &QueryMsg::NumMinted {})
         .unwrap();
-    assert_eq!(mintable_num_tokens_response, MintInfoResponse {
-        num_minted: 2,
-        num_remaining: 2,
-        max_num_tokens: 4
-    });
+    assert_eq!(num_minted_response, NumMintedResponse { num_minted: 2 });
+
+    let num_remaining_response: NumRemainingResponse = router
+        .wrap()
+        .query_wasm_smart(minter_addr.clone(), &QueryMsg::NumRemaining {})
+        .unwrap();
+    assert_eq!(num_remaining_response, NumRemainingResponse { num_remaining: 2 });
 }
 
 #[test]
