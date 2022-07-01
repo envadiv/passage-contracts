@@ -21,6 +21,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     UpsertTokenMetadatas { token_metadatas: Vec<TokenMetadata> },
     Mint {},
+    SetAdmin { admin: String },
     SetWhitelist { whitelist: String },
     UpdateStartTime(Timestamp),
     UpdatePerAddressLimit { per_address_limit: u32 },

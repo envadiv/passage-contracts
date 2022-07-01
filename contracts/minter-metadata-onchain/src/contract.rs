@@ -119,6 +119,8 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let api = deps.api;
+
     match msg {
         ExecuteMsg::UpsertTokenMetadatas { token_metadatas } => execute_upsert_token_metadatas(deps, info, token_metadatas ),
         ExecuteMsg::Mint {} => execute_mint_sender(deps, env, info),
@@ -131,6 +133,7 @@ pub fn execute(
             token_id,
             recipient,
         } => execute_mint_for(deps, env, info, token_id, recipient),
+        ExecuteMsg::SetAdmin { admin } => execute_set_admin(deps, info, api.addr_validate(&admin)?),
         ExecuteMsg::SetWhitelist { whitelist } => {
             execute_set_whitelist(deps, env, info, &whitelist)
         }
@@ -213,6 +216,26 @@ pub fn execute_withdraw(
     Ok(Response::default()
         .add_attribute("action", "withdraw")
         .add_message(send_msg))
+}
+
+pub fn execute_set_admin(
+    deps: DepsMut,
+    info: MessageInfo,
+    admin: Addr,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    if config.admin != info.sender {
+        return Err(ContractError::Unauthorized(
+            "Sender is not an admin".to_owned(),
+        ));
+    };
+
+    config.admin = admin.clone();
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::default()
+        .add_attribute("action", "set_admin")
+        .add_attribute("admin", admin.to_string()))
 }
 
 pub fn execute_set_whitelist(
