@@ -24,6 +24,7 @@ Passage smart contracts written in CosmWasm and deployed to Juno.
 | minter-metadata-onchain | 556     | v0.1.6-alpha | dfb92c39d2332a6ec83df262c4e18d621bd4cc9702dc08b81e66945c69a353fb | Removed base_token_uri config var                     |
 | pg721_legacy            | 557     | v0.1.6-alpha | 84f04434f55a73096e908b093e75153bfb637eb9091a7b267f7a516ad36ad49c | For deploying Town 1 to testnet                       |
 | minter-metadata-onchain | 801     | v0.1.7-alpha | f6bfc05ba1d5ea2dedabe3bae69ddc5d00dba6c032f3bc078821daf476a9d133 | Refactored MintInfo query, added SetAdmin execute msg |
+| minter-metadata-onchain | 866     | v0.1.8-alpha | 3f8e3db3b53c8bd4229f22263842beb3477fa1350228f08e71d4c49bca33e5d6 | Added recipient to Withdraw msg                       |
 
 ### Testnet (uni-2)
 
