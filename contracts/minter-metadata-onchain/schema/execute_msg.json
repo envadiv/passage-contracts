@@ -40,6 +40,26 @@
     {
       "type": "object",
       "required": [
+        "set_admin"
+      ],
+      "properties": {
+        "set_admin": {
+          "type": "object",
+          "required": [
+            "admin"
+          ],
+          "properties": {
+            "admin": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "set_whitelist"
       ],
       "properties": {
@@ -144,7 +164,15 @@
       ],
       "properties": {
         "withdraw": {
-          "type": "object"
+          "type": "object",
+          "required": [
+            "recipient"
+          ],
+          "properties": {
+            "recipient": {
+              "type": "string"
+            }
+          }
         }
       },
       "additionalProperties": false
