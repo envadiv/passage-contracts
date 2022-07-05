@@ -8,6 +8,14 @@ Passage smart contracts written in CosmWasm and deployed to Juno.
 
 ## Contracts
 
+### Mainnet (juno-1)
+
+| Contract               | Code ID | Version      | Checksum                                                         | Cost          | Notes |
+| ---------------------- | ------- | ------------ | ---------------------------------------------------------------- | ------------- | ----- |
+| marketplace-legacy     | 89      |              |                                                                  | 0.840371juno  |       |
+| whitelist              | 477     | v0.1.8-alpha | d851a25fa640692739e9d4b2e255905b3e6414e00232a134438081ca497aef74 | 2.598308ujuno |       |
+| pg721-metadata-onchain | 478     | v0.1.8-alpha | be256a2235558736018a0bdb4ee9d5c80bf2a73f4411e29be771debe6c6b1c58 | 8.000106ujuno |       |
+
 ### Testnet (uni-3)
 
 | Contract                | Code ID | Version      | Checksum                                                         | Notes                                                 |
@@ -38,6 +46,12 @@ Passage smart contracts written in CosmWasm and deployed to Juno.
 | legacy-marketplace | 1029    | v0.1.2-alpha | c166e8c6060da4bdf30e42126afc3c08128f59fca65ba73c1c70400284a5145e | includes admin NFT registration bug fix |
 
 ## Commands
+
+**Deploy to mainnet**
+
+```bash
+junod tx wasm store artifacts/pg721_metadata_onchain.wasm  --from juno19mmkdpvem2xvrddt8nukf5kfpjwfslrs7sgw8e --chain-id=juno-1 --node https://rpc.juno-1.deuslabs.fi:443 --gas-prices 0.1ujuno --gas auto --gas-adjustment 1.3 -b block
+```
 
 **Deploy to testnet**
 
