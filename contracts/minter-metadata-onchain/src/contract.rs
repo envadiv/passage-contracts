@@ -137,7 +137,7 @@ pub fn execute(
         ExecuteMsg::SetWhitelist { whitelist } => {
             execute_set_whitelist(deps, env, info, &whitelist)
         }
-        ExecuteMsg::Withdraw {} => execute_withdraw(deps, env, info),
+        ExecuteMsg::Withdraw { recipient } => execute_withdraw(deps, env, info, api.addr_validate(&recipient)?),
     }
 }
 
@@ -191,6 +191,7 @@ pub fn execute_withdraw(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    recipient: Addr,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     if config.admin != info.sender {
@@ -209,7 +210,7 @@ pub fn execute_withdraw(
 
     // send contract balance to creator
     let send_msg = CosmosMsg::Bank(BankMsg::Send {
-        to_address: info.sender.to_string(),
+        to_address: recipient.to_string(),
         amount: vec![balance],
     });
 

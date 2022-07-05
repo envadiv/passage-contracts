@@ -1377,7 +1377,7 @@ fn can_withdraw() {
     setup_block_time(&mut router, START_TIME + 1);
 
     // someone who isn't the creator cannot withdraw
-    let withdraw_msg = ExecuteMsg::Withdraw {};
+    let withdraw_msg = ExecuteMsg::Withdraw { recipient: creator.to_string() };
     router
         .execute_contract(buyer.clone(), minter_addr.clone(), &withdraw_msg, &[])
         .unwrap_err();

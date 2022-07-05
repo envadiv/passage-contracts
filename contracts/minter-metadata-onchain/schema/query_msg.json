@@ -17,10 +17,22 @@
     {
       "type": "object",
       "required": [
-        "mint_info"
+        "num_minted"
       ],
       "properties": {
-        "mint_info": {
+        "num_minted": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "num_remaining"
+      ],
+      "properties": {
+        "num_remaining": {
           "type": "object"
         }
       },
