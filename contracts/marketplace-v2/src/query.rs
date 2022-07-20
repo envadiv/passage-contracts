@@ -1,6 +1,6 @@
 use crate::msg::{
-    QueryMsg, AskResponse, AsksResponse, QueryOptions, AskExpiryOffset, AskPriceOffset, AskSellerExpiryOffset,
-    AskCountResponse, BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset, BidBidderExpiryOffset,
+    QueryMsg, AskResponse, AsksResponse, QueryOptions, AskExpiryOffset, AskPriceOffset,
+    AskCountResponse, BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset,
     ParamsResponse, CollectionBidResponse, CollectionBidsResponse, CollectionBidPriceOffset, CollectionBidExpiryOffset
 };
 use crate::state::{
@@ -166,7 +166,7 @@ pub fn query_asks_sorted_by_price(
 pub fn query_asks_by_seller_expiry(
     deps: Deps,
     seller: Addr,
-    query_options: &QueryOptions<AskSellerExpiryOffset>
+    query_options: &QueryOptions<AskExpiryOffset>
 ) -> StdResult<AsksResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
     let start = query_options.start_after.as_ref().map(|offset| {
@@ -272,7 +272,7 @@ pub fn query_bids_token_price(
 pub fn query_bids_by_bidder_expiry(
     deps: Deps,
     bidder: Addr,
-    query_options: &QueryOptions<BidBidderExpiryOffset>
+    query_options: &QueryOptions<BidExpiryOffset>
 ) -> StdResult<BidsResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
     let start = query_options.start_after.as_ref().map(|offset| {

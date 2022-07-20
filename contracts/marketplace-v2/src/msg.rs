@@ -99,12 +99,6 @@ pub struct AskPriceOffset {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AskSellerExpiryOffset {
-    pub expires_at: Timestamp,
-    pub token_id: TokenId,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct BidExpiryOffset {
     pub expires_at: Timestamp,
     pub bidder: Addr,
@@ -114,13 +108,6 @@ pub struct BidExpiryOffset {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct BidTokenPriceOffset {
     pub price: u128,
-    pub bidder: Addr,
-    pub token_id: TokenId,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct BidBidderExpiryOffset {
-    pub expires_at: Timestamp,
     pub bidder: Addr,
     pub token_id: TokenId,
 }
@@ -173,7 +160,7 @@ pub enum QueryMsg {
     /// Return type: `AsksResponse`
     AsksBySellerExpiry {
         seller: String,
-        query_options: QueryOptions<AskSellerExpiryOffset>
+        query_options: QueryOptions<AskExpiryOffset>
     },
     /// Count of all asks
     /// Return type: `AskCountResponse`
@@ -199,7 +186,7 @@ pub enum QueryMsg {
     /// Return type: `BidsResponse`
     BidsByBidderExpiry {
         bidder: String,
-        query_options: QueryOptions<BidBidderExpiryOffset>
+        query_options: QueryOptions<BidExpiryOffset>
     },
     /// Get a bidders collection_bid
     /// Return type: `CollectionBidResponse`
