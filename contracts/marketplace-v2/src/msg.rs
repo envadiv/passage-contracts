@@ -51,11 +51,6 @@ pub enum ExecuteMsg {
     RemoveAsk {
         token_id: TokenId,
     },
-    /// Update the price of an existing ask
-    UpdateAskPrice {
-        token_id: TokenId,
-        price: Coin,
-    },
     /// Place a bid on an existing ask
     SetBid {
         token_id: TokenId,

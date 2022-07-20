@@ -1,8 +1,6 @@
 use crate::error::ContractError;
 use crate::helpers::{map_validate, ExpiryRange};
-use crate::msg::{
-    InstantiateMsg, ExecuteMsg
-};
+use crate::msg::{InstantiateMsg, ExecuteMsg};
 use crate::state::{
     Params, PARAMS, Ask, asks, TokenId, bid_key, bids, Order, Bid, CollectionBid, collection_bids,
 };
@@ -10,10 +8,10 @@ use crate::state::{
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Coin, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
-    StdResult, Storage, Uint128, WasmMsg, Response, SubMsg, Attribute
+    StdError, StdResult, Storage, Uint128, WasmMsg, Response, SubMsg, Attribute
 };
 use cw2::set_contract_version;
-use cw721::{Cw721ExecuteMsg, OwnerOfResponse};
+use cw721::{Cw721ExecuteMsg};
 use cw721_base::helpers::Cw721Contract;
 use cw_utils::{maybe_addr, must_pay, nonpayable};
 use pg721::msg::{CollectionInfoResponse, QueryMsg as Pg721QueryMsg};
@@ -100,10 +98,6 @@ pub fn execute(
         ExecuteMsg::RemoveAsk {
             token_id,
         } => execute_remove_ask(deps, info, token_id),
-        ExecuteMsg::UpdateAskPrice {
-            token_id,
-            price,
-        } => execute_update_ask_price(deps, info, token_id, price),
         ExecuteMsg::SetBid {
             token_id,
             price,
@@ -210,10 +204,23 @@ pub fn execute_set_ask(
     
     let params = PARAMS.load(deps.storage)?;
     params.ask_expiry.is_valid(&env.block, ask.expires_at)?;
-    only_owner(deps.as_ref(), &info, &params.cw721_address, &ask.token_id)?;
     price_validate(&ask.price, &params)?;
 
-    store_ask(deps.storage, &ask)?;
+    let existing_ask = asks().load(deps.storage, ask.token_id.clone()).ok();
+    only_owner_or_seller(
+        deps.as_ref(),
+        &info,
+        &params.cw721_address.clone(),
+        &ask.token_id,
+        &existing_ask,
+    )?;
+
+    // Upsert ask
+    asks().update(
+        deps.storage,
+        ask.token_id.clone(),
+        |_| -> Result<Ask, StdError> { Ok(ask.clone()) },
+    )?;
 
     let mut response = Response::new();
 
@@ -252,34 +259,6 @@ pub fn execute_remove_ask(
         .add_attribute("token_id", token_id.to_string());
 
     Ok(response.add_event(event))
-}
-
-/// Updates the ask price on a particular NFT
-pub fn execute_update_ask_price(
-    deps: DepsMut,
-    info: MessageInfo,
-    token_id: TokenId,
-    price: Coin,
-) -> Result<Response, ContractError> {
-    nonpayable(&info)?;
-
-    let params = PARAMS.load(deps.storage)?;
-    price_validate(&price, &params)?;
-
-    let mut ask = asks().load(deps.storage, token_id.clone())?;
-    only_seller(&info, &ask)?;
-
-    ask.price = price;
-    asks().save(deps.storage, token_id.clone(), &ask)?;
-
-    let event = Event::new("update-ask")
-        .add_attribute("collection", params.cw721_address.to_string())
-        .add_attribute("token_id", ask.token_id.to_string())
-        .add_attribute("seller", ask.seller)
-        .add_attribute("price", ask.price.to_string())
-        .add_attribute("expires_at", ask.expires_at.to_string());
-
-    Ok(Response::new().add_event(event))
 }
 
 /// Places a bid on a listed or unlisted NFT. The bid is escrowed in the contract.
@@ -383,17 +362,23 @@ pub fn execute_accept_bid(
     }
 
     let params = PARAMS.load(deps.storage)?;
-    let existing_ask = asks().load(deps.storage, token_id.clone());
+    let existing_ask = asks().load(deps.storage, token_id.clone()).ok();
+
+    only_owner_or_seller(
+        deps.as_ref(),
+        &info,
+        &params.cw721_address.clone(),
+        &token_id,
+        &existing_ask,
+    )?;
 
     // Validate sender, formalize Ask
     let ask = match existing_ask {
-        Ok(_ask) => {
-            only_seller(&info, &_ask)?;
+        Some(_ask) => {
             asks().remove(deps.storage, token_id.clone())?;
             _ask
         },
-        Err(_) => {
-            only_owner(deps.as_ref(), &info, &params.cw721_address.clone(), &token_id)?;
+        None => {
             Ask {
                 token_id: token_id.clone(),
                 seller: info.sender.clone(),
@@ -520,17 +505,22 @@ pub fn execute_accept_collection_bid(
     }
 
     let params = PARAMS.load(deps.storage)?;
-    let existing_ask = asks().load(deps.storage, token_id.clone());
+    let existing_ask = asks().load(deps.storage, token_id.clone()).ok();
+    only_owner_or_seller(
+        deps.as_ref(),
+        &info,
+        &params.cw721_address.clone(),
+        &token_id.clone(),
+        &existing_ask,
+    )?;
 
     // Validate sender, formalize Ask
     let ask = match existing_ask {
-        Ok(_ask) => {
-            only_seller(&info, &_ask)?;
+        Some(_ask) => {
             asks().remove(deps.storage, token_id.clone())?;
             _ask
         },
-        Err(_) => {
-            only_owner(deps.as_ref(), &info, &params.cw721_address.clone(), &token_id)?;
+        None => {
             Ask {
                 token_id: token_id.clone(),
                 seller: info.sender.clone(),
@@ -671,10 +661,6 @@ fn price_validate(price: &Coin, params: &Params) -> Result<(), ContractError> {
     Ok(())
 }
 
-fn store_ask(store: &mut dyn Storage, ask: &Ask) -> StdResult<()> {
-    asks().save(store, ask.token_id.clone(), ask)
-}
-
 fn store_bid(store: &mut dyn Storage, bid: &Bid) -> StdResult<()> {
     bids().save(
         store,
@@ -692,19 +678,32 @@ fn store_collection_bid(store: &mut dyn Storage, collection_bid: &CollectionBid)
 }
 
 /// Checks to enforce only NFT owner can call
+fn only_owner_or_seller(
+    deps: Deps,
+    info: &MessageInfo,
+    collection: &Addr,
+    token_id: &str,
+    ask: &Option<Ask>,
+) -> Result<(), ContractError> {
+    match ask {
+        Some(_ask) => only_seller(&info, &_ask),
+        None => only_owner(deps, info, collection, &token_id),
+    }
+}
+
+/// Checks to enforce only NFT owner can call
 fn only_owner(
     deps: Deps,
     info: &MessageInfo,
     collection: &Addr,
-    token_id: &String,
-) -> Result<OwnerOfResponse, ContractError> {
+    token_id: &str,
+) -> Result<(), ContractError> {
     let res =
         Cw721Contract(collection.clone()).owner_of(&deps.querier, token_id, false)?;
     if res.owner != info.sender {
         return Err(ContractError::UnauthorizedOwner {});
     }
-
-    Ok(res)
+    Ok(())
 }
 
 /// Checks to enforce only Ask seller can call

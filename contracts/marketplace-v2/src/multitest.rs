@@ -338,9 +338,12 @@ fn try_add_update_remove_ask() {
     assert_eq!(res.owner, marketplace.to_string());
 
     // Update asking price
-    let set_ask = ExecuteMsg::UpdateAskPrice {
+    let set_ask = ExecuteMsg::SetAsk {
         token_id: TOKEN_ID.to_string(),
         price: coin(200, NATIVE_DENOM),
+        funds_recipient: None,
+        reserve_for: None,
+        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
     assert!(res.is_ok());
