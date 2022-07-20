@@ -16,10 +16,8 @@ fn main() {
 
     export_schema(&schema_for!(msg::QueryOptions<msg::AskExpiryOffset>), &out_dir);
     export_schema(&schema_for!(msg::QueryOptions<msg::AskPriceOffset>), &out_dir);
-    export_schema(&schema_for!(msg::QueryOptions<msg::AskSellerExpiryOffset>), &out_dir);
     export_schema(&schema_for!(msg::QueryOptions<msg::BidExpiryOffset>), &out_dir);
     export_schema(&schema_for!(msg::QueryOptions<msg::BidTokenPriceOffset>), &out_dir);
-    export_schema(&schema_for!(msg::QueryOptions<msg::BidBidderExpiryOffset>), &out_dir);
     export_schema(&schema_for!(msg::CollectionBidPriceOffset), &out_dir);
     export_schema(&schema_for!(msg::CollectionBidExpiryOffset), &out_dir);
     export_schema(&schema_for!(msg::AskResponse), &out_dir);
