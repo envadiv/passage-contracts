@@ -643,9 +643,14 @@ fn payout(
     if let Some(_royalties) = &royalties {
         seller_amount -= _royalties.0;
     };
+
+    let recipient = match &ask.funds_recipient {
+        Some(_funds_recipient) => _funds_recipient,
+        None => &ask.seller
+    };
     transfer_token(
         coin(seller_amount.u128(), &params.denom),
-        ask.seller.to_string(),
+        recipient.to_string(),
         "payout-seller",
         response
     )?;
