@@ -3,6 +3,7 @@ use crate::helpers::{map_validate, ExpiryRange};
 use crate::msg::{InstantiateMsg, ExecuteMsg};
 use crate::state::{
     Params, PARAMS, Ask, asks, TokenId, bid_key, bids, Order, Bid, CollectionBid, collection_bids,
+    Auction, auctions
 };
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -40,6 +41,7 @@ pub fn instantiate(
         trading_fee_percent: Decimal::percent(msg.trading_fee_bps),
         ask_expiry: msg.ask_expiry,
         bid_expiry: msg.bid_expiry,
+        auction_expiry: msg.auction_expiry,
         operators: map_validate(deps.api, &msg.operators)?,
         min_price: msg.min_price,
     };
@@ -64,6 +66,7 @@ pub fn execute(
             trading_fee_bps,
             ask_expiry,
             bid_expiry,
+            auction_expiry,
             operators,
             min_price,
         } => execute_update_params(
@@ -73,6 +76,7 @@ pub fn execute(
             trading_fee_bps,
             ask_expiry,
             bid_expiry,
+            auction_expiry,
             operators,
             min_price,
         ),
@@ -154,6 +158,25 @@ pub fn execute(
             token_id,
             api.addr_validate(&bidder)?,
         ),
+        ExecuteMsg::SetAuction {
+            token_id,
+            starting_price,
+            reserve_price,
+            funds_recipient,
+            expires_at,
+        } => execute_set_auction(
+            deps,
+            env,
+            info,
+            Auction {
+                token_id,
+                seller: message_info.sender,
+                starting_price,
+                reserve_price,
+                funds_recipient: maybe_addr(api, funds_recipient)?,
+                expires_at,
+            },
+        ),
     }
 }
 
@@ -165,6 +188,7 @@ pub fn execute_update_params(
     trading_fee_bps: Option<u64>,
     ask_expiry: Option<ExpiryRange>,
     bid_expiry: Option<ExpiryRange>,
+    auction_expiry: Option<ExpiryRange>,
     operators: Option<Vec<String>>,
     min_price: Option<Uint128>,
 ) -> Result<Response, ContractError> {
@@ -181,6 +205,10 @@ pub fn execute_update_params(
     if let Some(_bid_expiry) = bid_expiry {
         _bid_expiry.validate()?;
         params.bid_expiry = _bid_expiry;
+    }
+    if let Some(_auction_expiry) = auction_expiry {
+        _auction_expiry.validate()?;
+        params.auction_expiry = _auction_expiry;
     }
     if let Some(_operators) = operators {
         params.operators = map_validate(deps.api, &_operators)?;
@@ -224,7 +252,10 @@ pub fn execute_set_ask(
 
     let mut response = Response::new();
 
-    transfer_nft(&ask.token_id, &env.contract.address, &params.cw721_address, &mut response)?;
+    match existing_ask {
+        None => transfer_nft(&ask.token_id, &env.contract.address, &params.cw721_address, &mut response)?,
+        _ => (),
+    }
 
     let event = Event::new("set-ask")
         .add_attribute("collection", params.cw721_address.to_string())
@@ -362,7 +393,7 @@ pub fn execute_accept_bid(
     }
 
     let params = PARAMS.load(deps.storage)?;
-    let existing_ask = asks().load(deps.storage, token_id.clone()).ok();
+    let existing_ask = asks().may_load(deps.storage, token_id.clone())?;
 
     only_owner_or_seller(
         deps.as_ref(),
@@ -505,7 +536,7 @@ pub fn execute_accept_collection_bid(
     }
 
     let params = PARAMS.load(deps.storage)?;
-    let existing_ask = asks().load(deps.storage, token_id.clone()).ok();
+    let existing_ask = asks().may_load(deps.storage, token_id.clone())?;
     only_owner_or_seller(
         deps.as_ref(),
         &info,
@@ -564,6 +595,47 @@ pub fn execute_accept_collection_bid(
     response.events.push(event);
 
     Ok(response)
+}
+
+/// Owner of an NFT can create auction to begin accepting bids
+pub fn execute_set_auction(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    auction: Auction,
+) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
+    
+    let params = PARAMS.load(deps.storage)?;
+    params.auction_expiry.is_valid(&env.block, auction.expires_at)?;
+    
+    price_validate(&auction.starting_price, &params)?;
+    if let Some(_reserve_price) = &auction.reserve_price {
+        price_validate(&_reserve_price, &params)?;
+        if _reserve_price.amount < auction.starting_price.amount {
+            return Err(ContractError::InvalidReservePrice(_reserve_price.amount, auction.starting_price.amount));
+        }
+    }
+
+    let existing_auction = auctions().may_load(deps.storage, auction.token_id.clone())?;
+    if let Some(_existing_auction) = existing_auction {
+        return Err(ContractError::AuctionAlreadyExists(auction.token_id.clone()));
+    }
+
+    auctions().save(deps.storage, auction.token_id.clone(), &auction)?;
+
+    let mut response = Response::new();
+
+    transfer_nft(&auction.token_id, &env.contract.address, &params.cw721_address, &mut response)?;
+
+    let event = Event::new("set-auction")
+        .add_attribute("collection", params.cw721_address.to_string())
+        .add_attribute("token_id", auction.token_id.to_string())
+        .add_attribute("seller", auction.seller)
+        .add_attribute("price", auction.starting_price.to_string())
+        .add_attribute("expires_at", auction.expires_at.to_string());
+
+    Ok(response.add_event(event))
 }
 
 /// Transfers funds and NFT, updates bid

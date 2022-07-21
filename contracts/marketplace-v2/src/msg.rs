@@ -21,6 +21,9 @@ pub struct InstantiateMsg {
     /// Valid time range for Bids
     /// (min, max) in seconds
     pub bid_expiry: ExpiryRange,
+    /// Valid time range for Auctions
+    /// (min, max) in seconds
+    pub auction_expiry: ExpiryRange,
     /// Operators are entites that are responsible for maintaining the active state of Asks.
     /// They listen to NFT transfer events, and update the active state of Asks.
     pub operators: Vec<String>,
@@ -36,6 +39,7 @@ pub enum ExecuteMsg {
         trading_fee_bps: Option<u64>,
         ask_expiry: Option<ExpiryRange>,
         bid_expiry: Option<ExpiryRange>,
+        auction_expiry: Option<ExpiryRange>,
         operators: Option<Vec<String>>,
         min_price: Option<Uint128>,
     },
@@ -78,6 +82,14 @@ pub enum ExecuteMsg {
     AcceptCollectionBid {
         token_id: TokenId,
         bidder: String,
+    },
+    /// Create an auction for a specified token
+    SetAuction {
+        token_id: TokenId,
+        starting_price: Coin,
+        reserve_price: Option<Coin>,
+        funds_recipient: Option<String>,
+        expires_at: Timestamp,
     },
 }
 
