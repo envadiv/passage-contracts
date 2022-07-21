@@ -24,9 +24,16 @@ pub enum ContractError {
     #[error("{0}")]
     BidPaymentError(#[from] PaymentError),
 
-    #[error("Expected: {0}, Received: {1}")]
+    #[error("IncorrectBidPayment: expected {0}, actual {1}")]
     IncorrectBidPayment(Uint128, Uint128),
 
     #[error("{0}")]
     ExpiryRange(#[from] ExpiryRangeError),
+
+    // Auction errors
+    #[error("InvalidReservePrice: reserve_price {0} < starting_price {1}")]
+    InvalidReservePrice(Uint128, Uint128),
+
+    #[error("AuctionAlreadyExists: token_id {0}")]
+    AuctionAlreadyExists(String),
 }

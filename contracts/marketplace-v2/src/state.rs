@@ -20,6 +20,9 @@ pub struct Params {
     /// Valid time range for Bids
     /// (min, max) in seconds
     pub bid_expiry: ExpiryRange,
+    /// Valid time range for Auctions
+    /// (min, max) in seconds
+    pub auction_expiry: ExpiryRange,
     /// The operator addresses that have access to certain functionality
     pub operators: Vec<Addr>,
     /// Min value for a bid
@@ -183,4 +186,45 @@ pub fn collection_bids<'a>(
         price: MultiIndex::new(|d: &CollectionBid|  d.price.amount.u128(), "col_bids", "col_bids__price"),
     };
     IndexedMap::new("col_bids", indexes)
+}
+
+/// Represents an auction on the marketplace
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Auction {
+    pub token_id: TokenId,
+    pub seller: Addr,
+    pub starting_price: Coin,
+    pub reserve_price: Option<Coin>,
+    pub funds_recipient: Option<Addr>,
+    pub expires_at: Timestamp,
+}
+
+impl Order for Auction {
+    fn expires_at(&self) -> Timestamp {
+        self.expires_at
+    }
+}
+
+/// Primary key for asks
+pub type AuctionKey = TokenId;
+
+/// Defines indices for accessing Auctions
+pub struct AuctionIndices<'a> {
+    pub expiry: MultiIndex<'a, u64, Auction, AuctionKey>,
+    pub seller_expiry: MultiIndex<'a, (Addr, u64), Auction, AuctionKey>,
+}
+
+impl<'a> IndexList<Auction> for AuctionIndices<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Auction>> + '_> {
+        let v: Vec<&dyn Index<Auction>> = vec![&self.expiry, &self.seller_expiry];
+        Box::new(v.into_iter())
+    }
+}
+
+pub fn auctions<'a>() -> IndexedMap<'a, AuctionKey, Auction, AuctionIndices<'a>> {
+    let indexes = AuctionIndices {
+        expiry: MultiIndex::new(|d: &Auction|  d.expires_at.seconds(), "auctions", "auctions__expiry"),
+        seller_expiry: MultiIndex::new(|d: &Auction| (d.seller.clone(), d.expires_at.seconds()), "auctions", "auctions__seller"),
+    };
+    IndexedMap::new("auctions", indexes)
 }
