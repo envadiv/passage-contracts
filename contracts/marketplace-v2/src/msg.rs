@@ -161,6 +161,18 @@ pub struct CollectionBidExpiryOffset {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AuctionStartingPriceOffset {
+    pub starting_price: Uint128,
+    pub token_id: TokenId,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AuctionReservePriceOffset {
+    pub reserve_price: Uint128,
+    pub token_id: TokenId,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     /// Get the config for the contract
@@ -233,6 +245,16 @@ pub enum QueryMsg {
     Auction {
         token_id: TokenId,
     },
+    /// Get the auction for a specific NFT sorted by starting price
+    /// Return type: `AuctionsResponse`
+    AuctionsByStartingPrice {
+        query_options: QueryOptions<AuctionStartingPriceOffset>
+    },
+    /// Get the auction for a specific NFT sorted by reserve price
+    /// Return type: `AuctionsResponse`
+    AuctionsByReservePrice {
+        query_options: QueryOptions<AuctionReservePriceOffset>
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -278,4 +300,9 @@ pub struct CollectionBidsResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AuctionResponse {
     pub auction: Option<Auction>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AuctionsResponse {
+    pub auctions: Vec<Auction>,
 }

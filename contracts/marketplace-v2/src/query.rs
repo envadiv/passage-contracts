@@ -2,7 +2,8 @@ use crate::msg::{
     QueryMsg, AskResponse, AsksResponse, QueryOptions, AskExpiryOffset, AskPriceOffset,
     AskCountResponse, BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset,
     ParamsResponse, CollectionBidResponse, CollectionBidsResponse, CollectionBidPriceOffset,
-    CollectionBidExpiryOffset, AuctionResponse
+    CollectionBidExpiryOffset, AuctionResponse, AuctionsResponse, AuctionStartingPriceOffset,
+    AuctionReservePriceOffset
 };
 use crate::state::{
     PARAMS, asks, TokenId, bids, bid_key, collection_bids, auctions
@@ -96,6 +97,18 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Auction {
             token_id,
         } => to_binary(&query_auction(deps, token_id)?),
+        QueryMsg::AuctionsByStartingPrice {
+            query_options
+        } => to_binary(&query_auctions_by_starting_price(
+            deps,
+            &query_options,
+        )?),
+        QueryMsg::AuctionsByReservePrice {
+            query_options
+        } => to_binary(&query_auctions_by_reserve_price(
+            deps,
+            &query_options,
+        )?),
     }
 }
 
@@ -372,4 +385,46 @@ pub fn query_auction(deps: Deps, token_id: TokenId) -> StdResult<AuctionResponse
     let auction = auctions().may_load(deps.storage, token_id)?;
 
     Ok(AuctionResponse { auction })
+}
+
+pub fn query_auctions_by_starting_price(
+    deps: Deps,
+    query_options: &QueryOptions<AuctionStartingPriceOffset>
+) -> StdResult<AuctionsResponse> {
+    let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
+    let start = query_options.start_after.as_ref().map(|offset| {
+        Bound::exclusive((offset.starting_price.u128(), offset.token_id.clone()))
+    });
+    let order = option_bool_to_order(query_options.descending);
+
+    let auctions = auctions()
+        .idx
+        .starting_price
+        .range(deps.storage, start, None, order)
+        .take(limit)
+        .map(|res| res.map(|item| item.1))
+        .collect::<StdResult<Vec<_>>>()?;
+
+    Ok(AuctionsResponse { auctions })
+}
+
+pub fn query_auctions_by_reserve_price(
+    deps: Deps,
+    query_options: &QueryOptions<AuctionReservePriceOffset>
+) -> StdResult<AuctionsResponse> {
+    let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
+    let start = query_options.start_after.as_ref().map(|offset| {
+        Bound::exclusive((offset.reserve_price.u128(), offset.token_id.clone()))
+    });
+    let order = option_bool_to_order(query_options.descending);
+
+    let auctions = auctions()
+        .idx
+        .reserve_price
+        .range(deps.storage, start, None, order)
+        .take(limit)
+        .map(|res| res.map(|item| item.1))
+        .collect::<StdResult<Vec<_>>>()?;
+
+    Ok(AuctionsResponse { auctions })
 }

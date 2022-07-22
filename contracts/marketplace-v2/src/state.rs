@@ -228,21 +228,25 @@ pub type AuctionKey = TokenId;
 
 /// Defines indices for accessing Auctions
 pub struct AuctionIndices<'a> {
-    pub expiry: MultiIndex<'a, u64, Auction, AuctionKey>,
-    pub seller_expiry: MultiIndex<'a, (Addr, u64), Auction, AuctionKey>,
+    pub starting_price: MultiIndex<'a, u128, Auction, AuctionKey>,
+    pub reserve_price: MultiIndex<'a, u128, Auction, AuctionKey>,
+    // pub expiry: MultiIndex<'a, u64, Auction, AuctionKey>,
+    // pub seller_expiry: MultiIndex<'a, (Addr, u64), Auction, AuctionKey>,
 }
 
 impl<'a> IndexList<Auction> for AuctionIndices<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Auction>> + '_> {
-        let v: Vec<&dyn Index<Auction>> = vec![&self.expiry, &self.seller_expiry];
+        let v: Vec<&dyn Index<Auction>> = vec![&self.starting_price, &self.reserve_price];
         Box::new(v.into_iter())
     }
 }
 
 pub fn auctions<'a>() -> IndexedMap<'a, AuctionKey, Auction, AuctionIndices<'a>> {
     let indexes = AuctionIndices {
-        expiry: MultiIndex::new(|d: &Auction|  d.expires_at.seconds(), "auctions", "auctions__expiry"),
-        seller_expiry: MultiIndex::new(|d: &Auction| (d.seller.clone(), d.expires_at.seconds()), "auctions", "auctions__seller"),
+        starting_price: MultiIndex::new(|a: &Auction|  a.starting_price.amount.u128(), "auctions", "auctions__price"),
+        reserve_price: MultiIndex::new(|a: &Auction|  a.reserve_price.map_or(Uint128::MAX.u128(), |p| p.amount.u128()), "auctions", "auctions__price"),
+        // expiry: MultiIndex::new(|d: &Auction|  d.expires_at.seconds(), "auctions", "auctions__expiry"),
+        // seller_expiry: MultiIndex::new(|d: &Auction| (d.seller.clone(), d.expires_at.seconds()), "auctions", "auctions__seller"),
     };
     IndexedMap::new("auctions", indexes)
 }
