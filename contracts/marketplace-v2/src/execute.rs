@@ -671,7 +671,7 @@ pub fn execute_set_auction(
 /// Creator of an auction can close it and transfer the NFT to the buyer
 pub fn execute_close_auction(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     token_id: TokenId,
     accept_highest_bid: bool,
