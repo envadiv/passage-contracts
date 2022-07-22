@@ -578,8 +578,8 @@ fn try_set_bid() {
 
     assert_eq!(res.events[6].ty, "wasm-finalize-sale");
     assert_eq!(res.events[6].attributes[5], Attribute {
-        key: String::from("price"),
-        value: String::from("100")
+        key: String::from("payment_recipient"),
+        value: String::from("creator")
     });
 
     let n = 2;
