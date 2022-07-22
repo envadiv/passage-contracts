@@ -266,6 +266,12 @@ pub enum QueryMsg {
     AuctionsByExpiry {
         query_options: QueryOptions<AuctionExpiryOffset>
     },
+    /// Get the bid placed on an auction by a bidder 
+    /// Return type: `AuctionBidResponse`
+    AuctionBid {
+        token_id: TokenId,
+        bidder: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -316,4 +322,14 @@ pub struct AuctionResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AuctionsResponse {
     pub auctions: Vec<Auction>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AuctionBidResponse {
+    pub auction_bid: Option<AuctionBid>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AuctionBidsResponse {
+    pub auction_bids: Vec<AuctionBid>,
 }
