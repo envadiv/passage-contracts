@@ -42,8 +42,8 @@ pub enum ContractError {
     #[error("AuctionNotFound: token_id {0}")]
     AuctionNotFound(String),
 
-    #[error("AuctionExpired")]
-    AuctionExpired {},
+    #[error("AuctionNotExpired")]
+    AuctionNotExpired {},
 
     #[error("ReservePriceRestriction: {0}")]
     ReservePriceRestriction(String),

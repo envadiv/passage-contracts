@@ -190,6 +190,14 @@ pub fn execute(
             token_id,
             accept_highest_bid,
         ),
+        ExecuteMsg::FinalizeAuction {
+            token_id,
+        } => execute_finalize_auction(
+            deps,
+            env,
+            info,
+            token_id,
+        ),
     }
 }
 
@@ -653,10 +661,6 @@ pub fn execute_close_auction(
     // Validate auction exists, and if it exists, that it is being closed by the seller
     let auction = auctions().load(deps.storage, token_id.clone())?;
     only_seller(&info, &auction.seller)?;
-    
-    if auction.is_expired(&env.block.time) {
-        return Err(ContractError::AuctionExpired {});
-    }
 
     // Fetch the highest matching bid that has not expired
     let bids_response = query_bids_token_price(
@@ -710,9 +714,76 @@ pub fn execute_close_auction(
     };
 
     let event = Event::new("close-auction")
-        .add_attribute("collection", params.cw721_address.to_string())
-        .add_attribute("token_id", auction.token_id.to_string())
-        .add_attribute("is_sale", is_sale.to_string());
+        .add_attribute("collection", &params.cw721_address.to_string())
+        .add_attribute("token_id", &auction.token_id.to_string())
+        .add_attribute("is_sale", &is_sale.to_string());
+    
+    Ok(response.add_event(event))
+}
+
+/// Anyone can finalize an expired auction where the reserve price has been met
+pub fn execute_finalize_auction(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    token_id: TokenId,
+) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
+
+    let params = PARAMS.load(deps.storage)?;
+
+    // Validate auction exists, and is expired
+    let auction = auctions().load(deps.storage, token_id.clone())?;
+    if !auction.is_expired(&env.block.time) {
+        return Err(ContractError::AuctionNotExpired {});
+    }
+
+    // Fetch the highest matching bid that has not expired
+    let bids_response = query_bids_token_price(
+        deps.as_ref(),
+        token_id.clone(),
+        &QueryOptions {
+            descending: Some(true),
+            filter_expiry: Some(env.block.time),
+            start_after: None,
+            limit: Some(1),
+        }
+    )?;
+    let highest_bid = bids_response.bids.first();
+
+    // Check if reserve price has been met
+    let mut reserve_price_met = false;
+    if let Some(bid) = highest_bid {
+        if let Some(reserve_price) = &auction.reserve_price {
+            reserve_price_met = bid.price.amount >= reserve_price.amount;
+        }
+    };
+
+    // If reserve price has not been met, auction cannot be finalized
+    if !reserve_price_met {
+        return Err(ContractError::ReservePriceRestriction(
+            String::from("auction can only be finalized if reserve price is met")
+        ));
+    }
+
+    let mut response = Response::new();
+    
+    let bid = highest_bid.unwrap();
+    finalize_sale(
+        deps.as_ref(),
+        &bid.bidder,
+        &auction.token_id,
+        bid.price.amount,
+        &auction.get_recipient(),
+        &params,
+        &mut response,
+    )?;
+
+    let event = Event::new("finalize-auction")
+        .add_attribute("collection", &params.cw721_address.to_string())
+        .add_attribute("token_id", &auction.token_id.to_string())
+        .add_attribute("seller", &auction.seller.to_string())
+        .add_attribute("buyer", &bid.bidder.to_string());
     
     Ok(response.add_event(event))
 }
