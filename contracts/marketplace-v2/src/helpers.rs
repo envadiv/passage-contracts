@@ -1,6 +1,10 @@
-use crate::msg::ExecuteMsg;
+use crate::msg::{ExecuteMsg, QueryOptions};
+use crate::query::query_auction_bids_token_price;
 use crate::error::ContractError;
-use crate::state::{Params, TokenId, Bid, bids, bid_key, Ask, asks, CollectionBid, collection_bids, Expiration};
+use crate::state::{
+    Params, TokenId, Bid, bids, bid_key, Ask, asks, CollectionBid, collection_bids,
+    Expiration, Auction, AuctionBid,
+};
 use cosmwasm_std::{
     to_binary, Addr, Api, BlockInfo, StdResult, Timestamp, WasmMsg,CosmosMsg, Order,
     Deps, Event, Coin, coin, Uint128, Response, MessageInfo, Storage, Attribute,
@@ -315,4 +319,28 @@ fn set_match_bid_outcome(event: &mut Event, outcome: &str) -> () {
         }
         attr.clone()
     }).collect();
+}
+
+pub fn fetch_highest_auction_bid(deps: Deps, token_id: &TokenId) -> StdResult<Option<AuctionBid>> {
+    let auction_bids_response = query_auction_bids_token_price(
+        deps,
+        token_id.clone(),
+        &QueryOptions {
+            descending: Some(true),
+            filter_expiry: None,
+            start_after: None,
+            limit: Some(1),
+        }
+    )?;
+    Ok(auction_bids_response.auction_bids.into_iter().nth(0))
+}
+
+pub fn is_reserve_price_met(auction: &Auction, highest_bid: &Option<AuctionBid>) -> bool {
+    let mut reserve_price_met = false;
+    if let Some(bid) = highest_bid {
+        if let Some(reserve_price) = &auction.reserve_price {
+            reserve_price_met = bid.price.amount >= reserve_price.amount;
+        }
+    };
+    reserve_price_met
 }
