@@ -267,7 +267,6 @@ pub fn auction_bid_key(token_id: TokenId, bidder: &Addr) -> BidKey {
 
 /// Defines indices for accessing bids
 pub struct AuctionBidIndices<'a> {
-    // Cannot include `Timestamp` in index, converted `Timestamp` to `seconds` and stored as `u64`
     pub token_price: MultiIndex<'a, (String, u128), AuctionBid, AuctionBidKey>,
 }
 

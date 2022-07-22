@@ -123,6 +123,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             token_id,
             api.addr_validate(&bidder)?,
         )?),
+        QueryMsg::AuctionBidsByTokenPrice {
+            token_id,
+            query_options,
+        } => to_binary(&query_auction_bids_token_price(
+            deps,
+            token_id,
+            &query_options,
+        )?),
     }
 }
 
@@ -472,4 +480,27 @@ pub fn query_auction_bid(
     let auction_bid = auction_bids().may_load(deps.storage, auction_bid_key(token_id, &bidder))?;
 
     Ok(AuctionBidResponse { auction_bid })
+}
+
+pub fn query_auction_bids_token_price(
+    deps: Deps,
+    token_id: String,
+    query_options: &QueryOptions<BidTokenPriceOffset>
+) -> StdResult<AuctionBidsResponse> {
+    let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
+    let start = query_options.start_after.as_ref().map(|offset| {
+        Bound::exclusive((offset.price, bid_key(offset.token_id.clone(), &offset.bidder)))
+    });
+    let order = option_bool_to_order(query_options.descending);
+
+    let auction_bids = auction_bids()
+        .idx
+        .token_price
+        .sub_prefix(token_id)
+        .range(deps.storage, start, None, order)
+        .take(limit)
+        .map(|item| item.map(|(_, b)| b))
+        .collect::<StdResult<Vec<_>>>()?;
+
+    Ok(AuctionBidsResponse { auction_bids })
 }
