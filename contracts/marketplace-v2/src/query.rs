@@ -3,10 +3,10 @@ use crate::msg::{
     AskCountResponse, BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset,
     ParamsResponse, CollectionBidResponse, CollectionBidsResponse, CollectionBidPriceOffset,
     CollectionBidExpiryOffset, AuctionResponse, AuctionsResponse, AuctionStartingPriceOffset,
-    AuctionReservePriceOffset, AuctionExpiryOffset
+    AuctionReservePriceOffset, AuctionExpiryOffset, AuctionBidResponse, AuctionBidsResponse
 };
 use crate::state::{
-    PARAMS, asks, TokenId, bids, bid_key, collection_bids, auctions
+    PARAMS, asks, TokenId, bids, bid_key, collection_bids, auctions, auction_bids, auction_bid_key
 };
 use crate::helpers::option_bool_to_order;
 use cosmwasm_std::{entry_point, to_binary, Addr, Binary, Deps, Env, Order, StdResult};
@@ -114,6 +114,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => to_binary(&query_auctions_by_expiry(
             deps,
             &query_options,
+        )?),
+        QueryMsg::AuctionBid {
+            token_id,
+            bidder,
+        } => to_binary(&query_auction_bid(
+            deps,
+            token_id,
+            api.addr_validate(&bidder)?,
         )?),
     }
 }
@@ -454,4 +462,14 @@ pub fn query_auctions_by_expiry(
         .collect::<StdResult<Vec<_>>>()?;
 
     Ok(AuctionsResponse { auctions })
+}
+
+pub fn query_auction_bid(
+    deps: Deps,
+    token_id: TokenId,
+    bidder: Addr,
+) -> StdResult<AuctionBidResponse> {
+    let auction_bid = auction_bids().may_load(deps.storage, auction_bid_key(token_id, &bidder))?;
+
+    Ok(AuctionBidResponse { auction_bid })
 }
