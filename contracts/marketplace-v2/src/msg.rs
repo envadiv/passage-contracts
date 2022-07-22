@@ -1,5 +1,5 @@
 use crate::helpers::ExpiryRange;
-use crate::state::{Ask, TokenId, Bid, Params, CollectionBid};
+use crate::state::{Ask, TokenId, Bid, Params, CollectionBid, Auction, AuctionBid};
 use cosmwasm_std::{Addr, Coin, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -167,7 +167,7 @@ pub enum QueryMsg {
     /// Return type: `ParamsResponse`
     Params {},
     /// Get the current ask for specific NFT
-    /// Return type: `CurrentAskResponse`
+    /// Return type: `AskResponse`
     Ask {
         token_id: TokenId,
     },
@@ -228,6 +228,11 @@ pub enum QueryMsg {
     CollectionBidsByExpiry {
         query_options: QueryOptions<CollectionBidExpiryOffset>
     },
+    /// Get the auction for a specific NFT
+    /// Return type: `AuctionResponse`
+    Auction {
+        token_id: TokenId,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -268,4 +273,9 @@ pub struct CollectionBidResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CollectionBidsResponse {
     pub collection_bids: Vec<CollectionBid>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AuctionResponse {
+    pub auction: Option<Auction>,
 }
