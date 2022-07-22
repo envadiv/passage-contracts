@@ -96,10 +96,10 @@ pub enum ExecuteMsg {
         token_id: TokenId,
         accept_highest_bid: bool,
     },
-    // Close a previously created auction
-    // FinalizeAuction {
-    //     token_id: TokenId,
-    // },
+    /// Close a previously created auction
+    FinalizeAuction {
+        token_id: TokenId,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
