@@ -272,6 +272,12 @@ pub enum QueryMsg {
         token_id: TokenId,
         bidder: String,
     },
+    /// Get all the bids for an auction sorted by price
+    /// Return type: `AuctionBidsResponse`
+    AuctionBidsByTokenPrice {
+        token_id: TokenId,
+        query_options: QueryOptions<BidTokenPriceOffset>
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
