@@ -91,13 +91,22 @@ pub enum ExecuteMsg {
         funds_recipient: Option<String>,
         expires_at: Timestamp,
     },
-    /// Close a previously created auction
+    /// Sellers can close a previously created auction
     CloseAuction {
         token_id: TokenId,
         accept_highest_bid: bool,
     },
-    /// Close a previously created auction
+    /// Anyone can finalize an auction that has met the reserve price
     FinalizeAuction {
+        token_id: TokenId,
+    },
+    /// Place a bid on an existing auction
+    SetAuctionBid {
+        token_id: TokenId,
+        price: Coin,
+    },
+    /// Remove an existing bid on an auction, that is not the highest bid
+    RemoveAuctionBid {
         token_id: TokenId,
     },
 }
