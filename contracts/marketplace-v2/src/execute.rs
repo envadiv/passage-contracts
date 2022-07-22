@@ -1,21 +1,24 @@
-use crate::error::ContractError;
-use crate::helpers::{map_validate, ExpiryRange};
-use crate::msg::{InstantiateMsg, ExecuteMsg};
-use crate::state::{
-    Params, PARAMS, Ask, asks, TokenId, bid_key, bids, Order, Bid, CollectionBid, collection_bids,
-    Auction, auctions
-};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, Addr, BankMsg, Coin, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
-    StdError, StdResult, Storage, Uint128, WasmMsg, Response, SubMsg, Attribute
+    coin, Addr, Decimal, DepsMut, Env, Event, MessageInfo, StdError,
+    Uint128, Response,
 };
 use cw2::set_contract_version;
-use cw721::{Cw721ExecuteMsg};
-use cw721_base::helpers::Cw721Contract;
 use cw_utils::{maybe_addr, must_pay, nonpayable};
-use pg721::msg::{CollectionInfoResponse, QueryMsg as Pg721QueryMsg};
+
+use crate::error::ContractError;
+use crate::helpers::{
+    map_validate, ExpiryRange, finalize_sale, price_validate, store_bid,
+    store_collection_bid, only_owner_or_seller, only_owner, only_seller, only_operator,
+    transfer_nft, transfer_token, match_bid
+};
+use crate::msg::{InstantiateMsg, ExecuteMsg, QueryOptions};
+use crate::query::query_bids_token_price;
+use crate::state::{
+    Params, PARAMS, Ask, asks, TokenId, bid_key, bids, Expiration, Recipient,
+    Bid, CollectionBid, collection_bids, Auction, auctions
+};
 
 // Version info for migration info
 const CONTRACT_NAME: &str = "crates.io:marketplace-v2";
@@ -177,6 +180,16 @@ pub fn execute(
                 expires_at,
             },
         ),
+        ExecuteMsg::CloseAuction {
+            token_id,
+            accept_highest_bid,
+        } => execute_close_auction(
+            deps,
+            env,
+            info,
+            token_id,
+            accept_highest_bid,
+        ),
     }
 }
 
@@ -238,9 +251,9 @@ pub fn execute_set_ask(
     only_owner_or_seller(
         deps.as_ref(),
         &info,
-        &params.cw721_address.clone(),
+        &params.cw721_address,
         &ask.token_id,
-        &existing_ask,
+        &existing_ask.clone().map_or(None, |a| Some(a.seller)),
     )?;
 
     // Upsert ask
@@ -276,7 +289,7 @@ pub fn execute_remove_ask(
     nonpayable(&info)?;
 
     let ask = asks().load(deps.storage, token_id.clone())?;
-    only_seller(&info, &ask)?;
+    only_seller(&info, &ask.seller)?;
 
     asks().remove(deps.storage, token_id.clone())?;
 
@@ -331,9 +344,10 @@ pub fn execute_set_bid(
             asks().remove(deps.storage, ask_key.clone())?;
             finalize_sale(
                 deps.as_ref(),
-                bid.bidder.clone(),
+                &bid.bidder,
+                &ask.token_id,
                 payment_amount,
-                &ask,
+                &ask.get_recipient(),
                 &params,
                 &mut response,
             )?
@@ -398,27 +412,18 @@ pub fn execute_accept_bid(
     only_owner_or_seller(
         deps.as_ref(),
         &info,
-        &params.cw721_address.clone(),
+        &params.cw721_address,
         &token_id,
-        &existing_ask,
+        &existing_ask.clone().map_or(None, |a| Some(a.seller)),
     )?;
 
-    // Validate sender, formalize Ask
-    let ask = match existing_ask {
-        Some(_ask) => {
-            asks().remove(deps.storage, token_id.clone())?;
-            _ask
+    // Remove ask if it exists, define recipient
+    let payment_recipient = match existing_ask {
+        Some(ask) => {
+            asks().remove(deps.storage, ask.token_id.clone())?;
+            ask.get_recipient()
         },
-        None => {
-            Ask {
-                token_id: token_id.clone(),
-                seller: info.sender.clone(),
-                price: bid.price.clone(),
-                funds_recipient: None,
-                reserve_for: None,
-                expires_at: bid.expires_at.clone(),
-            }
-        }
+        None => info.sender,
     };
 
     let mut response = Response::new();
@@ -426,9 +431,10 @@ pub fn execute_accept_bid(
     // Transfer funds and NFT
     finalize_sale(
         deps.as_ref(),
-        bid.bidder,
+        &bid.bidder,
+        &token_id,
         bid.price.amount,
-        &ask,
+        &payment_recipient,
         &params,
         &mut response,
     )?;
@@ -540,27 +546,18 @@ pub fn execute_accept_collection_bid(
     only_owner_or_seller(
         deps.as_ref(),
         &info,
-        &params.cw721_address.clone(),
-        &token_id.clone(),
-        &existing_ask,
+        &params.cw721_address,
+        &token_id,
+        &existing_ask.clone().map_or(None, |a| Some(a.seller)),
     )?;
 
-    // Validate sender, formalize Ask
-    let ask = match existing_ask {
-        Some(_ask) => {
-            asks().remove(deps.storage, token_id.clone())?;
-            _ask
+    // Remove ask if it exists, define recipient
+    let payment_recipient = match existing_ask {
+        Some(ask) => {
+            asks().remove(deps.storage, ask.token_id.clone())?;
+            ask.get_recipient()
         },
-        None => {
-            Ask {
-                token_id: token_id.clone(),
-                seller: info.sender.clone(),
-                price: collection_bid.price.clone(),
-                funds_recipient: None,
-                reserve_for: None,
-                expires_at: collection_bid.expires_at.clone(),
-            }
-        }
+        None => info.sender,
     };
 
     match collection_bid.units {
@@ -580,9 +577,10 @@ pub fn execute_accept_collection_bid(
     // Transfer funds and NFT
     finalize_sale(
         deps.as_ref(),
-        collection_bid.bidder.clone(),
+        &collection_bid.bidder,
+        &token_id,
         collection_bid.price.amount,
-        &ask,
+        &payment_recipient,
         &params,
         &mut response,
     )?;
@@ -608,6 +606,8 @@ pub fn execute_set_auction(
     
     let params = PARAMS.load(deps.storage)?;
     params.auction_expiry.is_valid(&env.block, auction.expires_at)?;
+
+    only_owner(deps.as_ref(), &info, &params.cw721_address.clone(), &auction.token_id)?;
     
     price_validate(&auction.starting_price, &params)?;
     if let Some(_reserve_price) = &auction.reserve_price {
@@ -638,249 +638,81 @@ pub fn execute_set_auction(
     Ok(response.add_event(event))
 }
 
-/// Transfers funds and NFT, updates bid
-fn finalize_sale(
-    deps: Deps,
-    bidder: Addr,
-    payment_amount: Uint128,
-    ask: &Ask,
-    params: &Params,
-    res: &mut Response,
-) -> StdResult<()> {
-    payout(deps, payment_amount, &ask, &params, res)?;
+/// Creator of an auction can close it and transfer the NFT to the buyer
+pub fn execute_close_auction(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    token_id: TokenId,
+    accept_highest_bid: bool,
+) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
 
-    transfer_nft(&ask.token_id, &bidder, &params.cw721_address, res)?;
+    let params = PARAMS.load(deps.storage)?;
 
-    let event = Event::new("finalize-sale")
+    // Validate auction exists, and if it exists, that it is being closed by the seller
+    let auction = auctions().load(deps.storage, token_id.clone())?;
+    only_seller(&info, &auction.seller)?;
+    
+    if auction.is_expired(&env.block.time) {
+        return Err(ContractError::AuctionExpired {});
+    }
+
+    // Fetch the highest matching bid that has not expired
+    let bids_response = query_bids_token_price(
+        deps.as_ref(),
+        token_id.clone(),
+        &QueryOptions {
+            descending: Some(true),
+            filter_expiry: Some(env.block.time),
+            start_after: None,
+            limit: Some(1),
+        }
+    )?;
+    let highest_bid = bids_response.bids.first();
+
+    // Check if reserve price has been met
+    let mut reserve_price_met = false;
+    if let Some(bid) = highest_bid {
+        if let Some(reserve_price) = &auction.reserve_price {
+            reserve_price_met = bid.price.amount >= reserve_price.amount;
+        }
+    };
+
+    // If reserve price has been met, seller cannot close auction
+    if reserve_price_met {
+        return Err(ContractError::ReservePriceRestriction(
+            String::from("must accept highest bid when reserve price is met")
+        ));
+    }
+
+    let mut response = Response::new();
+    
+    let is_sale = highest_bid.is_some() && accept_highest_bid;
+    match is_sale {
+        true => {
+            // If sale has occurred, finalize
+            let bid = highest_bid.unwrap();
+            finalize_sale(
+                deps.as_ref(),
+                &bid.bidder,
+                &auction.token_id,
+                bid.price.amount,
+                &auction.get_recipient(),
+                &params,
+                &mut response,
+            )?;
+        },
+        false => {
+            // If sale has not occurred, transfer NFT back to seller, do not transfer funds to seller
+            transfer_nft(&auction.token_id, &info.sender, &params.cw721_address, &mut response)?;
+        }
+    };
+
+    let event = Event::new("close-auction")
         .add_attribute("collection", params.cw721_address.to_string())
-        .add_attribute("token_id", ask.token_id.to_string())
-        .add_attribute("seller", ask.seller.to_string())
-        .add_attribute("buyer", bidder.to_string())
-        .add_attribute("price", payment_amount.to_string());
-    res.events.push(event);
-
-    Ok(())
-}
-
-/// Payout a bid
-fn payout(
-    deps: Deps,
-    payment_amount: Uint128,
-    ask: &Ask,
-    params: &Params,
-    response: &mut Response,
-) -> StdResult<()> {
-    let cw721_address = params.cw721_address.to_string();
-
-    // Charge market fee
-    let market_fee = payment_amount * params.trading_fee_percent / Uint128::from(100u128);
-    transfer_token(
-        coin(market_fee.u128(), &params.denom),
-        params.collector_address.to_string(),
-        "payout-market",
-        response
-    )?;
-
-    // Query royalties
-    let collection_info: CollectionInfoResponse = deps
-        .querier
-        .query_wasm_smart(&cw721_address, &Pg721QueryMsg::CollectionInfo {})?;
-
-    // Charge royalties if they exist
-    let royalties = match &collection_info.royalty_info {
-        Some(royalty) => Some((payment_amount * royalty.share, &royalty.payment_address)),
-        None => None
-    };
-    if let Some(_royalties) = &royalties {
-        transfer_token(
-            coin(_royalties.0.u128(), &params.denom),
-            _royalties.1.to_string(),
-            "payout-royalty",
-            response
-        )?;
-    };
-
-    // Pay seller
-    let mut seller_amount = payment_amount - market_fee;
-    if let Some(_royalties) = &royalties {
-        seller_amount -= _royalties.0;
-    };
-
-    let recipient = match &ask.funds_recipient {
-        Some(_funds_recipient) => _funds_recipient,
-        None => &ask.seller
-    };
-    transfer_token(
-        coin(seller_amount.u128(), &params.denom),
-        recipient.to_string(),
-        "payout-seller",
-        response
-    )?;
-
-    Ok(())
-}
-
-// Validate Bid or Ask price
-fn price_validate(price: &Coin, params: &Params) -> Result<(), ContractError> {
-    if
-        price.amount.is_zero() ||
-        price.denom != params.denom ||
-        price.amount < params.min_price
-    {
-        return Err(ContractError::InvalidPrice {});
-    }
-
-    Ok(())
-}
-
-fn store_bid(store: &mut dyn Storage, bid: &Bid) -> StdResult<()> {
-    bids().save(
-        store,
-        bid_key(bid.token_id.clone(), &bid.bidder),
-        bid,
-    )
-}
-
-fn store_collection_bid(store: &mut dyn Storage, collection_bid: &CollectionBid) -> StdResult<()> {
-    collection_bids().save(
-        store,
-        collection_bid.bidder.clone(),
-        collection_bid,
-    )
-}
-
-/// Checks to enforce only NFT owner can call
-fn only_owner_or_seller(
-    deps: Deps,
-    info: &MessageInfo,
-    collection: &Addr,
-    token_id: &str,
-    ask: &Option<Ask>,
-) -> Result<(), ContractError> {
-    match ask {
-        Some(_ask) => only_seller(&info, &_ask),
-        None => only_owner(deps, info, collection, &token_id),
-    }
-}
-
-/// Checks to enforce only NFT owner can call
-fn only_owner(
-    deps: Deps,
-    info: &MessageInfo,
-    collection: &Addr,
-    token_id: &str,
-) -> Result<(), ContractError> {
-    let res =
-        Cw721Contract(collection.clone()).owner_of(&deps.querier, token_id, false)?;
-    if res.owner != info.sender {
-        return Err(ContractError::UnauthorizedOwner {});
-    }
-    Ok(())
-}
-
-/// Checks to enforce only Ask seller can call
-fn only_seller(
-    info: &MessageInfo,
-    ask: &Ask,
-) -> Result<(), ContractError> {
-    if info.sender != ask.seller {
-        return Err(ContractError::UnauthorizedOwner {});
-    }
-    Ok(())
-}
-
-/// Checks to enforce only privileged operators
-fn only_operator(info: &MessageInfo, params: &Params) -> Result<Addr, ContractError> {
-    if !params
-        .operators
-        .iter()
-        .any(|a| a.as_ref() == info.sender.as_ref())
-    {
-        return Err(ContractError::UnauthorizedOperator {});
-    }
-
-    Ok(info.sender.clone())
-}
-
-fn transfer_nft(token_id: &TokenId, recipient: &Addr, collection: &Addr, response: &mut Response,) -> StdResult<()> {
-    let cw721_transfer_msg = Cw721ExecuteMsg::TransferNft {
-        token_id: token_id.to_string(),
-        recipient: recipient.to_string(),
-    };
-
-    let exec_cw721_transfer = SubMsg::new(WasmMsg::Execute {
-        contract_addr: collection.to_string(),
-        msg: to_binary(&cw721_transfer_msg)?,
-        funds: vec![],
-    });
-    response.messages.push(exec_cw721_transfer);
-
-    let event = Event::new("transfer-nft")
-        .add_attribute("collection", collection.to_string())
-        .add_attribute("token_id", token_id.to_string())
-        .add_attribute("recipient", recipient.to_string());
-    response.events.push(event);
+        .add_attribute("token_id", auction.token_id.to_string())
+        .add_attribute("is_sale", is_sale.to_string());
     
-    Ok(())
-}
-
-fn transfer_token(coin_send: Coin, recipient: String, event_label: &str, response: &mut Response) -> StdResult<()> {
-    let token_transfer_msg = BankMsg::Send {
-        to_address: recipient.clone(),
-        amount: vec![coin_send.clone()]
-    };
-    response.messages.push(SubMsg::new(token_transfer_msg));
-
-    let event = Event::new(event_label)
-        .add_attribute("coin", coin_send.to_string())
-        .add_attribute("recipient", recipient.to_string());
-    response.events.push(event);
-
-    Ok(())
-}
-
-fn match_bid(deps: Deps, env: Env, bid: &Bid, response: &mut Response) -> StdResult<Option<Ask>> {
-    let matching_ask = asks().may_load(deps.storage, bid.token_id.clone())?;
-
-    if let None = matching_ask {
-        return Ok(None)
-    }
-
-    let existing_ask = matching_ask.unwrap();
-    let mut event = Event::new("match-bid")
-        .add_attribute("token-id", bid.token_id.clone())
-        .add_attribute("outcome", "match");
-    
-    if existing_ask.is_expired(&env.block.time) {
-        set_match_bid_outcome(&mut event, "ask-expired");
-        response.events.push(event);
-        return Ok(None)
-    }
-    if let Some(reserved_for) = &existing_ask.reserve_for {
-        if reserved_for != &bid.bidder {
-            set_match_bid_outcome(&mut event, "token-reserved");
-            response.events.push(event);
-            return Ok(None)
-        }
-    }
-    if existing_ask.price != bid.price {
-        set_match_bid_outcome(&mut event, "invalid-price");
-        response.events.push(event);
-        return Ok(None)
-    }
-
-    response.events.push(event);
-    return Ok(Some(existing_ask))
-}
-
-fn set_match_bid_outcome(event: &mut Event, outcome: &str) -> () {
-    event.attributes = event.attributes.iter_mut().map(|attr| {
-        if attr.key == "outcome" {
-            return Attribute {
-                key: String::from("outcome"),
-                value: String::from(outcome),
-            }
-        }
-        attr.clone()
-    }).collect();
+    Ok(response.add_event(event))
 }

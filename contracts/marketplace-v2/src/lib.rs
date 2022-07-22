@@ -10,4 +10,4 @@ pub mod query;
 pub mod state;
 
 pub use error::ContractError;
-pub use helpers::{ExpiryRange, ExpiryRangeError, MarketplaceContract};
+pub use helpers::{ExpiryRange, MarketplaceContract};

@@ -33,12 +33,16 @@ pub const PARAMS: Item<Params> = Item::new("params");
 
 pub type TokenId = String;
 
-pub trait Order {
+pub trait Expiration {
     fn expires_at(&self) -> Timestamp;
 
     fn is_expired(&self, now: &Timestamp) -> bool {
         self.expires_at() <= *now
     }
+}
+
+pub trait Recipient {
+    fn get_recipient(&self) -> Addr;
 }
 
 /// Represents an ask on the marketplace
@@ -52,9 +56,16 @@ pub struct Ask {
     pub expires_at: Timestamp,
 }
 
-impl Order for Ask {
+impl Expiration for Ask {
     fn expires_at(&self) -> Timestamp {
         self.expires_at
+    }
+}
+
+impl Recipient for Ask {
+    fn get_recipient(&self) -> Addr {
+        let self_cpy = self.clone();
+        self_cpy.funds_recipient.map_or(self_cpy.seller, |a| a)
     }
 }
 
@@ -93,7 +104,7 @@ pub struct Bid {
     pub expires_at: Timestamp,
 }
 
-impl Order for Bid {
+impl Expiration for Bid {
     fn expires_at(&self) -> Timestamp {
         self.expires_at
     }
@@ -154,7 +165,7 @@ impl CollectionBid {
     }
 }
 
-impl Order for CollectionBid {
+impl Expiration for CollectionBid {
     fn expires_at(&self) -> Timestamp {
         self.expires_at
     }
@@ -199,9 +210,16 @@ pub struct Auction {
     pub expires_at: Timestamp,
 }
 
-impl Order for Auction {
+impl Expiration for Auction {
     fn expires_at(&self) -> Timestamp {
         self.expires_at
+    }
+}
+
+impl Recipient for Auction {
+    fn get_recipient(&self) -> Addr {
+        let self_cpy = self.clone();
+        self_cpy.funds_recipient.map_or(self_cpy.seller, |a| a)
     }
 }
 
@@ -227,4 +245,44 @@ pub fn auctions<'a>() -> IndexedMap<'a, AuctionKey, Auction, AuctionIndices<'a>>
         seller_expiry: MultiIndex::new(|d: &Auction| (d.seller.clone(), d.expires_at.seconds()), "auctions", "auctions__seller"),
     };
     IndexedMap::new("auctions", indexes)
+}
+
+/// Represents a bid (offer) on an auction in the marketplace
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AuctionBid {
+    pub token_id: TokenId,
+    pub bidder: Addr,
+    pub price: Coin,
+}
+
+/// Primary key for auction_bids: (token_id, bidder)
+pub type AuctionBidKey = (TokenId, Addr);
+
+/// Convenience auction_bid key constructor
+pub fn auction_bid_key(token_id: TokenId, bidder: &Addr) -> BidKey {
+    (token_id, bidder.clone())
+}
+
+/// Defines indices for accessing bids
+pub struct AuctionBidIndices<'a> {
+    // Cannot include `Timestamp` in index, converted `Timestamp` to `seconds` and stored as `u64`
+    pub token_price: MultiIndex<'a, (String, u128), AuctionBid, AuctionBidKey>,
+}
+
+impl<'a> IndexList<AuctionBid> for AuctionBidIndices<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<AuctionBid>> + '_> {
+        let v: Vec<&dyn Index<AuctionBid>> = vec![&self.token_price];
+        Box::new(v.into_iter())
+    }
+}
+
+pub fn auction_bids<'a>() -> IndexedMap<'a, AuctionBidKey, AuctionBid, AuctionBidIndices<'a>> {
+    let indexes = AuctionBidIndices {
+        token_price: MultiIndex::new(
+            |d: &AuctionBid| (d.token_id.clone(), d.price.amount.u128()),
+            "auction_bids",
+            "auction_bids__token_price",
+        ),
+    };
+    IndexedMap::new("auction_bids", indexes)
 }
