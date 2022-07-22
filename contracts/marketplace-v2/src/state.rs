@@ -230,8 +230,7 @@ pub type AuctionKey = TokenId;
 pub struct AuctionIndices<'a> {
     pub starting_price: MultiIndex<'a, u128, Auction, AuctionKey>,
     pub reserve_price: MultiIndex<'a, u128, Auction, AuctionKey>,
-    // pub expiry: MultiIndex<'a, u64, Auction, AuctionKey>,
-    // pub seller_expiry: MultiIndex<'a, (Addr, u64), Auction, AuctionKey>,
+    pub expiry: MultiIndex<'a, u64, Auction, AuctionKey>,
 }
 
 impl<'a> IndexList<Auction> for AuctionIndices<'a> {
@@ -245,8 +244,7 @@ pub fn auctions<'a>() -> IndexedMap<'a, AuctionKey, Auction, AuctionIndices<'a>>
     let indexes = AuctionIndices {
         starting_price: MultiIndex::new(|a: &Auction|  a.starting_price.amount.u128(), "auctions", "auctions__price"),
         reserve_price: MultiIndex::new(|a: &Auction|  a.reserve_price.map_or(Uint128::MAX.u128(), |p| p.amount.u128()), "auctions", "auctions__price"),
-        // expiry: MultiIndex::new(|d: &Auction|  d.expires_at.seconds(), "auctions", "auctions__expiry"),
-        // seller_expiry: MultiIndex::new(|d: &Auction| (d.seller.clone(), d.expires_at.seconds()), "auctions", "auctions__seller"),
+        expiry: MultiIndex::new(|d: &Auction|  d.expires_at.seconds(), "auctions", "auctions__expiry"),
     };
     IndexedMap::new("auctions", indexes)
 }

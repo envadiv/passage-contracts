@@ -3,7 +3,7 @@ use crate::msg::{
     AskCountResponse, BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset,
     ParamsResponse, CollectionBidResponse, CollectionBidsResponse, CollectionBidPriceOffset,
     CollectionBidExpiryOffset, AuctionResponse, AuctionsResponse, AuctionStartingPriceOffset,
-    AuctionReservePriceOffset
+    AuctionReservePriceOffset, AuctionExpiryOffset
 };
 use crate::state::{
     PARAMS, asks, TokenId, bids, bid_key, collection_bids, auctions
@@ -106,6 +106,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::AuctionsByReservePrice {
             query_options
         } => to_binary(&query_auctions_by_reserve_price(
+            deps,
+            &query_options,
+        )?),
+        QueryMsg::AuctionsByExpiry {
+            query_options
+        } => to_binary(&query_auctions_by_expiry(
             deps,
             &query_options,
         )?),
@@ -421,6 +427,27 @@ pub fn query_auctions_by_reserve_price(
     let auctions = auctions()
         .idx
         .reserve_price
+        .range(deps.storage, start, None, order)
+        .take(limit)
+        .map(|res| res.map(|item| item.1))
+        .collect::<StdResult<Vec<_>>>()?;
+
+    Ok(AuctionsResponse { auctions })
+}
+
+pub fn query_auctions_by_expiry(
+    deps: Deps,
+    query_options: &QueryOptions<AuctionExpiryOffset>
+) -> StdResult<AuctionsResponse> {
+    let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
+    let start = query_options.start_after.as_ref().map(|offset| {
+        Bound::exclusive((offset.expires_at.seconds(), offset.token_id.clone()))
+    });
+    let order = option_bool_to_order(query_options.descending);
+
+    let auctions = auctions()
+        .idx
+        .expiry
         .range(deps.storage, start, None, order)
         .take(limit)
         .map(|res| res.map(|item| item.1))

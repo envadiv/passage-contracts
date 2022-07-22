@@ -162,14 +162,20 @@ pub struct CollectionBidExpiryOffset {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AuctionStartingPriceOffset {
-    pub starting_price: Uint128,
     pub token_id: TokenId,
+    pub starting_price: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AuctionReservePriceOffset {
-    pub reserve_price: Uint128,
     pub token_id: TokenId,
+    pub reserve_price: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AuctionExpiryOffset {
+    pub token_id: TokenId,
+    pub expires_at: Timestamp,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -254,6 +260,11 @@ pub enum QueryMsg {
     /// Return type: `AuctionsResponse`
     AuctionsByReservePrice {
         query_options: QueryOptions<AuctionReservePriceOffset>
+    },
+    /// Get all auctions sorted by expiry
+    /// Return type: `AuctionsResponse`
+    AuctionsByExpiry {
+        query_options: QueryOptions<AuctionExpiryOffset>
     },
 }
 
