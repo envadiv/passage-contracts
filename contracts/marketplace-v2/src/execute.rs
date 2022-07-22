@@ -17,7 +17,8 @@ use crate::msg::{InstantiateMsg, ExecuteMsg, QueryOptions};
 use crate::query::query_bids_token_price;
 use crate::state::{
     Params, PARAMS, Ask, asks, TokenId, bid_key, bids, Expiration, Recipient,
-    Bid, CollectionBid, collection_bids, Auction, auctions
+    Bid, CollectionBid, collection_bids, Auction, auctions, AuctionBid, auction_bids,
+    auction_bid_key
 };
 
 // Version info for migration info
@@ -198,6 +199,22 @@ pub fn execute(
             info,
             token_id,
         ),
+        ExecuteMsg::SetAuctionBid {
+            token_id,
+            price,
+        } => execute_set_auction_bid(
+            deps,
+            env,
+            info,
+            AuctionBid {
+                token_id,
+                bidder: message_info.sender,
+                price,
+            },
+        ),
+        ExecuteMsg::RemoveAuctionBid {
+            token_id,
+        } => execute_remove_bid(deps, env, info, token_id),
     }
 }
 
@@ -786,4 +803,46 @@ pub fn execute_finalize_auction(
         .add_attribute("buyer", &bid.bidder.to_string());
     
     Ok(response.add_event(event))
+}
+
+/// Places a bid for an NFT on an existing auction
+pub fn execute_set_auction_bid(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    auction_bid: AuctionBid,
+) -> Result<Response, ContractError> {
+    let params = PARAMS.load(deps.storage)?;
+
+    let payment_amount = must_pay(&info, &params.denom)?;
+    if auction_bid.price.amount != payment_amount  {
+        return Err(ContractError::IncorrectBidPayment(auction_bid.price.amount, payment_amount));
+    }
+    price_validate(&auction_bid.price, &params)?;
+
+    let mut response = Response::new();
+    let auction_bid_key = auction_bid_key(auction_bid.token_id.clone(), &auction_bid.bidder);
+
+    // If auction bid exists, refund the escrowed tokens
+    if let Some(existing_bid) = bids().may_load(deps.storage, auction_bid_key.clone())? {
+        transfer_token(
+            existing_bid.price,
+            existing_bid.bidder.to_string(),
+            "refund-bidder",
+            &mut response,
+        )?;
+    }
+    auction_bids().update(
+        deps.storage,
+        auction_bid_key,
+        |_| -> Result<AuctionBid, StdError> { Ok(auction_bid.clone()) },
+    )?;
+
+    let event = Event::new("set-bid")
+        .add_attribute("token_id", &auction_bid.token_id.to_string())
+        .add_attribute("bidder", &auction_bid.bidder)
+        .add_attribute("price", &auction_bid.price.to_string());
+    response.events.push(event);
+
+    Ok(response)
 }
