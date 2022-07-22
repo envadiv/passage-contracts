@@ -91,6 +91,15 @@ pub enum ExecuteMsg {
         funds_recipient: Option<String>,
         expires_at: Timestamp,
     },
+    /// Close a previously created auction
+    CloseAuction {
+        token_id: TokenId,
+        accept_highest_bid: bool,
+    },
+    // Close a previously created auction
+    // FinalizeAuction {
+    //     token_id: TokenId,
+    // },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

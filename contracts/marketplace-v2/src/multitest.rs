@@ -112,6 +112,7 @@ fn setup_contracts(
         trading_fee_bps: TRADING_FEE_BPS,
         ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
         bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+        auction_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
         operators: vec!["operator".to_string()],
         min_price: Uint128::from(5u128),
     };
@@ -425,6 +426,7 @@ fn try_ask_queries() {
         trading_fee_percent: Decimal::percent(TRADING_FEE_BPS),
         ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
         bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+        auction_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
         operators: vec![Addr::unchecked("operator")],
         min_price: Uint128::from(5u128)
     }, res.params);
