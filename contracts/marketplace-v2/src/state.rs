@@ -243,7 +243,11 @@ impl<'a> IndexList<Auction> for AuctionIndices<'a> {
 pub fn auctions<'a>() -> IndexedMap<'a, AuctionKey, Auction, AuctionIndices<'a>> {
     let indexes = AuctionIndices {
         starting_price: MultiIndex::new(|a: &Auction|  a.starting_price.amount.u128(), "auctions", "auctions__price"),
-        reserve_price: MultiIndex::new(|a: &Auction|  a.reserve_price.map_or(Uint128::MAX.u128(), |p| p.amount.u128()), "auctions", "auctions__price"),
+        reserve_price: MultiIndex::new(
+            |a: &Auction|  a.reserve_price.as_ref().map_or(Uint128::MAX.u128(), |p| p.amount.u128()),
+            "auctions",
+            "auctions__price"
+        ),
         expiry: MultiIndex::new(|d: &Auction|  d.expires_at.seconds(), "auctions", "auctions__expiry"),
     };
     IndexedMap::new("auctions", indexes)
