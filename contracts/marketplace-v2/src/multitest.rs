@@ -3,10 +3,10 @@ use crate::error::ContractError;
 use crate::helpers::ExpiryRange;
 use crate::msg::{
     ExecuteMsg, QueryMsg, AskResponse, AsksResponse, QueryOptions, AskPriceOffset, AskCountResponse,
-    BidResponse, BidsResponse, BidExpiryOffset, ParamsResponse, CollectionBidResponse, CollectionBidsResponse,
+    BidResponse, BidsResponse, BidExpiryOffset, ConfigResponse, CollectionBidResponse, CollectionBidsResponse,
     AuctionResponse
 };
-use crate::state::{Ask, Bid, Params, CollectionBid, Auction};
+use crate::state::{Ask, Bid, Config, CollectionBid, Auction};
 use cosmwasm_std::{Addr, Empty, Timestamp, Attribute, coin, coins, Coin, Decimal, Uint128};
 use cw721::{Cw721QueryMsg, OwnerOfResponse};
 use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMsg, MintMsg};
@@ -462,12 +462,12 @@ fn try_ask_queries() {
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
 
-    let query_asks = QueryMsg::Params {};
-    let res: ParamsResponse = router
+    let query_asks = QueryMsg::Config {};
+    let res: ConfigResponse = router
         .wrap()
         .query_wasm_smart(marketplace.clone(), &query_asks)
         .unwrap();
-    assert_eq!(Params {
+    assert_eq!(Config {
         cw721_address: Addr::unchecked("contract0"),
         denom: String::from("ujunox"),
         collector_address: Addr::unchecked("creator"),
@@ -477,7 +477,7 @@ fn try_ask_queries() {
         auction_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
         operators: vec![Addr::unchecked("operator")],
         min_price: Uint128::from(5u128)
-    }, res.params);
+    }, res.config);
 
     let block_time = router.block_info().time;
 

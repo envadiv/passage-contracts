@@ -1,5 +1,5 @@
 use crate::helpers::ExpiryRange;
-use crate::state::{Ask, TokenId, Bid, Params, CollectionBid, Auction, AuctionBid};
+use crate::state::{Ask, TokenId, Bid, Config, CollectionBid, Auction, AuctionBid};
 use cosmwasm_std::{Addr, Coin, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -35,7 +35,7 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     /// Update the contract parameters
-    UpdateParams {
+    UpdateConfig {
         trading_fee_bps: Option<u64>,
         ask_expiry: Option<ExpiryRange>,
         bid_expiry: Option<ExpiryRange>,
@@ -182,8 +182,8 @@ pub struct AuctionExpiryOffset {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     /// Get the config for the contract
-    /// Return type: `ParamsResponse`
-    Params {},
+    /// Return type: `ConfigResponse`
+    Config {},
     /// Get the current ask for specific NFT
     /// Return type: `AskResponse`
     Ask {
@@ -306,8 +306,8 @@ pub struct BidsResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct ParamsResponse {
-    pub params: Params,
+pub struct ConfigResponse {
+    pub config: Config,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
