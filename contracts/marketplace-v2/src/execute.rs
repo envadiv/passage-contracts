@@ -15,7 +15,7 @@ use crate::helpers::{
 };
 use crate::msg::{InstantiateMsg, ExecuteMsg};
 use crate::state::{
-    Params, PARAMS, Ask, asks, TokenId, bid_key, bids, Expiration, Recipient,
+    Config, CONFIG, Ask, asks, TokenId, bid_key, bids, Expiration, Recipient,
     Bid, CollectionBid, collection_bids, Auction, auctions, AuctionBid, auction_bids,
     auction_bid_key
 };
@@ -37,7 +37,7 @@ pub fn instantiate(
     msg.bid_expiry.validate()?;
 
     let api = deps.api;
-    let params = Params {
+    let config = Config {
         cw721_address: api.addr_validate(&msg.cw721_address)?,
         denom: msg.denom,
         collector_address: api.addr_validate(&msg.collector_address)?,
@@ -48,7 +48,7 @@ pub fn instantiate(
         operators: map_validate(deps.api, &msg.operators)?,
         min_price: msg.min_price,
     };
-    PARAMS.save(deps.storage, &params)?;
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new())
 }
@@ -65,14 +65,14 @@ pub fn execute(
     let message_info = info.clone();
 
     match msg {
-        ExecuteMsg::UpdateParams {
+        ExecuteMsg::UpdateConfig {
             trading_fee_bps,
             ask_expiry,
             bid_expiry,
             auction_expiry,
             operators,
             min_price,
-        } => execute_update_params(
+        } => execute_update_config(
             deps,
             env,
             info,
@@ -223,8 +223,8 @@ pub fn execute(
     }
 }
 
-/// An operator may update the marketplace params
-pub fn execute_update_params(
+/// An operator may update the marketplace config
+pub fn execute_update_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -235,32 +235,32 @@ pub fn execute_update_params(
     operators: Option<Vec<String>>,
     min_price: Option<Uint128>,
 ) -> Result<Response, ContractError> {
-    let mut params = PARAMS.load(deps.storage)?;
-    only_operator(&info, &params)?;
+    let mut config = CONFIG.load(deps.storage)?;
+    only_operator(&info, &config)?;
 
     if let Some(_trading_fee_bps) = trading_fee_bps {
-        params.trading_fee_percent = Decimal::percent(_trading_fee_bps);
+        config.trading_fee_percent = Decimal::percent(_trading_fee_bps);
     }
     if let Some(_ask_expiry) = ask_expiry {
         _ask_expiry.validate()?;
-        params.ask_expiry = _ask_expiry;
+        config.ask_expiry = _ask_expiry;
     }
     if let Some(_bid_expiry) = bid_expiry {
         _bid_expiry.validate()?;
-        params.bid_expiry = _bid_expiry;
+        config.bid_expiry = _bid_expiry;
     }
     if let Some(_auction_expiry) = auction_expiry {
         _auction_expiry.validate()?;
-        params.auction_expiry = _auction_expiry;
+        config.auction_expiry = _auction_expiry;
     }
     if let Some(_operators) = operators {
-        params.operators = map_validate(deps.api, &_operators)?;
+        config.operators = map_validate(deps.api, &_operators)?;
     }
     if let Some(_min_price) = min_price {
-        params.min_price = _min_price;
+        config.min_price = _min_price;
     }
     
-    PARAMS.save(deps.storage, &params)?;
+    CONFIG.save(deps.storage, &config)?;
     Ok(Response::new())
 }
 
@@ -273,15 +273,15 @@ pub fn execute_set_ask(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
     
-    let params = PARAMS.load(deps.storage)?;
-    params.ask_expiry.is_valid(&env.block, ask.expires_at)?;
-    price_validate(&ask.price, &params)?;
+    let config = CONFIG.load(deps.storage)?;
+    config.ask_expiry.is_valid(&env.block, ask.expires_at)?;
+    price_validate(&ask.price, &config)?;
 
     let existing_ask = asks().load(deps.storage, ask.token_id.clone()).ok();
     only_owner_or_seller(
         deps.as_ref(),
         &info,
-        &params.cw721_address,
+        &config.cw721_address,
         &ask.token_id,
         &existing_ask.clone().map_or(None, |a| Some(a.seller)),
     )?;
@@ -296,12 +296,12 @@ pub fn execute_set_ask(
     let mut response = Response::new();
 
     match existing_ask {
-        None => transfer_nft(&ask.token_id, &env.contract.address, &params.cw721_address, &mut response)?,
+        None => transfer_nft(&ask.token_id, &env.contract.address, &config.cw721_address, &mut response)?,
         _ => (),
     }
 
     let event = Event::new("set-ask")
-        .add_attribute("collection", params.cw721_address.to_string())
+        .add_attribute("collection", config.cw721_address.to_string())
         .add_attribute("token_id", ask.token_id.to_string())
         .add_attribute("seller", ask.seller)
         .add_attribute("price", ask.price.to_string())
@@ -323,13 +323,13 @@ pub fn execute_remove_ask(
 
     asks().remove(deps.storage, token_id.clone())?;
 
-    let params = PARAMS.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     let mut response = Response::new();
 
-    transfer_nft(&ask.token_id, &ask.seller, &params.cw721_address, &mut response)?;
+    transfer_nft(&ask.token_id, &ask.seller, &config.cw721_address, &mut response)?;
 
     let event = Event::new("remove-ask")
-        .add_attribute("collection", params.cw721_address.to_string())
+        .add_attribute("collection", config.cw721_address.to_string())
         .add_attribute("token_id", token_id.to_string());
 
     Ok(response.add_event(event))
@@ -342,14 +342,14 @@ pub fn execute_set_bid(
     info: MessageInfo,
     bid: Bid,
 ) -> Result<Response, ContractError> {
-    let params = PARAMS.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
-    let payment_amount = must_pay(&info, &params.denom)?;
+    let payment_amount = must_pay(&info, &config.denom)?;
     if bid.price.amount != payment_amount  {
         return Err(ContractError::IncorrectBidPayment(bid.price.amount, payment_amount));
     }
-    price_validate(&bid.price, &params)?;
-    params.bid_expiry.is_valid(&env.block, bid.expires_at)?;
+    price_validate(&bid.price, &config)?;
+    config.bid_expiry.is_valid(&env.block, bid.expires_at)?;
 
     let mut response = Response::new();
     let bid_key = bid_key(bid.token_id.clone(), &bid.bidder);
@@ -378,7 +378,7 @@ pub fn execute_set_bid(
                 &ask.token_id,
                 payment_amount,
                 &ask.get_recipient(),
-                &params,
+                &config,
                 &mut response,
             )?
         },
@@ -436,13 +436,13 @@ pub fn execute_accept_bid(
         return Err(ContractError::BidExpired {});
     }
 
-    let params = PARAMS.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     let existing_ask = asks().may_load(deps.storage, token_id.clone())?;
 
     only_owner_or_seller(
         deps.as_ref(),
         &info,
-        &params.cw721_address,
+        &config.cw721_address,
         &token_id,
         &existing_ask.clone().map_or(None, |a| Some(a.seller)),
     )?;
@@ -465,7 +465,7 @@ pub fn execute_accept_bid(
         &token_id,
         bid.price.amount,
         &payment_recipient,
-        &params,
+        &config,
         &mut response,
     )?;
 
@@ -489,18 +489,18 @@ pub fn execute_set_collection_bid(
     info: MessageInfo,
     collection_bid: CollectionBid
 ) -> Result<Response, ContractError> {
-    let params = PARAMS.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     
     // Escrows the amount (price * units)
-    let payment_amount = must_pay(&info, &params.denom)?;
-    price_validate(&coin(collection_bid.total_cost(), &params.denom), &params)?;
+    let payment_amount = must_pay(&info, &config.denom)?;
+    price_validate(&coin(collection_bid.total_cost(), &config.denom), &config)?;
     if Uint128::from(collection_bid.total_cost()) != payment_amount  {
         return Err(ContractError::IncorrectBidPayment(
             Uint128::from(collection_bid.total_cost()),
             payment_amount,
         ));
     }
-    params.bid_expiry.is_valid(&env.block, collection_bid.expires_at)?;
+    config.bid_expiry.is_valid(&env.block, collection_bid.expires_at)?;
 
     let collection_bid_key = collection_bid.bidder.clone();
     let mut response = Response::new();
@@ -571,12 +571,12 @@ pub fn execute_accept_collection_bid(
         return Err(ContractError::BidExpired {});
     }
 
-    let params = PARAMS.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     let existing_ask = asks().may_load(deps.storage, token_id.clone())?;
     only_owner_or_seller(
         deps.as_ref(),
         &info,
-        &params.cw721_address,
+        &config.cw721_address,
         &token_id,
         &existing_ask.clone().map_or(None, |a| Some(a.seller)),
     )?;
@@ -611,7 +611,7 @@ pub fn execute_accept_collection_bid(
         &token_id,
         collection_bid.price.amount,
         &payment_recipient,
-        &params,
+        &config,
         &mut response,
     )?;
 
@@ -634,14 +634,14 @@ pub fn execute_set_auction(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
     
-    let params = PARAMS.load(deps.storage)?;
-    params.auction_expiry.is_valid(&env.block, auction.expires_at)?;
+    let config = CONFIG.load(deps.storage)?;
+    config.auction_expiry.is_valid(&env.block, auction.expires_at)?;
 
-    only_owner(deps.as_ref(), &info, &params.cw721_address.clone(), &auction.token_id)?;
+    only_owner(deps.as_ref(), &info, &config.cw721_address.clone(), &auction.token_id)?;
     
-    price_validate(&auction.starting_price, &params)?;
+    price_validate(&auction.starting_price, &config)?;
     if let Some(_reserve_price) = &auction.reserve_price {
-        price_validate(&_reserve_price, &params)?;
+        price_validate(&_reserve_price, &config)?;
         if _reserve_price.amount < auction.starting_price.amount {
             return Err(ContractError::InvalidReservePrice(_reserve_price.amount, auction.starting_price.amount));
         }
@@ -656,10 +656,10 @@ pub fn execute_set_auction(
 
     let mut response = Response::new();
 
-    transfer_nft(&auction.token_id, &env.contract.address, &params.cw721_address, &mut response)?;
+    transfer_nft(&auction.token_id, &env.contract.address, &config.cw721_address, &mut response)?;
 
     let event = Event::new("set-auction")
-        .add_attribute("collection", params.cw721_address.to_string())
+        .add_attribute("collection", config.cw721_address.to_string())
         .add_attribute("token_id", auction.token_id.to_string())
         .add_attribute("seller", auction.seller)
         .add_attribute("price", auction.starting_price.to_string())
@@ -678,7 +678,7 @@ pub fn execute_close_auction(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let params = PARAMS.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     // Validate auction exists, and if it exists, that it is being closed by the seller
     let auction = auctions().load(deps.storage, token_id.clone())?;
@@ -707,20 +707,20 @@ pub fn execute_close_auction(
                 &auction.token_id,
                 bid.price.amount,
                 &auction.get_recipient(),
-                &params,
+                &config,
                 &mut response,
             )?;
         },
         false => {
             // If sale has not occurred, transfer NFT back to seller, do not transfer funds to seller
-            transfer_nft(&auction.token_id, &info.sender, &params.cw721_address, &mut response)?;
+            transfer_nft(&auction.token_id, &info.sender, &config.cw721_address, &mut response)?;
         }
     };
 
     auctions().remove(deps.storage, token_id)?;
 
     let event = Event::new("close-auction")
-        .add_attribute("collection", &params.cw721_address.to_string())
+        .add_attribute("collection", &config.cw721_address.to_string())
         .add_attribute("token_id", &auction.token_id.to_string())
         .add_attribute("is_sale", &is_sale.to_string());
     
@@ -736,7 +736,7 @@ pub fn execute_finalize_auction(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let params = PARAMS.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     // Validate auction exists, and is expired
     let auction = auctions().load(deps.storage, token_id.clone())?;
@@ -763,14 +763,14 @@ pub fn execute_finalize_auction(
         &auction.token_id,
         bid.price.amount,
         &auction.get_recipient(),
-        &params,
+        &config,
         &mut response,
     )?;
 
     auctions().remove(deps.storage, token_id)?;
 
     let event = Event::new("finalize-auction")
-        .add_attribute("collection", &params.cw721_address.to_string())
+        .add_attribute("collection", &config.cw721_address.to_string())
         .add_attribute("token_id", &auction.token_id.to_string())
         .add_attribute("seller", &auction.seller.to_string())
         .add_attribute("buyer", &bid.bidder.to_string());
@@ -785,7 +785,7 @@ pub fn execute_set_auction_bid(
     info: MessageInfo,
     auction_bid: AuctionBid,
 ) -> Result<Response, ContractError> {
-    let params = PARAMS.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     // Validate auction exists, and is not expired
     let auction = auctions().load(deps.storage, auction_bid.token_id.clone())?;
@@ -806,11 +806,11 @@ pub fn execute_set_auction_bid(
         }
     }
 
-    let payment_amount = must_pay(&info, &params.denom)?;
+    let payment_amount = must_pay(&info, &config.denom)?;
     if auction_bid.price.amount != payment_amount  {
         return Err(ContractError::IncorrectBidPayment(auction_bid.price.amount, payment_amount));
     }
-    price_validate(&auction_bid.price, &params)?;
+    price_validate(&auction_bid.price, &config)?;
 
     let mut response = Response::new();
     let auction_bid_key = auction_bid_key(auction_bid.token_id.clone(), &auction_bid.bidder);

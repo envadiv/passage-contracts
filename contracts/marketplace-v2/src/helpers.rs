@@ -2,7 +2,7 @@ use crate::msg::{ExecuteMsg, QueryOptions};
 use crate::query::query_auction_bids_token_price;
 use crate::error::ContractError;
 use crate::state::{
-    Params, TokenId, Bid, bids, bid_key, Ask, asks, CollectionBid, collection_bids,
+    Config, TokenId, Bid, bids, bid_key, Ask, asks, CollectionBid, collection_bids,
     Expiration, Auction, AuctionBid,
 };
 use cosmwasm_std::{
@@ -85,15 +85,15 @@ pub fn finalize_sale(
     token_id: &TokenId,
     payment_amount: Uint128,
     payment_recipient: &Addr,
-    params: &Params,
+    config: &Config,
     res: &mut Response,
 ) -> StdResult<()> {
-    payout(deps, payment_amount, payment_recipient, &params, res)?;
+    payout(deps, payment_amount, payment_recipient, &config, res)?;
 
-    transfer_nft(&token_id, bidder, &params.cw721_address, res)?;
+    transfer_nft(&token_id, bidder, &config.cw721_address, res)?;
 
     let event = Event::new("finalize-sale")
-        .add_attribute("collection", params.cw721_address.to_string())
+        .add_attribute("collection", config.cw721_address.to_string())
         .add_attribute("buyer", bidder.to_string())
         .add_attribute("token_id", token_id.to_string())
         .add_attribute("payment_amount", payment_amount.to_string())
@@ -108,16 +108,16 @@ pub fn payout(
     deps: Deps,
     payment_amount: Uint128,
     payment_recipient: &Addr,
-    params: &Params,
+    config: &Config,
     response: &mut Response,
 ) -> StdResult<()> {
-    let cw721_address = params.cw721_address.to_string();
+    let cw721_address = config.cw721_address.to_string();
 
     // Charge market fee
-    let market_fee = payment_amount * params.trading_fee_percent / Uint128::from(100u128);
+    let market_fee = payment_amount * config.trading_fee_percent / Uint128::from(100u128);
     transfer_token(
-        coin(market_fee.u128(), &params.denom),
-        params.collector_address.to_string(),
+        coin(market_fee.u128(), &config.denom),
+        config.collector_address.to_string(),
         "payout-market",
         response
     )?;
@@ -134,7 +134,7 @@ pub fn payout(
     };
     if let Some(_royalties) = &royalties {
         transfer_token(
-            coin(_royalties.0.u128(), &params.denom),
+            coin(_royalties.0.u128(), &config.denom),
             _royalties.1.to_string(),
             "payout-royalty",
             response
@@ -148,7 +148,7 @@ pub fn payout(
     };
 
     transfer_token(
-        coin(seller_amount.u128(), &params.denom),
+        coin(seller_amount.u128(), &config.denom),
         payment_recipient.to_string(),
         "payout-seller",
         response
@@ -158,11 +158,11 @@ pub fn payout(
 }
 
 // Validate Bid or Ask price
-pub fn price_validate(price: &Coin, params: &Params) -> Result<(), ContractError> {
+pub fn price_validate(price: &Coin, config: &Config) -> Result<(), ContractError> {
     if
         price.amount.is_zero() ||
-        price.denom != params.denom ||
-        price.amount < params.min_price
+        price.denom != config.denom ||
+        price.amount < config.min_price
     {
         return Err(ContractError::InvalidPrice {});
     }
@@ -226,8 +226,8 @@ pub fn only_seller(
 }
 
 /// Checks to enforce only privileged operators
-pub fn only_operator(info: &MessageInfo, params: &Params) -> Result<Addr, ContractError> {
-    if !params
+pub fn only_operator(info: &MessageInfo, config: &Config) -> Result<Addr, ContractError> {
+    if !config
         .operators
         .iter()
         .any(|a| a.as_ref() == info.sender.as_ref())

@@ -1,12 +1,12 @@
 use crate::msg::{
     QueryMsg, AskResponse, AsksResponse, QueryOptions, AskExpiryOffset, AskPriceOffset,
     AskCountResponse, BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset,
-    ParamsResponse, CollectionBidResponse, CollectionBidsResponse, CollectionBidPriceOffset,
+    ConfigResponse, CollectionBidResponse, CollectionBidsResponse, CollectionBidPriceOffset,
     CollectionBidExpiryOffset, AuctionResponse, AuctionsResponse, AuctionStartingPriceOffset,
     AuctionReservePriceOffset, AuctionExpiryOffset, AuctionBidResponse, AuctionBidsResponse
 };
 use crate::state::{
-    PARAMS, asks, TokenId, bids, bid_key, collection_bids, auctions, auction_bids, auction_bid_key
+    CONFIG, asks, TokenId, bids, bid_key, collection_bids, auctions, auction_bids, auction_bid_key
 };
 use crate::helpers::option_bool_to_order;
 use cosmwasm_std::{entry_point, to_binary, Addr, Binary, Deps, Env, Order, StdResult};
@@ -21,7 +21,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let api = deps.api;
 
     match msg {
-        QueryMsg::Params { } => to_binary(&query_params(deps)?),
+        QueryMsg::Config { } => to_binary(&query_config(deps)?),
         QueryMsg::Ask {
             token_id,
         } => to_binary(&query_ask(deps, token_id)?),
@@ -134,10 +134,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub fn query_params(deps: Deps) -> StdResult<ParamsResponse> {
-    let params = PARAMS.load(deps.storage)?;
+pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+    let config = CONFIG.load(deps.storage)?;
 
-    Ok(ParamsResponse { params })
+    Ok(ConfigResponse { config })
 }
 
 pub fn query_ask(deps: Deps, token_id: TokenId) -> StdResult<AskResponse> {

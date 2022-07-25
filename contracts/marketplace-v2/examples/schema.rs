@@ -25,7 +25,7 @@ fn main() {
     export_schema(&schema_for!(msg::AskCountResponse), &out_dir);
     export_schema(&schema_for!(msg::BidResponse), &out_dir);
     export_schema(&schema_for!(msg::BidsResponse), &out_dir);
-    export_schema(&schema_for!(msg::ParamsResponse), &out_dir);
+    export_schema(&schema_for!(msg::ConfigResponse), &out_dir);
     export_schema(&schema_for!(msg::CollectionBidResponse), &out_dir);
     export_schema(&schema_for!(msg::CollectionBidsResponse), &out_dir);
 }

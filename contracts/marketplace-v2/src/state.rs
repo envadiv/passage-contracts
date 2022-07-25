@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::helpers::ExpiryRange;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Params {
+pub struct Config {
     /// The NFT contract
     pub cw721_address: Addr,
     /// The token used to pay for NFTs
@@ -29,7 +29,7 @@ pub struct Params {
     pub min_price: Uint128,
 }
 
-pub const PARAMS: Item<Params> = Item::new("params");
+pub const CONFIG: Item<Config> = Item::new("config");
 
 pub type TokenId = String;
 
