@@ -209,7 +209,7 @@ pub fn only_owner(
 ) -> Result<(), ContractError> {
     let res = Cw721Contract(collection.clone()).owner_of(&deps.querier, token_id, false)?;
     if res.owner != info.sender {
-        return Err(ContractError::UnauthorizedOwner {});
+        return Err(ContractError::Unauthorized(String::from("only the owner can call this function")));
     }
     Ok(())
 }
@@ -220,7 +220,7 @@ pub fn only_seller(
     seller: &Addr,
 ) -> Result<(), ContractError> {
     if &info.sender != seller {
-        return Err(ContractError::UnauthorizedOwner {});
+        return Err(ContractError::Unauthorized(String::from("only the seller can call this function")));
     }
     Ok(())
 }
@@ -232,7 +232,7 @@ pub fn only_operator(info: &MessageInfo, params: &Params) -> Result<Addr, Contra
         .iter()
         .any(|a| a.as_ref() == info.sender.as_ref())
     {
-        return Err(ContractError::UnauthorizedOperator {});
+        return Err(ContractError::Unauthorized(String::from("only an operator can call this function")));
     }
 
     Ok(info.sender.clone())

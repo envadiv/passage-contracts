@@ -4,14 +4,13 @@ use crate::helpers::ExpiryRange;
 use crate::msg::{
     ExecuteMsg, QueryMsg, AskResponse, AsksResponse, QueryOptions, AskPriceOffset, AskCountResponse,
     BidResponse, BidsResponse, BidExpiryOffset, ParamsResponse, CollectionBidResponse, CollectionBidsResponse,
+    AuctionResponse
 };
-use crate::state::{Ask, Bid, Params, CollectionBid};
-use cosmwasm_std::{Addr, Empty, Timestamp, Attribute};
+use crate::state::{Ask, Bid, Params, CollectionBid, Auction};
+use cosmwasm_std::{Addr, Empty, Timestamp, Attribute, coin, coins, Coin, Decimal, Uint128};
 use cw721::{Cw721QueryMsg, OwnerOfResponse};
 use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMsg, MintMsg};
 use cw_multi_test::{App, AppBuilder, BankSudo, Contract, ContractWrapper, Executor, SudoMsg as CwSudoMsg};
-
-use cosmwasm_std::{coin, coins, Coin, Decimal, Uint128};
 use pg721::msg::{InstantiateMsg as Pg721InstantiateMsg, RoyaltyInfoResponse};
 use pg721::state::CollectionInfo;
 
@@ -131,9 +130,10 @@ fn setup_contracts(
 }
 
 // Intializes accounts with balances
-fn setup_accounts(router: &mut App) -> Result<(Addr, Addr, Addr), ContractError> {
+fn setup_accounts(router: &mut App) -> Result<(Addr, Addr, Addr, Addr), ContractError> {
     let owner: Addr = Addr::unchecked("owner");
     let bidder: Addr = Addr::unchecked("bidder");
+    let bidder2: Addr = Addr::unchecked("bidder2");
     let creator: Addr = Addr::unchecked("creator");
     let creator_funds: Vec<Coin> = coins(CREATION_FEE, NATIVE_DENOM);
     let funds: Vec<Coin> = coins(INITIAL_BALANCE, NATIVE_DENOM);
@@ -158,6 +158,15 @@ fn setup_accounts(router: &mut App) -> Result<(Addr, Addr, Addr), ContractError>
     router
         .sudo(CwSudoMsg::Bank({
             BankSudo::Mint {
+                to_address: bidder2.to_string(),
+                amount: funds.clone(),
+            }
+        }))
+        .map_err(|err| println!("{:?}", err))
+        .ok();
+    router
+        .sudo(CwSudoMsg::Bank({
+            BankSudo::Mint {
                 to_address: creator.to_string(),
                 amount: creator_funds.clone(),
             }
@@ -170,10 +179,12 @@ fn setup_accounts(router: &mut App) -> Result<(Addr, Addr, Addr), ContractError>
     assert_eq!(owner_native_balances, funds);
     let bidder_native_balances = router.wrap().query_all_balances(bidder.clone()).unwrap();
     assert_eq!(bidder_native_balances, funds);
+    let bidder2_native_balances = router.wrap().query_all_balances(bidder2.clone()).unwrap();
+    assert_eq!(bidder2_native_balances, funds);
     let creator_native_balances = router.wrap().query_all_balances(creator.clone()).unwrap();
     assert_eq!(creator_native_balances, creator_funds);
 
-    Ok((owner, bidder, creator))
+    Ok((owner, bidder, creator, bidder2))
 }
 
 // Mints an NFT for a creator
@@ -247,12 +258,49 @@ fn bid(
     assert!(res.is_ok());
 }
 
+fn auction(
+    router: &mut App,
+    creator: &Addr,
+    marketplace: &Addr,
+    token_id: String,
+    starting_price: u128,
+    reserve_price: u128,
+    expires_at: Timestamp,
+    funds_recipient: Option<String>
+) {
+    let set_auction = ExecuteMsg::SetAuction {
+        token_id: token_id,
+        starting_price: coin(starting_price, NATIVE_DENOM),
+        reserve_price: Some(coin(reserve_price, NATIVE_DENOM)),
+        funds_recipient: funds_recipient,
+        expires_at: expires_at,
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_auction, &[]);
+    assert!(res.is_ok());
+}
+
+fn auction_bid(
+    router: &mut App,
+    creator: &Addr,
+    marketplace: &Addr,
+    token_id: String,
+    price: u128,
+) {
+    let coin_send = coin(price, NATIVE_DENOM);
+    let set_auction_bid = ExecuteMsg::SetAuctionBid {
+        token_id: token_id,
+        price: coin_send.clone(),
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_auction_bid, &[coin_send]);
+    assert!(res.is_ok());
+}
+
 #[test]
 fn try_add_update_remove_ask() {
     let mut router = custom_mock_app();
 
     // Setup intial accounts
-    let (_owner, _bidder, creator) = setup_accounts(&mut router).unwrap();
+    let (_owner, _bidder, creator, _bidder2) = setup_accounts(&mut router).unwrap();
 
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
@@ -409,7 +457,7 @@ fn try_ask_queries() {
     let mut router = custom_mock_app();
 
     // Setup intial accounts
-    let (_owner, _bidder, creator) = setup_accounts(&mut router).unwrap();
+    let (_owner, _bidder, creator, _bidder2) = setup_accounts(&mut router).unwrap();
 
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
@@ -532,7 +580,7 @@ fn try_set_bid() {
     let mut router = custom_mock_app();
     let block_time = router.block_info().time;
     // Setup intial accounts
-    let (_owner, bidder, creator) = setup_accounts(&mut router).unwrap();
+    let (_owner, bidder, creator, _bidder2) = setup_accounts(&mut router).unwrap();
 
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
@@ -623,7 +671,7 @@ fn try_bid_queries() {
     let mut router = custom_mock_app();
 
     // Setup intial accounts
-    let (_owner, bidder, creator) = setup_accounts(&mut router).unwrap();
+    let (_owner, bidder, creator, _bidder2) = setup_accounts(&mut router).unwrap();
 
     // Instantiate and configure contracts
     let (marketplace, _collection) = setup_contracts(&mut router, &creator).unwrap();
@@ -716,7 +764,7 @@ fn try_collection_bid_flow() {
     let mut router = custom_mock_app();
     let block_time = router.block_info().time;
     // Setup intial accounts
-    let (_owner, bidder, creator) = setup_accounts(&mut router).unwrap();
+    let (_owner, bidder, creator, _bidder2) = setup_accounts(&mut router).unwrap();
 
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
@@ -896,4 +944,280 @@ fn try_collection_bid_flow() {
         .query_wasm_smart(marketplace.clone(), &query_collection_bids_by_expiry_msg)
         .unwrap();
     assert_eq!(res.collection_bids.len(), 0);
+}
+
+#[test]
+fn try_auction_creation_and_removal() {
+    let mut router = custom_mock_app();
+    let block_time = router.block_info().time;
+    // Setup intial accounts
+    let (_owner, _bidder, creator, _bidder2) = setup_accounts(&mut router).unwrap();
+
+    // Instantiate and configure contracts
+    let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
+
+    let ts = block_time.plus_seconds(MIN_EXPIRY + 10 as u64);
+
+    // Mint NFT for owner
+    mint(&mut router, &creator, &collection, TOKEN_ID.to_string());
+    approve(&mut router, &creator, &collection, &marketplace, TOKEN_ID.to_string());
+
+    // Should error with expiry lower than min
+    let set_auction = ExecuteMsg::SetAuction {
+        token_id: TOKEN_ID.to_string(),
+        starting_price: coin(110, NATIVE_DENOM),
+        reserve_price: Some(coin(210, NATIVE_DENOM)),
+        funds_recipient: None,
+        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY - 1),
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_auction, &[]);
+    assert!(res.is_err());
+
+    // Should error with expiry lower than min
+    let set_auction = ExecuteMsg::SetAuction {
+        token_id: TOKEN_ID.to_string(),
+        starting_price: coin(110, NATIVE_DENOM),
+        reserve_price: Some(coin(210, NATIVE_DENOM)),
+        funds_recipient: None,
+        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY - 1),
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_auction, &[]);
+    assert!(res.is_err());
+
+    // Should error with invalid denom
+    let set_auction = ExecuteMsg::SetAuction {
+        token_id: TOKEN_ID.to_string(),
+        starting_price: coin(110, NATIVE_DENOM),
+        reserve_price: Some(coin(210, "ujuno")),
+        funds_recipient: None,
+        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_auction, &[]);
+    assert!(res.is_err());
+
+    // Should error with reserve price below starting price
+    let set_auction = ExecuteMsg::SetAuction {
+        token_id: TOKEN_ID.to_string(),
+        starting_price: coin(200, NATIVE_DENOM),
+        reserve_price: Some(coin(100, NATIVE_DENOM)),
+        funds_recipient: None,
+        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_auction, &[]);
+    assert!(res.is_err());
+
+    // An auction is made by the creator
+    auction(&mut router, &creator, &marketplace, TOKEN_ID.to_string(), 110u128, 210u128, ts, None);
+
+    // Validate Auction data is correct
+    let query_auction = QueryMsg::Auction {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res: AuctionResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_auction)
+        .unwrap();
+
+    let current_auction = match res.auction {
+        Some(auction) => Ok(auction),
+        None => Err("Auction not found")
+    }.unwrap();
+    assert_eq!(Auction {
+        token_id: TOKEN_ID.to_string(),
+        starting_price: coin(110, NATIVE_DENOM),
+        reserve_price: Some(coin(210, NATIVE_DENOM)),
+        seller: creator.clone(),
+        funds_recipient: None,
+        expires_at: ts,
+    }, current_auction);
+    
+    // Check NFT is transferred to marketplace contract
+    let query_owner_msg = Cw721QueryMsg::OwnerOf {
+        token_id: TOKEN_ID.to_string(),
+        include_expired: None,
+    };
+    let res: OwnerOfResponse = router
+        .wrap()
+        .query_wasm_smart(collection.clone(), &query_owner_msg)
+        .unwrap();
+    assert_eq!(res.owner, marketplace.to_string());
+
+    // Close an auction with no bids
+    let close_auction = ExecuteMsg::CloseAuction {
+        token_id: TOKEN_ID.to_string(),
+        accept_highest_bid: false
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &close_auction, &[]);
+    assert!(res.is_ok());
+
+    // Validate Auction is deleted
+    let query_auction = QueryMsg::Auction {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res: AuctionResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_auction)
+        .unwrap();
+    assert_eq!(res.auction, None);
+
+    // Check NFT is transferred back to the owner
+    let query_owner_msg = Cw721QueryMsg::OwnerOf {
+        token_id: TOKEN_ID.to_string(),
+        include_expired: None,
+    };
+    let res: OwnerOfResponse = router
+        .wrap()
+        .query_wasm_smart(collection.clone(), &query_owner_msg)
+        .unwrap();
+    assert_eq!(res.owner, creator.to_string());
+}
+
+#[test]
+fn try_auction_bid_creation_and_removal() {
+    let mut router = custom_mock_app();
+    let block_time = router.block_info().time;
+    // Setup intial accounts
+    let (_owner, bidder, creator, bidder2) = setup_accounts(&mut router).unwrap();
+
+    // Instantiate and configure contracts
+    let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
+
+    let ts = block_time.plus_seconds(MIN_EXPIRY + 10 as u64);
+    let prev_bidder2_balance = router.wrap().query_all_balances(bidder2.clone()).unwrap().into_iter().nth(0).unwrap();
+
+    // Mint NFT for owner
+    mint(&mut router, &creator, &collection, TOKEN_ID.to_string());
+    approve(&mut router, &creator, &collection, &marketplace, TOKEN_ID.to_string());
+    auction(&mut router, &creator, &marketplace, TOKEN_ID.to_string(), 110u128, 210u128, ts, None);
+
+    // AuctionBid creation should error without a matching auction
+    let set_auction_bid = ExecuteMsg::SetAuctionBid {
+        token_id: String::from("999"),
+        price: coin(120u128, NATIVE_DENOM),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &set_auction_bid, &[]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "marketplace_v2::state::Auction not found");
+
+    // AuctionBid creation should error when funds are not sent
+    let set_auction_bid = ExecuteMsg::SetAuctionBid {
+        token_id: TOKEN_ID.to_string(),
+        price: coin(120u128, NATIVE_DENOM),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &set_auction_bid, &[]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "No funds sent");
+
+    // AuctionBid creation should error when bid is below starting price
+    let set_auction_bid = ExecuteMsg::SetAuctionBid {
+        token_id: TOKEN_ID.to_string(),
+        price: coin(100u128, NATIVE_DENOM),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &set_auction_bid, &[coin(100u128, NATIVE_DENOM)]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Auction bid too low");
+
+    // AuctionBid creation should error when bid is less than or equal to the highest bid
+    auction_bid(&mut router, &bidder, &marketplace, TOKEN_ID.to_string(), 140u128);
+    let set_auction_bid = ExecuteMsg::SetAuctionBid {
+        token_id: TOKEN_ID.to_string(),
+        price: coin(100u128, NATIVE_DENOM),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &set_auction_bid, &[coin(100u128, NATIVE_DENOM)]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Auction bid too low");
+
+    // Verify that removal of highest bid fails
+    let remove_auction_bid = ExecuteMsg::RemoveAuctionBid {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &remove_auction_bid, &[]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Cannot remove highest bid");
+
+    // Auction Bids can be removed
+    let bid_amount = 150u128;
+    auction_bid(&mut router, &bidder2, &marketplace, TOKEN_ID.to_string(), bid_amount);
+    let remove_auction_bid = ExecuteMsg::RemoveAuctionBid {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &remove_auction_bid, &[]);
+    assert!(res.is_ok());
+
+    // Auction with bids can be closed
+    let close_auction = ExecuteMsg::CloseAuction {
+        token_id: TOKEN_ID.to_string(),
+        accept_highest_bid: true
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &close_auction, &[]);
+    assert!(res.is_ok());
+    
+    // Check NFT is transferred back to the bidder
+    let query_owner_msg = Cw721QueryMsg::OwnerOf {
+        token_id: TOKEN_ID.to_string(),
+        include_expired: None,
+    };
+    let res: OwnerOfResponse = router
+        .wrap()
+        .query_wasm_smart(collection.clone(), &query_owner_msg)
+        .unwrap();
+    assert_eq!(res.owner, bidder2.to_string());
+
+    // Check balances, validate that the bidder was debited, and that the seller was credited
+    let post_bidder2_balance = router.wrap().query_all_balances(bidder2.clone()).unwrap().into_iter().nth(0).unwrap();
+    let post_owner_balance = router.wrap().query_all_balances(creator.clone()).unwrap().into_iter().nth(0).unwrap();
+    assert_eq!(prev_bidder2_balance.amount - Uint128::from(bid_amount), post_bidder2_balance.amount);
+    assert_eq!(Uint128::from(bid_amount), post_owner_balance.amount);
+}
+
+#[test]
+fn try_auction_bid_reserve_price_met() {
+    let mut router = custom_mock_app();
+    let block_time = router.block_info().time;
+    // Setup intial accounts
+    let (_owner, bidder, creator, _bidder2) = setup_accounts(&mut router).unwrap();
+
+    // Instantiate and configure contracts
+    let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
+
+    let ts = block_time.plus_seconds(MIN_EXPIRY + 10 as u64);
+    let prev_bidder_balance = router.wrap().query_all_balances(bidder.clone()).unwrap().into_iter().nth(0).unwrap();
+
+    // Mint NFT for owner
+    mint(&mut router, &creator, &collection, TOKEN_ID.to_string());
+    approve(&mut router, &creator, &collection, &marketplace, TOKEN_ID.to_string());
+    auction(&mut router, &creator, &marketplace, TOKEN_ID.to_string(), 110u128, 210u128, ts, None);
+
+    // Meet reserve price
+    let bid_amount = 220u128;
+    auction_bid(&mut router, &bidder, &marketplace, TOKEN_ID.to_string(), 220u128);
+
+    // Verify auctions that have met reserve price cannot be closed
+    let close_auction = ExecuteMsg::CloseAuction {
+        token_id: TOKEN_ID.to_string(),
+        accept_highest_bid: false
+    };
+    let res = router.execute_contract(creator.clone(), marketplace.clone(), &close_auction, &[]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Reserve price restriction: must finalize auction when reserve price is met");
+
+    setup_block_time(&mut router, block_time.plus_seconds(MIN_EXPIRY + 11u64).seconds());
+
+    // Auction can be finalized
+    let finalize_auction = ExecuteMsg::FinalizeAuction {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &finalize_auction, &[]);
+    assert!(res.is_ok());
+
+    // Check NFT is transferred back to the bidder
+    let query_owner_msg = Cw721QueryMsg::OwnerOf {
+        token_id: TOKEN_ID.to_string(),
+        include_expired: None,
+    };
+    let res: OwnerOfResponse = router
+        .wrap()
+        .query_wasm_smart(collection.clone(), &query_owner_msg)
+        .unwrap();
+    assert_eq!(res.owner, bidder.to_string());
+
+    // Check balances, validate that the bidder was debited, and that the seller was credited
+    let post_bidder_balance = router.wrap().query_all_balances(bidder.clone()).unwrap().into_iter().nth(0).unwrap();
+    let post_owner_balance = router.wrap().query_all_balances(creator.clone()).unwrap().into_iter().nth(0).unwrap();
+    assert_eq!(prev_bidder_balance.amount - Uint128::from(bid_amount), post_bidder_balance.amount);
+    assert_eq!(Uint128::from(bid_amount), post_owner_balance.amount);
 }
