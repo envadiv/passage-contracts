@@ -690,7 +690,7 @@ pub fn execute_close_auction(
     // If reserve price has been met, seller cannot close auction
     if reserve_price_met {
         return Err(ContractError::ReservePriceRestriction(
-            String::from("must accept highest bid when reserve price is met")
+            "must finalize auction when reserve price is met".to_string(),
         ));
     }
 
@@ -716,6 +716,8 @@ pub fn execute_close_auction(
             transfer_nft(&auction.token_id, &info.sender, &params.cw721_address, &mut response)?;
         }
     };
+
+    auctions().remove(deps.storage, token_id)?;
 
     let event = Event::new("close-auction")
         .add_attribute("collection", &params.cw721_address.to_string())
@@ -765,6 +767,8 @@ pub fn execute_finalize_auction(
         &mut response,
     )?;
 
+    auctions().remove(deps.storage, token_id)?;
+
     let event = Event::new("finalize-auction")
         .add_attribute("collection", &params.cw721_address.to_string())
         .add_attribute("token_id", &auction.token_id.to_string())
@@ -777,11 +781,30 @@ pub fn execute_finalize_auction(
 /// Places a bid for an NFT on an existing auction
 pub fn execute_set_auction_bid(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     auction_bid: AuctionBid,
 ) -> Result<Response, ContractError> {
     let params = PARAMS.load(deps.storage)?;
+
+    // Validate auction exists, and is not expired
+    let auction = auctions().load(deps.storage, auction_bid.token_id.clone())?;
+    if auction.is_expired(&env.block.time) {
+        return Err(ContractError::AuctionExpired {});
+    }
+
+    // Validate bid is higher than starting_price
+    if auction_bid.price.amount < auction.starting_price.amount {
+        return Err(ContractError::AuctionBidTooLow {});
+    }
+    
+    // Validate bid is higher than current highest bid
+    let highest_bid = fetch_highest_auction_bid(deps.as_ref(), &auction_bid.token_id)?;
+    if let Some(bid) = highest_bid {
+        if auction_bid.price.amount <= bid.price.amount  {
+            return Err(ContractError::AuctionBidTooLow {});
+        }
+    }
 
     let payment_amount = must_pay(&info, &params.denom)?;
     if auction_bid.price.amount != payment_amount  {
@@ -793,7 +816,7 @@ pub fn execute_set_auction_bid(
     let auction_bid_key = auction_bid_key(auction_bid.token_id.clone(), &auction_bid.bidder);
 
     // If auction bid exists, refund the escrowed tokens
-    if let Some(existing_bid) = bids().may_load(deps.storage, auction_bid_key.clone())? {
+    if let Some(existing_bid) = auction_bids().may_load(deps.storage, auction_bid_key.clone())? {
         transfer_token(
             existing_bid.price,
             existing_bid.bidder.to_string(),
@@ -807,7 +830,7 @@ pub fn execute_set_auction_bid(
         |_| -> Result<AuctionBid, StdError> { Ok(auction_bid.clone()) },
     )?;
 
-    let event = Event::new("set-bid")
+    let event = Event::new("set-auction-bid")
         .add_attribute("token_id", &auction_bid.token_id.to_string())
         .add_attribute("bidder", &auction_bid.bidder)
         .add_attribute("price", &auction_bid.price.to_string());
@@ -827,7 +850,7 @@ pub fn execute_remove_auction_bid(
     nonpayable(&info)?;
 
     if bidder != info.sender {
-        return Err(ContractError::UnauthorizedOwner {});
+        return Err(ContractError::Unauthorized(String::from("only the bidder can remove their bid")));
     }
 
     let mut response = Response::new();
@@ -851,7 +874,7 @@ pub fn execute_remove_auction_bid(
     )?;
     auction_bids().remove(deps.storage, selected_auction_bid_key)?;
 
-    let event = Event::new("remove-bid")
+    let event = Event::new("remove-auction-bid")
         .add_attribute("token_id", &auction_bid.token_id.to_string())
         .add_attribute("bidder", &auction_bid.bidder);
     response.events.push(event);

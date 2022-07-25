@@ -7,22 +7,19 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("UnauthorizedOwner")]
-    UnauthorizedOwner {},
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
 
-    #[error("UnauthorizedOperator")]
-    UnauthorizedOperator {},
-
-    #[error("InvalidPrice")]
+    #[error("Invalid price")]
     InvalidPrice {},
 
-    #[error("BidExpired")]
+    #[error("Bid expired")]
     BidExpired {},
 
     #[error("{0}")]
     BidPaymentError(#[from] PaymentError),
 
-    #[error("IncorrectBidPayment: expected {0}, actual {1}")]
+    #[error("Incorrect bid payment: expected {0}, actual {1}")]
     IncorrectBidPayment(Uint128, Uint128),
 
     // Expiry errors
@@ -33,21 +30,27 @@ pub enum ContractError {
     InvalidExpiry {},
 
     // Auction errors
-    #[error("InvalidReservePrice: reserve_price {0} < starting_price {1}")]
+    #[error("Invalid reserve price: reserve_price {0} < starting_price {1}")]
     InvalidReservePrice(Uint128, Uint128),
 
-    #[error("AuctionAlreadyExists: token_id {0}")]
+    #[error("Auction already exists: token_id {0}")]
     AuctionAlreadyExists(String),
 
-    #[error("AuctionNotFound: token_id {0}")]
+    #[error("Auction not found: token_id {0}")]
     AuctionNotFound(String),
 
-    #[error("AuctionNotExpired")]
+    #[error("Auction expired")]
+    AuctionExpired {},
+
+    #[error("Auction not expired")]
     AuctionNotExpired {},
 
-    #[error("ReservePriceRestriction: {0}")]
+    #[error("Auction bid too low")]
+    AuctionBidTooLow {},
+
+    #[error("Reserve price restriction: {0}")]
     ReservePriceRestriction(String),
 
-    #[error("CannotRemoveHighestBid")]
+    #[error("Cannot remove highest bid")]
     CannotRemoveHighestBid {},
 }
