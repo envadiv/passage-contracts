@@ -11,13 +11,14 @@ use crate::error::ContractError;
 use crate::helpers::{
     map_validate, ExpiryRange, finalize_sale, price_validate, store_bid,
     store_collection_bid, only_owner_or_seller, only_owner, only_seller, only_operator,
-    transfer_nft, transfer_token, match_bid, fetch_highest_auction_bid, is_reserve_price_met
+    transfer_nft, transfer_token, match_bid, fetch_highest_auction_bid, is_reserve_price_met,
+    validate_auction_times
 };
 use crate::msg::{InstantiateMsg, ExecuteMsg};
 use crate::state::{
     Config, CONFIG, Ask, asks, TokenId, bid_key, bids, Expiration, Recipient,
-    Bid, CollectionBid, collection_bids, Auction, auctions, AuctionBid, auction_bids,
-    auction_bid_key
+    Bid, CollectionBid, collection_bids, Auction, AuctionStatus, auctions, AuctionBid,
+    auction_bids, auction_bid_key
 };
 
 // Version info for migration info
@@ -44,9 +45,11 @@ pub fn instantiate(
         trading_fee_percent: Decimal::percent(msg.trading_fee_bps),
         ask_expiry: msg.ask_expiry,
         bid_expiry: msg.bid_expiry,
-        auction_expiry: msg.auction_expiry,
         operators: map_validate(deps.api, &msg.operators)?,
         min_price: msg.min_price,
+        auction_min_duration: msg.auction_min_duration,
+        auction_max_duration: msg.auction_max_duration,
+        auction_expiry_offset: msg.auction_expiry_offset,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -69,9 +72,11 @@ pub fn execute(
             trading_fee_bps,
             ask_expiry,
             bid_expiry,
-            auction_expiry,
             operators,
             min_price,
+            auction_min_duration,
+            auction_max_duration,
+            auction_expiry_offset,
         } => execute_update_config(
             deps,
             env,
@@ -79,9 +84,11 @@ pub fn execute(
             trading_fee_bps,
             ask_expiry,
             bid_expiry,
-            auction_expiry,
             operators,
             min_price,
+            auction_min_duration,
+            auction_max_duration,
+            auction_expiry_offset,
         ),
         ExecuteMsg::SetAsk {
             token_id,
@@ -163,10 +170,11 @@ pub fn execute(
         ),
         ExecuteMsg::SetAuction {
             token_id,
+            start_time,
+            end_time,
             starting_price,
             reserve_price,
             funds_recipient,
-            expires_at,
         } => execute_set_auction(
             deps,
             env,
@@ -174,10 +182,11 @@ pub fn execute(
             Auction {
                 token_id,
                 seller: message_info.sender,
+                start_time,
+                end_time,
                 starting_price,
                 reserve_price,
                 funds_recipient: maybe_addr(api, funds_recipient)?,
-                expires_at,
             },
         ),
         ExecuteMsg::CloseAuction {
@@ -231,9 +240,11 @@ pub fn execute_update_config(
     trading_fee_bps: Option<u64>,
     ask_expiry: Option<ExpiryRange>,
     bid_expiry: Option<ExpiryRange>,
-    auction_expiry: Option<ExpiryRange>,
     operators: Option<Vec<String>>,
     min_price: Option<Uint128>,
+    auction_min_duration: Option<u64>,
+    auction_max_duration: Option<u64>,
+    auction_expiry_offset: Option<u64>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
     only_operator(&info, &config)?;
@@ -249,15 +260,20 @@ pub fn execute_update_config(
         _bid_expiry.validate()?;
         config.bid_expiry = _bid_expiry;
     }
-    if let Some(_auction_expiry) = auction_expiry {
-        _auction_expiry.validate()?;
-        config.auction_expiry = _auction_expiry;
-    }
     if let Some(_operators) = operators {
         config.operators = map_validate(deps.api, &_operators)?;
     }
     if let Some(_min_price) = min_price {
         config.min_price = _min_price;
+    }
+    if let Some(_auction_min_duration) = auction_min_duration {
+        config.auction_min_duration = _auction_min_duration;
+    }
+    if let Some(_auction_max_duration) = auction_max_duration {
+        config.auction_max_duration = _auction_max_duration;
+    }
+    if let Some(_auction_expiry_offset) = auction_expiry_offset {
+        config.auction_expiry_offset = _auction_expiry_offset;
     }
     
     CONFIG.save(deps.storage, &config)?;
@@ -635,15 +651,14 @@ pub fn execute_set_auction(
     nonpayable(&info)?;
     
     let config = CONFIG.load(deps.storage)?;
-    config.auction_expiry.is_valid(&env.block, auction.expires_at)?;
-
     only_owner(deps.as_ref(), &info, &config.cw721_address.clone(), &auction.token_id)?;
+    validate_auction_times(&auction, &config, &env.block.time)?;
     
     price_validate(&auction.starting_price, &config)?;
     if let Some(_reserve_price) = &auction.reserve_price {
         price_validate(&_reserve_price, &config)?;
         if _reserve_price.amount < auction.starting_price.amount {
-            return Err(ContractError::InvalidReservePrice(_reserve_price.amount, auction.starting_price.amount));
+            return Err(ContractError::AuctionInvalidReservePrice(_reserve_price.amount, auction.starting_price.amount));
         }
     }
 
@@ -662,13 +677,14 @@ pub fn execute_set_auction(
         .add_attribute("collection", config.cw721_address.to_string())
         .add_attribute("token_id", auction.token_id.to_string())
         .add_attribute("seller", auction.seller)
-        .add_attribute("price", auction.starting_price.to_string())
-        .add_attribute("expires_at", auction.expires_at.to_string());
+        .add_attribute("start_time", auction.start_time.to_string())
+        .add_attribute("end_time", auction.end_time.to_string())
+        .add_attribute("price", auction.starting_price.to_string());
 
     Ok(response.add_event(event))
 }
 
-/// Creator of an auction can close it and transfer the NFT to the buyer
+/// Creator of an auction can close it if reserve price is not met
 pub fn execute_close_auction(
     deps: DepsMut,
     _env: Env,
@@ -689,7 +705,7 @@ pub fn execute_close_auction(
 
     // If reserve price has been met, seller cannot close auction
     if reserve_price_met {
-        return Err(ContractError::ReservePriceRestriction(
+        return Err(ContractError::AuctionReservePriceRestriction(
             "must finalize auction when reserve price is met".to_string(),
         ));
     }
@@ -738,10 +754,12 @@ pub fn execute_finalize_auction(
 
     let config = CONFIG.load(deps.storage)?;
 
-    // Validate auction exists, and is expired
+    // Validate auction exists, and is either in the Closed or Expired state
     let auction = auctions().load(deps.storage, token_id.clone())?;
-    if !auction.is_expired(&env.block.time) {
-        return Err(ContractError::AuctionNotExpired {});
+    let auction_status = auction.get_auction_status(&env.block.time, config.auction_expiry_offset);
+    match &auction_status {
+        AuctionStatus::Closed | AuctionStatus::Expired => {},
+        _ => return Err(ContractError::AuctionInvalidStatus(auction_status.to_string())),
     }
 
     let highest_bid = fetch_highest_auction_bid(deps.as_ref(), &token_id)?;
@@ -749,7 +767,7 @@ pub fn execute_finalize_auction(
 
     // If reserve price has not been met, auction cannot be finalized
     if !reserve_price_met {
-        return Err(ContractError::ReservePriceRestriction(
+        return Err(ContractError::AuctionReservePriceRestriction(
             String::from("auction can only be finalized if reserve price is met")
         ));
     }
@@ -787,10 +805,12 @@ pub fn execute_set_auction_bid(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // Validate auction exists, and is not expired
+    // Validate auction exists, and is open
     let auction = auctions().load(deps.storage, auction_bid.token_id.clone())?;
-    if auction.is_expired(&env.block.time) {
-        return Err(ContractError::AuctionExpired {});
+    let auction_status = auction.get_auction_status(&env.block.time, config.auction_expiry_offset);
+    match &auction_status {
+        AuctionStatus::Open => {},
+        _ => return Err(ContractError::AuctionInvalidStatus(auction_status.to_string())),
     }
 
     // Validate bid is higher than starting_price
@@ -842,7 +862,7 @@ pub fn execute_set_auction_bid(
 /// Remove an existing auction bid, only possible if the bid is not the highest
 pub fn execute_remove_auction_bid(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     token_id: TokenId,
     bidder: Addr,
@@ -858,9 +878,18 @@ pub fn execute_remove_auction_bid(
 
     let highest_bid = fetch_highest_auction_bid(deps.as_ref(), &token_id)?;
 
-    if let Some(bid) = highest_bid {
-        if selected_auction_bid_key == auction_bid_key(bid.token_id.clone(), &bid.bidder) {
-            return Err(ContractError::CannotRemoveHighestBid {});
+    // If the bid is the highest bid, and the auction still exists, can only remove once the auction is expired
+    if let Some(_highest_bid) = highest_bid {
+        if selected_auction_bid_key == auction_bid_key(_highest_bid.token_id.clone(), &_highest_bid.bidder) {
+            let auction = auctions().may_load(deps.storage, token_id.clone())?;
+            if let Some(_auction) = auction {
+                let config = CONFIG.load(deps.storage)?;
+                let auction_status = _auction.get_auction_status(&env.block.time, config.auction_expiry_offset);
+                match &auction_status {
+                    AuctionStatus::Expired => {},
+                    _ => return Err(ContractError::AuctionCannotRemoveHighestBid {}),
+                }
+            }
         }
     }
 

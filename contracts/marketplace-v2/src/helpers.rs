@@ -344,3 +344,16 @@ pub fn is_reserve_price_met(auction: &Auction, highest_bid: &Option<AuctionBid>)
     };
     reserve_price_met
 }
+
+pub fn validate_auction_times(auction: &Auction, config: &Config, now: &Timestamp) -> Result<(), ContractError> {
+    if &auction.start_time <= now {
+        return Err(ContractError::AuctionInvalidStartEndTime(String::from("start time must be in the future")));
+    }
+    if &auction.start_time.plus_seconds(config.auction_min_duration) > &auction.end_time {
+        return Err(ContractError::AuctionInvalidStartEndTime(String::from("duration is below minimum")));
+    }
+    if &auction.start_time.plus_seconds(config.auction_max_duration) < &auction.end_time {
+        return Err(ContractError::AuctionInvalidStartEndTime(String::from("duration is above maximum")));
+    }
+    Ok(())
+}

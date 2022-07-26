@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter, Result};
 use cosmwasm_std::{Addr, Decimal, Timestamp, Uint128, Coin};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
 use schemars::JsonSchema;
@@ -20,13 +21,16 @@ pub struct Config {
     /// Valid time range for Bids
     /// (min, max) in seconds
     pub bid_expiry: ExpiryRange,
-    /// Valid time range for Auctions
-    /// (min, max) in seconds
-    pub auction_expiry: ExpiryRange,
     /// The operator addresses that have access to certain functionality
     pub operators: Vec<Addr>,
     /// Min value for a bid
     pub min_price: Uint128,
+    /// The minimum duration of an auction 
+    pub auction_min_duration: u64,
+    /// The maximum duration of an auction 
+    pub auction_max_duration: u64,
+    /// The amount of time a seller has to finalize an auction
+    pub auction_expiry_offset: u64,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
@@ -204,22 +208,45 @@ pub fn collection_bids<'a>(
 pub struct Auction {
     pub token_id: TokenId,
     pub seller: Addr,
+    pub start_time: Timestamp,
+    pub end_time: Timestamp,
     pub starting_price: Coin,
     pub reserve_price: Option<Coin>,
     pub funds_recipient: Option<Addr>,
-    pub expires_at: Timestamp,
-}
-
-impl Expiration for Auction {
-    fn expires_at(&self) -> Timestamp {
-        self.expires_at
-    }
 }
 
 impl Recipient for Auction {
     fn get_recipient(&self) -> Addr {
         let self_cpy = self.clone();
         self_cpy.funds_recipient.map_or(self_cpy.seller, |a| a)
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub enum AuctionStatus {
+    Pending,
+    Open,
+    Closed,
+    Expired,
+}
+
+impl Display for AuctionStatus {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+       write!(f, "{:?}", self)
+    }
+}
+
+impl Auction {
+    pub fn get_auction_status(&self, now: &Timestamp, void_offset: u64) -> AuctionStatus {
+        if now < &self.start_time {
+            AuctionStatus::Pending
+        } else if now < &self.end_time {
+            AuctionStatus::Open
+        } else if now < &self.end_time.plus_seconds(void_offset) {
+            AuctionStatus::Closed
+        } else {
+            AuctionStatus::Expired
+        }
     }
 }
 
@@ -230,7 +257,8 @@ pub type AuctionKey = TokenId;
 pub struct AuctionIndices<'a> {
     pub starting_price: MultiIndex<'a, u128, Auction, AuctionKey>,
     pub reserve_price: MultiIndex<'a, u128, Auction, AuctionKey>,
-    pub expiry: MultiIndex<'a, u64, Auction, AuctionKey>,
+    // pub start_time: MultiIndex<'a, u64, Auction, AuctionKey>,
+    // pub end_time: MultiIndex<'a, u64, Auction, AuctionKey>,
 }
 
 impl<'a> IndexList<Auction> for AuctionIndices<'a> {
@@ -248,7 +276,8 @@ pub fn auctions<'a>() -> IndexedMap<'a, AuctionKey, Auction, AuctionIndices<'a>>
             "auctions",
             "auctions__price"
         ),
-        expiry: MultiIndex::new(|d: &Auction|  d.expires_at.seconds(), "auctions", "auctions__expiry"),
+        // start_time: MultiIndex::new(|d: &Auction|  d.start_time.seconds(), "auctions", "auctions__start_time"),
+        // end_time: MultiIndex::new(|d: &Auction|  d.end_time.seconds(), "auctions", "auctions__end_time"),
     };
     IndexedMap::new("auctions", indexes)
 }
