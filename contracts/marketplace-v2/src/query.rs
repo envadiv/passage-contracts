@@ -3,7 +3,7 @@ use crate::msg::{
     AskCountResponse, BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset,
     ConfigResponse, CollectionBidResponse, CollectionBidsResponse, CollectionBidPriceOffset,
     CollectionBidExpiryOffset, AuctionResponse, AuctionsResponse, AuctionStartingPriceOffset,
-    AuctionReservePriceOffset, AuctionExpiryOffset, AuctionBidResponse, AuctionBidsResponse
+    AuctionReservePriceOffset, AuctionBidResponse, AuctionBidsResponse
 };
 use crate::state::{
     CONFIG, asks, TokenId, bids, bid_key, collection_bids, auctions, auction_bids, auction_bid_key
@@ -17,7 +17,7 @@ const DEFAULT_QUERY_LIMIT: u32 = 10;
 const MAX_QUERY_LIMIT: u32 = 30;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let api = deps.api;
 
     match msg {
@@ -96,7 +96,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         )?),
         QueryMsg::Auction {
             token_id,
-        } => to_binary(&query_auction(deps, token_id)?),
+        } => to_binary(&query_auction(deps, env, token_id)?),
         QueryMsg::AuctionsByStartingPrice {
             query_options
         } => to_binary(&query_auctions_by_starting_price(
@@ -109,12 +109,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             deps,
             &query_options,
         )?),
-        QueryMsg::AuctionsByExpiry {
-            query_options
-        } => to_binary(&query_auctions_by_expiry(
-            deps,
-            &query_options,
-        )?),
+        // QueryMsg::AuctionsByExpiry {
+        //     query_options
+        // } => to_binary(&query_auctions_by_expiry(
+        //     deps,
+        //     &query_options,
+        // )?),
         QueryMsg::AuctionBid {
             token_id,
             bidder,
@@ -403,10 +403,13 @@ pub fn query_collection_bids_by_expiry(
     Ok(CollectionBidsResponse { collection_bids })
 }
 
-pub fn query_auction(deps: Deps, token_id: TokenId) -> StdResult<AuctionResponse> {
+pub fn query_auction(deps: Deps, env: Env, token_id: TokenId) -> StdResult<AuctionResponse> {
+    let config = CONFIG.load(deps.storage)?;
     let auction = auctions().may_load(deps.storage, token_id)?;
+    let auction_status = auction.clone()
+        .map_or(None, |a| Some(a.get_auction_status(&env.block.time, config.auction_expiry_offset)));
 
-    Ok(AuctionResponse { auction })
+    Ok(AuctionResponse { auction, auction_status })
 }
 
 pub fn query_auctions_by_starting_price(
@@ -451,26 +454,26 @@ pub fn query_auctions_by_reserve_price(
     Ok(AuctionsResponse { auctions })
 }
 
-pub fn query_auctions_by_expiry(
-    deps: Deps,
-    query_options: &QueryOptions<AuctionExpiryOffset>
-) -> StdResult<AuctionsResponse> {
-    let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
-    let start = query_options.start_after.as_ref().map(|offset| {
-        Bound::exclusive((offset.expires_at.seconds(), offset.token_id.clone()))
-    });
-    let order = option_bool_to_order(query_options.descending);
+// pub fn query_auctions_by_expiry(
+//     deps: Deps,
+//     query_options: &QueryOptions<AuctionExpiryOffset>
+// ) -> StdResult<AuctionsResponse> {
+//     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
+//     let start = query_options.start_after.as_ref().map(|offset| {
+//         Bound::exclusive((offset.expires_at.seconds(), offset.token_id.clone()))
+//     });
+//     let order = option_bool_to_order(query_options.descending);
 
-    let auctions = auctions()
-        .idx
-        .expiry
-        .range(deps.storage, start, None, order)
-        .take(limit)
-        .map(|res| res.map(|item| item.1))
-        .collect::<StdResult<Vec<_>>>()?;
+//     let auctions = auctions()
+//         .idx
+//         .expiry
+//         .range(deps.storage, start, None, order)
+//         .take(limit)
+//         .map(|res| res.map(|item| item.1))
+//         .collect::<StdResult<Vec<_>>>()?;
 
-    Ok(AuctionsResponse { auctions })
-}
+//     Ok(AuctionsResponse { auctions })
+// }
 
 pub fn query_auction_bid(
     deps: Deps,

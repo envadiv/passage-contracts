@@ -1,5 +1,5 @@
 use crate::helpers::ExpiryRange;
-use crate::state::{Ask, TokenId, Bid, Config, CollectionBid, Auction, AuctionBid};
+use crate::state::{Ask, TokenId, Bid, Config, CollectionBid, Auction, AuctionStatus, AuctionBid};
 use cosmwasm_std::{Addr, Coin, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -21,14 +21,18 @@ pub struct InstantiateMsg {
     /// Valid time range for Bids
     /// (min, max) in seconds
     pub bid_expiry: ExpiryRange,
-    /// Valid time range for Auctions
-    /// (min, max) in seconds
-    pub auction_expiry: ExpiryRange,
     /// Operators are entites that are responsible for maintaining the active state of Asks.
     /// They listen to NFT transfer events, and update the active state of Asks.
     pub operators: Vec<String>,
     /// Min value for bids and asks
     pub min_price: Uint128,
+    /// The minimum duration of an auction 
+    pub auction_min_duration: u64,
+    /// The maximum duration of an auction 
+    pub auction_max_duration: u64,
+    /// The amount of time a seller has to close an auction
+    /// that has not met the reserve price
+    pub auction_expiry_offset: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -39,9 +43,11 @@ pub enum ExecuteMsg {
         trading_fee_bps: Option<u64>,
         ask_expiry: Option<ExpiryRange>,
         bid_expiry: Option<ExpiryRange>,
-        auction_expiry: Option<ExpiryRange>,
         operators: Option<Vec<String>>,
         min_price: Option<Uint128>,
+        auction_min_duration: Option<u64>,
+        auction_max_duration: Option<u64>,
+        auction_expiry_offset: Option<u64>,
     },
     /// List an NFT on the marketplace by creating a new ask
     SetAsk {
@@ -86,10 +92,11 @@ pub enum ExecuteMsg {
     /// Create an auction for a specified token
     SetAuction {
         token_id: TokenId,
+        start_time: Timestamp,
+        end_time: Timestamp,
         starting_price: Coin,
         reserve_price: Option<Coin>,
         funds_recipient: Option<String>,
-        expires_at: Timestamp,
     },
     /// Sellers can close a previously created auction
     CloseAuction {
@@ -261,11 +268,11 @@ pub enum QueryMsg {
     AuctionsByReservePrice {
         query_options: QueryOptions<AuctionReservePriceOffset>
     },
-    /// Get all auctions sorted by expiry
-    /// Return type: `AuctionsResponse`
-    AuctionsByExpiry {
-        query_options: QueryOptions<AuctionExpiryOffset>
-    },
+    // / Get all auctions sorted by expiry
+    // / Return type: `AuctionsResponse`
+    // AuctionsByExpiry {
+    //     query_options: QueryOptions<AuctionExpiryOffset>
+    // },
     /// Get the bid placed on an auction by a bidder 
     /// Return type: `AuctionBidResponse`
     AuctionBid {
@@ -323,6 +330,7 @@ pub struct CollectionBidsResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AuctionResponse {
     pub auction: Option<Auction>,
+    pub auction_status: Option<AuctionStatus>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

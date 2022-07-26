@@ -31,7 +31,10 @@ pub enum ContractError {
 
     // Auction errors
     #[error("Invalid reserve price: reserve_price {0} < starting_price {1}")]
-    InvalidReservePrice(Uint128, Uint128),
+    AuctionInvalidReservePrice(Uint128, Uint128),
+
+    #[error("Invalid start / end time: ${0}")]
+    AuctionInvalidStartEndTime(String),
 
     #[error("Auction already exists: token_id {0}")]
     AuctionAlreadyExists(String),
@@ -39,18 +42,15 @@ pub enum ContractError {
     #[error("Auction not found: token_id {0}")]
     AuctionNotFound(String),
 
-    #[error("Auction expired")]
-    AuctionExpired {},
-
-    #[error("Auction not expired")]
-    AuctionNotExpired {},
+    #[error("Auction invalid status: {0}")]
+    AuctionInvalidStatus(String),
 
     #[error("Auction bid too low")]
     AuctionBidTooLow {},
 
     #[error("Reserve price restriction: {0}")]
-    ReservePriceRestriction(String),
+    AuctionReservePriceRestriction(String),
 
-    #[error("Cannot remove highest bid")]
-    CannotRemoveHighestBid {},
+    #[error("Cannot remove highest auction bid")]
+    AuctionCannotRemoveHighestBid {},
 }

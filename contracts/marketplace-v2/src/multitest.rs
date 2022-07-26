@@ -22,8 +22,8 @@ const USER: &str = "USER";
 
 // Governance parameters
 const TRADING_FEE_BPS: u64 = 200; // 2%
-const MIN_EXPIRY: u64 = 24 * 60 * 60; // 24 hours (in seconds)
-const MAX_EXPIRY: u64 = 180 * 24 * 60 * 60; // 6 months (in seconds)
+const ONE_DAY: u64 = 24 * 60 * 60; // 24 hours (in seconds)
+const SIX_MOS: u64 = 180 * 24 * 60 * 60; // 6 months (in seconds)
 
 fn custom_mock_app() -> App {
     AppBuilder::new().build(|router, _, storage| {
@@ -109,11 +109,13 @@ fn setup_contracts(
         denom: String::from(NATIVE_DENOM),
         collector_address: creator.to_string(),
         trading_fee_bps: TRADING_FEE_BPS,
-        ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-        bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-        auction_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+        ask_expiry: ExpiryRange::new(ONE_DAY, SIX_MOS),
+        bid_expiry: ExpiryRange::new(ONE_DAY, SIX_MOS),
         operators: vec!["operator".to_string()],
         min_price: Uint128::from(5u128),
+        auction_min_duration: ONE_DAY,
+        auction_max_duration: SIX_MOS,
+        auction_expiry_offset: ONE_DAY,
     };
     let marketplace = router
         .instantiate_contract(
@@ -263,17 +265,19 @@ fn auction(
     creator: &Addr,
     marketplace: &Addr,
     token_id: String,
+    start_time: Timestamp,
+    end_time: Timestamp,
     starting_price: u128,
     reserve_price: u128,
-    expires_at: Timestamp,
     funds_recipient: Option<String>
 ) {
     let set_auction = ExecuteMsg::SetAuction {
-        token_id: token_id,
+        token_id,
+        start_time,
+        end_time,
         starting_price: coin(starting_price, NATIVE_DENOM),
         reserve_price: Some(coin(reserve_price, NATIVE_DENOM)),
-        funds_recipient: funds_recipient,
-        expires_at: expires_at,
+        funds_recipient,
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_auction, &[]);
     assert!(res.is_ok());
@@ -315,7 +319,7 @@ fn try_add_update_remove_ask() {
         price: coin(110, NATIVE_DENOM),
         funds_recipient: None,
         reserve_for: None,
-        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY - 1),
+        expires_at: router.block_info().time.plus_seconds(ONE_DAY - 1),
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
     assert!(res.is_err());
@@ -326,7 +330,7 @@ fn try_add_update_remove_ask() {
         price: coin(110, "ujuno"),
         funds_recipient: None,
         reserve_for: None,
-        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+        expires_at: router.block_info().time.plus_seconds(ONE_DAY + 1),
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
     assert!(res.is_err());
@@ -337,7 +341,7 @@ fn try_add_update_remove_ask() {
         price: coin(1, "ujuno"),
         funds_recipient: None,
         reserve_for: None,
-        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+        expires_at: router.block_info().time.plus_seconds(ONE_DAY + 1),
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
     assert!(res.is_err());
@@ -348,7 +352,7 @@ fn try_add_update_remove_ask() {
         price: coin(110, NATIVE_DENOM),
         funds_recipient: None,
         reserve_for: None,
-        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+        expires_at: router.block_info().time.plus_seconds(ONE_DAY + 1),
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
     assert!(res.is_ok());
@@ -372,7 +376,7 @@ fn try_add_update_remove_ask() {
         seller: creator.clone(),
         funds_recipient: None,
         reserve_for: None,
-        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+        expires_at: router.block_info().time.plus_seconds(ONE_DAY + 1),
     }, ask);
 
     // Check NFT is transferred to marketplace contract
@@ -392,7 +396,7 @@ fn try_add_update_remove_ask() {
         price: coin(200, NATIVE_DENOM),
         funds_recipient: None,
         reserve_for: None,
-        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+        expires_at: router.block_info().time.plus_seconds(ONE_DAY + 1),
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_ask, &[]);
     assert!(res.is_ok());
@@ -416,7 +420,7 @@ fn try_add_update_remove_ask() {
         seller: creator.clone(),
         funds_recipient: None,
         reserve_for: None,
-        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
+        expires_at: router.block_info().time.plus_seconds(ONE_DAY + 1),
     }, ask);
 
     // Remove an ask
@@ -472,11 +476,13 @@ fn try_ask_queries() {
         denom: String::from("ujunox"),
         collector_address: Addr::unchecked("creator"),
         trading_fee_percent: Decimal::percent(TRADING_FEE_BPS),
-        ask_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-        bid_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
-        auction_expiry: ExpiryRange::new(MIN_EXPIRY, MAX_EXPIRY),
+        ask_expiry: ExpiryRange::new(ONE_DAY, SIX_MOS),
+        bid_expiry: ExpiryRange::new(ONE_DAY, SIX_MOS),
         operators: vec![Addr::unchecked("operator")],
-        min_price: Uint128::from(5u128)
+        min_price: Uint128::from(5u128),
+        auction_min_duration: ONE_DAY,
+        auction_max_duration: SIX_MOS,
+        auction_expiry_offset: ONE_DAY,
     }, res.config);
 
     let block_time = router.block_info().time;
@@ -486,7 +492,7 @@ fn try_ask_queries() {
         mint(&mut router, &creator, &collection, n.to_string());
         approve(&mut router, &creator, &collection, &marketplace, n.to_string());
 
-        let ts = block_time.plus_seconds(MIN_EXPIRY + n as u64);
+        let ts = block_time.plus_seconds(ONE_DAY + n as u64);
         ask(&mut router, &creator, &marketplace, n.to_string(), 100 + n, ts, None);
     }
 
@@ -511,7 +517,7 @@ fn try_ask_queries() {
             seller: creator.clone(),
             funds_recipient: None,
             reserve_for: None,
-            expires_at: block_time.plus_seconds(MIN_EXPIRY + idx as u64),
+            expires_at: block_time.plus_seconds(ONE_DAY + idx as u64),
         }, res.asks[(n as usize) - 1]);
     }
 
@@ -538,7 +544,7 @@ fn try_ask_queries() {
             seller: creator.clone(),
             funds_recipient: None,
             reserve_for: None,
-            expires_at: block_time.plus_seconds(MIN_EXPIRY + n as u64),
+            expires_at: block_time.plus_seconds(ONE_DAY + n as u64),
         }, res.asks[(n as usize) - 3]);
     }
 
@@ -546,7 +552,7 @@ fn try_ask_queries() {
         seller: creator.to_string(),
         query_options: QueryOptions {
             descending: None,
-            filter_expiry: Some(block_time.plus_seconds(MIN_EXPIRY + 2u64)),
+            filter_expiry: Some(block_time.plus_seconds(ONE_DAY + 2u64)),
             start_after: None,
             limit: None,
         }
@@ -563,7 +569,7 @@ fn try_ask_queries() {
             seller: creator.clone(),
             funds_recipient: None,
             reserve_for: None,
-            expires_at: block_time.plus_seconds(MIN_EXPIRY + n as u64),
+            expires_at: block_time.plus_seconds(ONE_DAY + n as u64),
         }, res.asks[(n as usize) - 3]);
     }
 
@@ -586,7 +592,7 @@ fn try_set_bid() {
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
 
     let n = 1;
-    let ts = block_time.plus_seconds(MIN_EXPIRY + n as u64);
+    let ts = block_time.plus_seconds(ONE_DAY + n as u64);
     mint(&mut router, &creator, &collection, n.to_string());
     approve(&mut router, &creator, &collection, &marketplace, n.to_string());
     ask(&mut router, &creator, &marketplace, n.to_string(), 100, ts, None);
@@ -596,7 +602,7 @@ fn try_set_bid() {
     let set_bid = ExecuteMsg::SetBid {
         token_id: n.to_string(),
         price: coin_send.clone(),
-        expires_at: block_time.plus_seconds(MIN_EXPIRY + 100 as u64),
+        expires_at: block_time.plus_seconds(ONE_DAY + 100 as u64),
     };
     let res = router.execute_contract(bidder.clone(), marketplace.clone(), &set_bid, &[coin_send.clone()]).unwrap();
 
@@ -631,7 +637,7 @@ fn try_set_bid() {
     });
 
     let n = 2;
-    let ts = block_time.plus_seconds(MIN_EXPIRY + n as u64);
+    let ts = block_time.plus_seconds(ONE_DAY + n as u64);
     bid(&mut router, &bidder, &marketplace, n.to_string(), 100 + n, ts);
 
     let query_bid_msg = QueryMsg::Bid {
@@ -680,7 +686,7 @@ fn try_bid_queries() {
 
     // Mint NFT for creator
     for n in 1..6 {
-        let ts = block_time.plus_seconds(MIN_EXPIRY + n as u64);
+        let ts = block_time.plus_seconds(ONE_DAY + n as u64);
         bid(&mut router, &bidder, &marketplace, n.to_string(), 100 + n, ts);
     }
 
@@ -689,7 +695,7 @@ fn try_bid_queries() {
             descending: Some(true),
             filter_expiry: None,
             start_after: Some(BidExpiryOffset {
-                expires_at: block_time.plus_seconds(MIN_EXPIRY + 3 as u64),
+                expires_at: block_time.plus_seconds(ONE_DAY + 3 as u64),
                 bidder: bidder.clone(),
                 token_id: String::from("3"),
             }),
@@ -703,7 +709,7 @@ fn try_bid_queries() {
     
     for n in 1..3 {
         let idx = 6 - n;
-        let ts = block_time.plus_seconds(MIN_EXPIRY + idx as u64);
+        let ts = block_time.plus_seconds(ONE_DAY + idx as u64);
         assert_eq!(Bid {
             token_id: idx.to_string(),
             price: coin(100 + idx, NATIVE_DENOM),
@@ -731,14 +737,14 @@ fn try_bid_queries() {
         token_id: String::from("3"),
         price: coin(103, NATIVE_DENOM),
         bidder: bidder.clone(),
-        expires_at: block_time.plus_seconds(MIN_EXPIRY + 3u64),
+        expires_at: block_time.plus_seconds(ONE_DAY + 3u64),
     }, res.bids[0]);
 
     let query_bids = QueryMsg::BidsByBidderExpiry {
         bidder: bidder.to_string(),
         query_options: QueryOptions {
             descending: None,
-            filter_expiry: Some(block_time.plus_seconds(MIN_EXPIRY + 3u64)),
+            filter_expiry: Some(block_time.plus_seconds(ONE_DAY + 3u64)),
             start_after: None,
             limit: None,
         }
@@ -749,7 +755,7 @@ fn try_bid_queries() {
         .unwrap();
     
     for n in 4..6 {
-        let ts = block_time.plus_seconds(MIN_EXPIRY + n as u64);
+        let ts = block_time.plus_seconds(ONE_DAY + n as u64);
         assert_eq!(Bid {
             token_id: n.to_string(),
             price: coin(100 + n, NATIVE_DENOM),
@@ -770,7 +776,7 @@ fn try_collection_bid_flow() {
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
 
     // Cannot Bid 0 units
-    let ts = block_time.plus_seconds(MIN_EXPIRY + 10 as u64);
+    let ts = block_time.plus_seconds(ONE_DAY + 10 as u64);
     let collection_bid_price = coin(100u128, NATIVE_DENOM);
     let set_collection_bid = ExecuteMsg::SetCollectionBid {
         units: 0,
@@ -956,30 +962,30 @@ fn try_auction_creation_and_removal() {
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
 
-    let ts = block_time.plus_seconds(MIN_EXPIRY + 10 as u64);
-
     // Mint NFT for owner
     mint(&mut router, &creator, &collection, TOKEN_ID.to_string());
     approve(&mut router, &creator, &collection, &marketplace, TOKEN_ID.to_string());
 
-    // Should error with expiry lower than min
+    // Should error with duration lower than min
     let set_auction = ExecuteMsg::SetAuction {
         token_id: TOKEN_ID.to_string(),
+        start_time: block_time.plus_seconds(ONE_DAY),
+        end_time: block_time.plus_seconds(ONE_DAY),
         starting_price: coin(110, NATIVE_DENOM),
         reserve_price: Some(coin(210, NATIVE_DENOM)),
         funds_recipient: None,
-        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY - 1),
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_auction, &[]);
     assert!(res.is_err());
 
-    // Should error with expiry lower than min
+    // Should error with duration above_max
     let set_auction = ExecuteMsg::SetAuction {
         token_id: TOKEN_ID.to_string(),
+        start_time: block_time.plus_seconds(ONE_DAY),
+        end_time: block_time.plus_seconds(SIX_MOS * 2),
         starting_price: coin(110, NATIVE_DENOM),
         reserve_price: Some(coin(210, NATIVE_DENOM)),
         funds_recipient: None,
-        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY - 1),
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_auction, &[]);
     assert!(res.is_err());
@@ -987,10 +993,11 @@ fn try_auction_creation_and_removal() {
     // Should error with invalid denom
     let set_auction = ExecuteMsg::SetAuction {
         token_id: TOKEN_ID.to_string(),
+        start_time: block_time.plus_seconds(ONE_DAY),
+        end_time: block_time.plus_seconds(ONE_DAY * 2),
         starting_price: coin(110, NATIVE_DENOM),
         reserve_price: Some(coin(210, "ujuno")),
         funds_recipient: None,
-        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_auction, &[]);
     assert!(res.is_err());
@@ -998,16 +1005,27 @@ fn try_auction_creation_and_removal() {
     // Should error with reserve price below starting price
     let set_auction = ExecuteMsg::SetAuction {
         token_id: TOKEN_ID.to_string(),
+        start_time: block_time.plus_seconds(ONE_DAY),
+        end_time: block_time.plus_seconds(ONE_DAY * 2),
         starting_price: coin(200, NATIVE_DENOM),
         reserve_price: Some(coin(100, NATIVE_DENOM)),
         funds_recipient: None,
-        expires_at: router.block_info().time.plus_seconds(MIN_EXPIRY + 1),
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &set_auction, &[]);
     assert!(res.is_err());
 
     // An auction is made by the creator
-    auction(&mut router, &creator, &marketplace, TOKEN_ID.to_string(), 110u128, 210u128, ts, None);
+    auction(
+        &mut router,
+        &creator,
+        &marketplace,
+        TOKEN_ID.to_string(),
+        block_time.plus_seconds(ONE_DAY),
+        block_time.plus_seconds(ONE_DAY * 2),
+        110u128,
+        210u128,
+        None,
+    );
 
     // Validate Auction data is correct
     let query_auction = QueryMsg::Auction {
@@ -1024,11 +1042,12 @@ fn try_auction_creation_and_removal() {
     }.unwrap();
     assert_eq!(Auction {
         token_id: TOKEN_ID.to_string(),
+        start_time: block_time.plus_seconds(ONE_DAY),
+        end_time: block_time.plus_seconds(ONE_DAY * 2),
         starting_price: coin(110, NATIVE_DENOM),
         reserve_price: Some(coin(210, NATIVE_DENOM)),
         seller: creator.clone(),
         funds_recipient: None,
-        expires_at: ts,
     }, current_auction);
     
     // Check NFT is transferred to marketplace contract
@@ -1082,13 +1101,22 @@ fn try_auction_bid_creation_and_removal() {
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
 
-    let ts = block_time.plus_seconds(MIN_EXPIRY + 10 as u64);
     let prev_bidder2_balance = router.wrap().query_all_balances(bidder2.clone()).unwrap().into_iter().nth(0).unwrap();
 
     // Mint NFT for owner
     mint(&mut router, &creator, &collection, TOKEN_ID.to_string());
     approve(&mut router, &creator, &collection, &marketplace, TOKEN_ID.to_string());
-    auction(&mut router, &creator, &marketplace, TOKEN_ID.to_string(), 110u128, 210u128, ts, None);
+    auction(
+        &mut router,
+        &creator,
+        &marketplace,
+        TOKEN_ID.to_string(),
+        block_time.plus_seconds(ONE_DAY),
+        block_time.plus_seconds(ONE_DAY * 2),
+        110u128,
+        210u128,
+        None,
+    );
 
     // AuctionBid creation should error without a matching auction
     let set_auction_bid = ExecuteMsg::SetAuctionBid {
@@ -1097,6 +1125,16 @@ fn try_auction_bid_creation_and_removal() {
     };
     let res = router.execute_contract(bidder.clone(), marketplace.clone(), &set_auction_bid, &[]);
     assert_eq!(&res.unwrap_err().root_cause().to_string(), "marketplace_v2::state::Auction not found");
+
+    // AuctionBid creation should error when auction status is pending
+    let set_auction_bid = ExecuteMsg::SetAuctionBid {
+        token_id: TOKEN_ID.to_string(),
+        price: coin(120u128, NATIVE_DENOM),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &set_auction_bid, &[]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Auction invalid status: Pending");
+
+    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY + 10u64).seconds());
 
     // AuctionBid creation should error when funds are not sent
     let set_auction_bid = ExecuteMsg::SetAuctionBid {
@@ -1128,7 +1166,7 @@ fn try_auction_bid_creation_and_removal() {
         token_id: TOKEN_ID.to_string(),
     };
     let res = router.execute_contract(bidder.clone(), marketplace.clone(), &remove_auction_bid, &[]);
-    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Cannot remove highest bid");
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Cannot remove highest auction bid");
 
     // Auction Bids can be removed
     let bid_amount = 150u128;
@@ -1175,16 +1213,26 @@ fn try_auction_bid_reserve_price_met() {
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
 
-    let ts = block_time.plus_seconds(MIN_EXPIRY + 10 as u64);
     let prev_bidder_balance = router.wrap().query_all_balances(bidder.clone()).unwrap().into_iter().nth(0).unwrap();
 
     // Mint NFT for owner
     mint(&mut router, &creator, &collection, TOKEN_ID.to_string());
     approve(&mut router, &creator, &collection, &marketplace, TOKEN_ID.to_string());
-    auction(&mut router, &creator, &marketplace, TOKEN_ID.to_string(), 110u128, 210u128, ts, None);
+    auction(
+        &mut router,
+        &creator,
+        &marketplace,
+        TOKEN_ID.to_string(),
+        block_time.plus_seconds(ONE_DAY),
+        block_time.plus_seconds(ONE_DAY * 2),
+        110u128,
+        210u128,
+        None,
+    );
 
     // Meet reserve price
     let bid_amount = 220u128;
+    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY + 10u64).seconds());
     auction_bid(&mut router, &bidder, &marketplace, TOKEN_ID.to_string(), 220u128);
 
     // Verify auctions that have met reserve price cannot be closed
@@ -1195,9 +1243,15 @@ fn try_auction_bid_reserve_price_met() {
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &close_auction, &[]);
     assert_eq!(&res.unwrap_err().root_cause().to_string(), "Reserve price restriction: must finalize auction when reserve price is met");
 
-    setup_block_time(&mut router, block_time.plus_seconds(MIN_EXPIRY + 11u64).seconds());
+    // Auction cannot be finalized while Auction is still open
+    let finalize_auction = ExecuteMsg::FinalizeAuction {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &finalize_auction, &[]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Auction invalid status: Open");
 
-    // Auction can be finalized
+    // Auction can be finalized when Auction is closed
+    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY * 2 + 10u64).seconds());
     let finalize_auction = ExecuteMsg::FinalizeAuction {
         token_id: TOKEN_ID.to_string(),
     };
@@ -1220,4 +1274,55 @@ fn try_auction_bid_reserve_price_met() {
     let post_owner_balance = router.wrap().query_all_balances(creator.clone()).unwrap().into_iter().nth(0).unwrap();
     assert_eq!(prev_bidder_balance.amount - Uint128::from(bid_amount), post_bidder_balance.amount);
     assert_eq!(Uint128::from(bid_amount), post_owner_balance.amount);
+}
+
+#[test]
+fn try_auction_expired() {
+    let mut router = custom_mock_app();
+    let block_time = router.block_info().time;
+    // Setup intial accounts
+    let (_owner, bidder, creator, _bidder2) = setup_accounts(&mut router).unwrap();
+
+    // Instantiate and configure contracts
+    let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
+
+    // Prep
+    mint(&mut router, &creator, &collection, TOKEN_ID.to_string());
+    approve(&mut router, &creator, &collection, &marketplace, TOKEN_ID.to_string());
+    auction(
+        &mut router,
+        &creator,
+        &marketplace,
+        TOKEN_ID.to_string(),
+        block_time.plus_seconds(ONE_DAY),
+        block_time.plus_seconds(ONE_DAY * 2),
+        110u128,
+        210u128,
+        None,
+    );
+    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY + 10u64).seconds());
+    auction_bid(&mut router, &bidder, &marketplace, TOKEN_ID.to_string(), 140u128);
+
+    // Verify that bid cannot be removed before auction ends
+    let remove_auction_bid = ExecuteMsg::RemoveAuctionBid {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &remove_auction_bid, &[]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Cannot remove highest auction bid");
+
+    // Verify that bid cannot be removed after auction ends
+    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY * 2 + 10u64).seconds());
+    let remove_auction_bid = ExecuteMsg::RemoveAuctionBid {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &remove_auction_bid, &[]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Cannot remove highest auction bid");
+
+    // Verify that bid can be removed after the auction is expired
+    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY * 3 + 10u64).seconds());
+    let remove_auction_bid = ExecuteMsg::RemoveAuctionBid {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &remove_auction_bid, &[]);
+    assert!(res.is_ok());
 }
