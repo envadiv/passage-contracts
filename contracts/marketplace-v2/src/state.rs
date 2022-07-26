@@ -257,27 +257,33 @@ pub type AuctionKey = TokenId;
 pub struct AuctionIndices<'a> {
     pub starting_price: MultiIndex<'a, u128, Auction, AuctionKey>,
     pub reserve_price: MultiIndex<'a, u128, Auction, AuctionKey>,
-    // pub start_time: MultiIndex<'a, u64, Auction, AuctionKey>,
-    // pub end_time: MultiIndex<'a, u64, Auction, AuctionKey>,
+    pub seller_end_time: MultiIndex<'a, (Addr, u64), Auction, AuctionKey>,
 }
 
 impl<'a> IndexList<Auction> for AuctionIndices<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Auction>> + '_> {
-        let v: Vec<&dyn Index<Auction>> = vec![&self.starting_price, &self.reserve_price];
+        let v: Vec<&dyn Index<Auction>> = vec![&self.starting_price, &self.reserve_price, &self.seller_end_time];
         Box::new(v.into_iter())
     }
 }
 
 pub fn auctions<'a>() -> IndexedMap<'a, AuctionKey, Auction, AuctionIndices<'a>> {
     let indexes = AuctionIndices {
-        starting_price: MultiIndex::new(|a: &Auction|  a.starting_price.amount.u128(), "auctions", "auctions__price"),
+        starting_price: MultiIndex::new(
+            |a: &Auction|  a.starting_price.amount.u128(),
+            "auctions",
+            "auctions__starting_price",
+        ),
         reserve_price: MultiIndex::new(
             |a: &Auction|  a.reserve_price.as_ref().map_or(Uint128::MAX.u128(), |p| p.amount.u128()),
             "auctions",
-            "auctions__price"
+            "auctions__reserve_price"
         ),
-        // start_time: MultiIndex::new(|d: &Auction|  d.start_time.seconds(), "auctions", "auctions__start_time"),
-        // end_time: MultiIndex::new(|d: &Auction|  d.end_time.seconds(), "auctions", "auctions__end_time"),
+        seller_end_time: MultiIndex::new(
+            |d: &Auction|  (d.seller.clone(), d.end_time.seconds()),
+            "auctions",
+            "auctions__seller_end_time",
+        ),
     };
     IndexedMap::new("auctions", indexes)
 }
