@@ -10,15 +10,14 @@ use cw_utils::{maybe_addr, must_pay, nonpayable};
 use crate::error::ContractError;
 use crate::helpers::{
     map_validate, ExpiryRange, finalize_sale, price_validate, store_bid,
-    store_collection_bid, only_owner_or_seller, only_owner, only_seller, only_operator,
-    transfer_nft, transfer_token, match_bid, fetch_highest_auction_bid, is_reserve_price_met,
+    store_collection_bid, only_owner_or_seller, only_owner, only_seller,
+    only_operator, transfer_nft, transfer_token, match_bid,
     validate_auction_times
 };
 use crate::msg::{InstantiateMsg, ExecuteMsg};
 use crate::state::{
     Config, CONFIG, Ask, asks, TokenId, bid_key, bids, Expiration, Recipient,
     Bid, CollectionBid, collection_bids, Auction, AuctionStatus, auctions, AuctionBid,
-    auction_bids, auction_bid_key
 };
 
 // Version info for migration info
@@ -187,6 +186,7 @@ pub fn execute(
                 starting_price,
                 reserve_price,
                 funds_recipient: maybe_addr(api, funds_recipient)?,
+                highest_bid: None
             },
         ),
         ExecuteMsg::CloseAuction {
@@ -214,20 +214,19 @@ pub fn execute(
             deps,
             env,
             info,
+            token_id,
             AuctionBid {
-                token_id,
                 bidder: message_info.sender,
                 price,
             },
         ),
-        ExecuteMsg::RemoveAuctionBid {
+        ExecuteMsg::VoidAuction {
             token_id,
-        } => execute_remove_auction_bid(
+        } => execute_void_auction(
             deps,
             env,
             info,
             token_id,
-            message_info.sender,
         ),
     }
 }
@@ -694,44 +693,46 @@ pub fn execute_close_auction(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let config = CONFIG.load(deps.storage)?;
-
     // Validate auction exists, and if it exists, that it is being closed by the seller
     let auction = auctions().load(deps.storage, token_id.clone())?;
     only_seller(&info, &auction.seller)?;
 
-    let highest_bid = fetch_highest_auction_bid(deps.as_ref(), &token_id)?;
-    let reserve_price_met = is_reserve_price_met(&auction, &highest_bid);
-
     // If reserve price has been met, seller cannot close auction
-    if reserve_price_met {
+    if auction.is_reserve_price_met() {
         return Err(ContractError::AuctionReservePriceRestriction(
             "must finalize auction when reserve price is met".to_string(),
         ));
     }
 
     let mut response = Response::new();
-    
-    let is_sale = highest_bid.is_some() && accept_highest_bid;
-    match is_sale {
-        true => {
-            // If sale has occurred, finalize
-            let bid = highest_bid.unwrap();
-            finalize_sale(
-                deps.as_ref(),
-                &bid.bidder,
-                &auction.token_id,
-                bid.price.amount,
-                &auction.get_recipient(),
-                &config,
+
+    let config = CONFIG.load(deps.storage)?;
+    let is_sale = auction.highest_bid.is_some() && accept_highest_bid;
+    if is_sale {
+        // if accept_highest_bid is true and highest bid exists, then perform sale
+        let bid = auction.highest_bid.as_ref().unwrap();
+        finalize_sale(
+            deps.as_ref(),
+            &bid.bidder,
+            &auction.token_id,
+            bid.price.amount,
+            &auction.get_recipient(),
+            &config,
+            &mut response,
+        )?;
+    } else {
+        // if sale does not occur return NFT to seller, then refund highest_bid if it exists
+        transfer_nft(&auction.token_id, &auction.seller, &config.cw721_address, &mut response)?;
+        if auction.highest_bid.is_some() {
+            let bid = auction.highest_bid.unwrap();
+            transfer_token(
+                bid.price.clone(),
+                bid.bidder.to_string(),
+                "refund-auction-bidder",
                 &mut response,
             )?;
-        },
-        false => {
-            // If sale has not occurred, transfer NFT back to seller, do not transfer funds to seller
-            transfer_nft(&auction.token_id, &info.sender, &config.cw721_address, &mut response)?;
-        }
-    };
+        }   
+    }
 
     auctions().remove(deps.storage, token_id)?;
 
@@ -762,11 +763,8 @@ pub fn execute_finalize_auction(
         _ => return Err(ContractError::AuctionInvalidStatus(auction_status.to_string())),
     }
 
-    let highest_bid = fetch_highest_auction_bid(deps.as_ref(), &token_id)?;
-    let reserve_price_met = is_reserve_price_met(&auction, &highest_bid);
-
     // If reserve price has not been met, auction cannot be finalized
-    if !reserve_price_met {
+    if !auction.is_reserve_price_met() {
         return Err(ContractError::AuctionReservePriceRestriction(
             String::from("auction can only be finalized if reserve price is met")
         ));
@@ -774,7 +772,7 @@ pub fn execute_finalize_auction(
 
     let mut response = Response::new();
     
-    let bid = highest_bid.unwrap();
+    let bid = auction.highest_bid.as_ref().unwrap();
     finalize_sale(
         deps.as_ref(),
         &bid.bidder,
@@ -801,12 +799,15 @@ pub fn execute_set_auction_bid(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    token_id: TokenId,
     auction_bid: AuctionBid,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut response = Response::new();
+
+    let config = CONFIG.load(deps.storage)?; 
 
     // Validate auction exists, and is open
-    let auction = auctions().load(deps.storage, auction_bid.token_id.clone())?;
+    let mut auction = auctions().load(deps.storage, token_id.clone())?;
     let auction_status = auction.get_auction_status(&env.block.time, config.auction_expiry_offset);
     match &auction_status {
         AuctionStatus::Open => {},
@@ -818,12 +819,17 @@ pub fn execute_set_auction_bid(
         return Err(ContractError::AuctionBidTooLow {});
     }
     
-    // Validate bid is higher than current highest bid
-    let highest_bid = fetch_highest_auction_bid(deps.as_ref(), &auction_bid.token_id)?;
-    if let Some(bid) = highest_bid {
-        if auction_bid.price.amount <= bid.price.amount  {
+    // Validate bid is higher than current highest bid, if it is then refund the highest bid
+    if let Some(prev_highest_bid) = &auction.highest_bid {
+        if auction_bid.price.amount <= prev_highest_bid.price.amount  {
             return Err(ContractError::AuctionBidTooLow {});
         }
+        transfer_token(
+            prev_highest_bid.price.clone(),
+            prev_highest_bid.bidder.to_string(),
+            "refund-auction-bidder",
+            &mut response,
+        )?;
     }
 
     let payment_amount = must_pay(&info, &config.denom)?;
@@ -832,26 +838,11 @@ pub fn execute_set_auction_bid(
     }
     price_validate(&auction_bid.price, &config)?;
 
-    let mut response = Response::new();
-    let auction_bid_key = auction_bid_key(auction_bid.token_id.clone(), &auction_bid.bidder);
-
-    // If auction bid exists, refund the escrowed tokens
-    if let Some(existing_bid) = auction_bids().may_load(deps.storage, auction_bid_key.clone())? {
-        transfer_token(
-            existing_bid.price,
-            existing_bid.bidder.to_string(),
-            "refund-bidder",
-            &mut response,
-        )?;
-    }
-    auction_bids().update(
-        deps.storage,
-        auction_bid_key,
-        |_| -> Result<AuctionBid, StdError> { Ok(auction_bid.clone()) },
-    )?;
+    auction.highest_bid = Some(auction_bid.clone());
+    auctions().save(deps.storage, auction.token_id.clone(), &auction)?;
 
     let event = Event::new("set-auction-bid")
-        .add_attribute("token_id", &auction_bid.token_id.to_string())
+        .add_attribute("token_id", &token_id.to_string())
         .add_attribute("bidder", &auction_bid.bidder)
         .add_attribute("price", &auction_bid.price.to_string());
     response.events.push(event);
@@ -859,53 +850,45 @@ pub fn execute_set_auction_bid(
     Ok(response)
 }
 
-/// Remove an existing auction bid, only possible if the bid is not the highest
-pub fn execute_remove_auction_bid(
+/// Once an auction has expired the bidder can void the auction
+pub fn execute_void_auction(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     token_id: TokenId,
-    bidder: Addr,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    if bidder != info.sender {
-        return Err(ContractError::Unauthorized(String::from("only the bidder can remove their bid")));
+    let auction = auctions().load(deps.storage, token_id.clone())?;
+    let highest_bid = auction.highest_bid.as_ref().unwrap();
+    if highest_bid.bidder != info.sender {
+        return Err(ContractError::Unauthorized(String::from("only the bidder can void the auction")));
+    }
+    
+    let config = CONFIG.load(deps.storage)?;
+    let auction_status = auction.get_auction_status(&env.block.time, config.auction_expiry_offset);
+    match &auction_status {
+        AuctionStatus::Expired => {},
+        _ => return Err(ContractError::AuctionInvalidStatus(auction_status.to_string())),
     }
 
     let mut response = Response::new();
-    let selected_auction_bid_key = auction_bid_key(token_id.clone(), &bidder);
-
-    let highest_bid = fetch_highest_auction_bid(deps.as_ref(), &token_id)?;
-
-    // If the bid is the highest bid, and the auction still exists, can only remove once the auction is expired
-    if let Some(_highest_bid) = highest_bid {
-        if selected_auction_bid_key == auction_bid_key(_highest_bid.token_id.clone(), &_highest_bid.bidder) {
-            let auction = auctions().may_load(deps.storage, token_id.clone())?;
-            if let Some(_auction) = auction {
-                let config = CONFIG.load(deps.storage)?;
-                let auction_status = _auction.get_auction_status(&env.block.time, config.auction_expiry_offset);
-                match &auction_status {
-                    AuctionStatus::Expired => {},
-                    _ => return Err(ContractError::AuctionCannotRemoveHighestBid {}),
-                }
-            }
-        }
-    }
-
-    // Refund bidder, remove auction_bid
-    let auction_bid = auction_bids().load(deps.storage, selected_auction_bid_key.clone())?;
+    // Refund the bidder the bid amount
     transfer_token(
-        auction_bid.price,
-        auction_bid.bidder.to_string(),
-        "refund-bidder",
+        highest_bid.price.clone(),
+        highest_bid.bidder.to_string(),
+        "refund-auction-bidder",
         &mut response,
     )?;
-    auction_bids().remove(deps.storage, selected_auction_bid_key)?;
+    // Return the NFT to the seller
+    transfer_nft(&auction.token_id, &auction.seller, &config.cw721_address, &mut response)?;
+    // Remove the auction
+    auctions().remove(deps.storage, token_id)?;
 
-    let event = Event::new("remove-auction-bid")
-        .add_attribute("token_id", &auction_bid.token_id.to_string())
-        .add_attribute("bidder", &auction_bid.bidder);
+    let event = Event::new("void-auction")
+        .add_attribute("token_id", &auction.token_id.to_string())
+        .add_attribute("seller", &auction.seller.to_string())
+        .add_attribute("bidder", &highest_bid.bidder.to_string());
     response.events.push(event);
 
     Ok(response)

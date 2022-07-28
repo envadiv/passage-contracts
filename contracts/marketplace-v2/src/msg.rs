@@ -113,7 +113,7 @@ pub enum ExecuteMsg {
         price: Coin,
     },
     /// Remove an existing bid on an auction, that is not the highest bid
-    RemoveAuctionBid {
+    VoidAuction {
         token_id: TokenId,
     },
 }
@@ -174,9 +174,9 @@ pub struct AuctionStartingPriceOffset {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AuctionReservePriceOffset {
+pub struct AuctionPriceOffset {
     pub token_id: TokenId,
-    pub reserve_price: Uint128,
+    pub price: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -258,15 +258,15 @@ pub enum QueryMsg {
     Auction {
         token_id: TokenId,
     },
-    /// Get the auction for a specific NFT sorted by starting price
+    /// Get the auctions sorted by the end time
     /// Return type: `AuctionsResponse`
-    AuctionsByStartingPrice {
-        query_options: QueryOptions<AuctionStartingPriceOffset>
+    AuctionsByEndTime {
+        query_options: QueryOptions<AuctionTimestampOffset>
     },
-    /// Get the auction for a specific NFT sorted by reserve price
+    /// Get the auctions sorted by the highest bid price
     /// Return type: `AuctionsResponse`
-    AuctionsByReservePrice {
-        query_options: QueryOptions<AuctionReservePriceOffset>
+    AuctionsByHighestBidPrice {
+        query_options: QueryOptions<AuctionPriceOffset>
     },
     /// Get all auctions sorted by seller and end time
     /// Return type: `AuctionsResponse`
@@ -274,17 +274,11 @@ pub enum QueryMsg {
         seller: String,
         query_options: QueryOptions<AuctionTimestampOffset>
     },
-    /// Get the bid placed on an auction by a bidder 
-    /// Return type: `AuctionBidResponse`
-    AuctionBid {
-        token_id: TokenId,
+    /// Get all auctions sorted by bidder and end time
+    /// Return type: `AuctionsResponse`
+    AuctionsByBidderEndTime {
         bidder: String,
-    },
-    /// Get all the bids for an auction sorted by price
-    /// Return type: `AuctionBidsResponse`
-    AuctionBidsByTokenPrice {
-        token_id: TokenId,
-        query_options: QueryOptions<BidTokenPriceOffset>
+        query_options: QueryOptions<AuctionTimestampOffset>
     },
 }
 
@@ -331,7 +325,8 @@ pub struct CollectionBidsResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AuctionResponse {
     pub auction: Option<Auction>,
-    pub auction_status: Option<AuctionStatus>
+    pub auction_status: Option<AuctionStatus>,
+    pub is_reserve_price_met: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
