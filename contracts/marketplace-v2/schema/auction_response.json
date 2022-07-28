@@ -114,8 +114,7 @@
       "enum": [
         "Pending",
         "Open",
-        "Closed",
-        "Expired"
+        "Closed"
       ]
     },
     "Coin": {

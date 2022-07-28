@@ -22,14 +22,6 @@
                 }
               ]
             },
-            "auction_expiry_offset": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
             "auction_max_duration": {
               "type": [
                 "integer",
@@ -344,52 +336,6 @@
       "additionalProperties": false
     },
     {
-      "description": "Sellers can close a previously created auction",
-      "type": "object",
-      "required": [
-        "close_auction"
-      ],
-      "properties": {
-        "close_auction": {
-          "type": "object",
-          "required": [
-            "accept_highest_bid",
-            "token_id"
-          ],
-          "properties": {
-            "accept_highest_bid": {
-              "type": "boolean"
-            },
-            "token_id": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Anyone can finalize an auction that has met the reserve price",
-      "type": "object",
-      "required": [
-        "finalize_auction"
-      ],
-      "properties": {
-        "finalize_auction": {
-          "type": "object",
-          "required": [
-            "token_id"
-          ],
-          "properties": {
-            "token_id": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
       "description": "Place a bid on an existing auction",
       "type": "object",
       "required": [
@@ -415,13 +361,34 @@
       "additionalProperties": false
     },
     {
-      "description": "Remove an existing bid on an auction, that is not the highest bid",
+      "description": "Sellers can close a previously created auction",
       "type": "object",
       "required": [
-        "void_auction"
+        "close_auction"
       ],
       "properties": {
-        "void_auction": {
+        "close_auction": {
+          "type": "object",
+          "required": [
+            "token_id"
+          ],
+          "properties": {
+            "token_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Anyone can finalize an auction that has met the reserve price",
+      "type": "object",
+      "required": [
+        "finalize_auction"
+      ],
+      "properties": {
+        "finalize_auction": {
           "type": "object",
           "required": [
             "token_id"

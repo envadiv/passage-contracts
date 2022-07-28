@@ -19,7 +19,6 @@
       "type": "object",
       "required": [
         "ask_expiry",
-        "auction_expiry_offset",
         "auction_max_duration",
         "auction_min_duration",
         "bid_expiry",
@@ -38,12 +37,6 @@
               "$ref": "#/definitions/ExpiryRange"
             }
           ]
-        },
-        "auction_expiry_offset": {
-          "description": "The amount of time a seller has to finalize an auction",
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
         },
         "auction_max_duration": {
           "description": "The maximum duration of an auction",
