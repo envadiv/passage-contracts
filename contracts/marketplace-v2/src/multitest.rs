@@ -115,7 +115,6 @@ fn setup_contracts(
         min_price: Uint128::from(5u128),
         auction_min_duration: ONE_DAY,
         auction_max_duration: SIX_MOS,
-        auction_expiry_offset: ONE_DAY,
     };
     let marketplace = router
         .instantiate_contract(
@@ -482,7 +481,6 @@ fn try_ask_queries() {
         min_price: Uint128::from(5u128),
         auction_min_duration: ONE_DAY,
         auction_max_duration: SIX_MOS,
-        auction_expiry_offset: ONE_DAY,
     }, res.config);
 
     let block_time = router.block_info().time;
@@ -1065,7 +1063,6 @@ fn try_auction_creation_and_removal() {
     // Close an auction with no bids
     let close_auction = ExecuteMsg::CloseAuction {
         token_id: TOKEN_ID.to_string(),
-        accept_highest_bid: false
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &close_auction, &[]);
     assert!(res.is_ok());
@@ -1158,9 +1155,9 @@ fn try_auction_bid_creation_and_removal() {
     auction_bid(&mut router, &bidder, &marketplace, TOKEN_ID.to_string(), 140u128);
     let set_auction_bid = ExecuteMsg::SetAuctionBid {
         token_id: TOKEN_ID.to_string(),
-        price: coin(100u128, NATIVE_DENOM),
+        price: coin(140u128, NATIVE_DENOM),
     };
-    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &set_auction_bid, &[coin(100u128, NATIVE_DENOM)]);
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &set_auction_bid, &[coin(140u128, NATIVE_DENOM)]);
     assert_eq!(&res.unwrap_err().root_cause().to_string(), "Auction bid too low");
 
     // Verify that new auction bids update the auction obj
@@ -1195,12 +1192,11 @@ fn try_auction_bid_creation_and_removal() {
     // Auction with bids can be closed
     let close_auction = ExecuteMsg::CloseAuction {
         token_id: TOKEN_ID.to_string(),
-        accept_highest_bid: true
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &close_auction, &[]);
     assert!(res.is_ok());
     
-    // Check NFT is transferred back to the bidder
+    // Check NFT is transferred back to the seller
     let query_owner_msg = Cw721QueryMsg::OwnerOf {
         token_id: TOKEN_ID.to_string(),
         include_expired: None,
@@ -1209,13 +1205,13 @@ fn try_auction_bid_creation_and_removal() {
         .wrap()
         .query_wasm_smart(collection.clone(), &query_owner_msg)
         .unwrap();
-    assert_eq!(res.owner, bidder2.to_string());
+    assert_eq!(res.owner, creator.to_string());
 
-    // Check balances, validate that the bidder was debited, and that the seller was credited
+    // Check balances, validate that the bidder was credited, and that the seller was not credited
     let bidder2_balance_c = router.wrap().query_all_balances(bidder2.clone()).unwrap().into_iter().nth(0).unwrap();
-    let owner_balance = router.wrap().query_all_balances(creator.clone()).unwrap().into_iter().nth(0).unwrap();
-    assert_eq!(bidder2_balance_b.amount, bidder2_balance_c.amount);
-    assert_eq!(Uint128::from(150u128), owner_balance.amount);
+    let owner_balance = router.wrap().query_all_balances(creator.clone()).unwrap().into_iter().nth(0);
+    assert_eq!(bidder2_balance_a.amount, bidder2_balance_c.amount);
+    assert_eq!(None, owner_balance);
 }
 
 #[test]
@@ -1253,7 +1249,6 @@ fn try_auction_bid_reserve_price_met() {
     // Verify auctions that have met reserve price cannot be closed
     let close_auction = ExecuteMsg::CloseAuction {
         token_id: TOKEN_ID.to_string(),
-        accept_highest_bid: false
     };
     let res = router.execute_contract(creator.clone(), marketplace.clone(), &close_auction, &[]);
     assert_eq!(&res.unwrap_err().root_cause().to_string(), "Reserve price restriction: must finalize auction when reserve price is met");
@@ -1289,82 +1284,6 @@ fn try_auction_bid_reserve_price_met() {
     let post_owner_balance = router.wrap().query_all_balances(creator.clone()).unwrap().into_iter().nth(0).unwrap();
     assert_eq!(prev_bidder_balance.amount - Uint128::from(bid_amount), post_bidder_balance.amount);
     assert_eq!(Uint128::from(bid_amount), post_owner_balance.amount);
-}
-
-#[test]
-fn try_auction_expired() {
-    let mut router = custom_mock_app();
-    let block_time = router.block_info().time;
-    // Setup intial accounts
-    let (_owner, bidder, creator, bidder2) = setup_accounts(&mut router).unwrap();
-
-    // Instantiate and configure contracts
-    let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
-
-    // Prep
-    mint(&mut router, &creator, &collection, TOKEN_ID.to_string());
-    approve(&mut router, &creator, &collection, &marketplace, TOKEN_ID.to_string());
-    auction(
-        &mut router,
-        &creator,
-        &marketplace,
-        TOKEN_ID.to_string(),
-        block_time.plus_seconds(ONE_DAY),
-        block_time.plus_seconds(ONE_DAY * 2),
-        110u128,
-        210u128,
-        None,
-    );
-    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY + 10u64).seconds());
-
-    let prev_bidder_balance = router.wrap().query_all_balances(bidder.clone()).unwrap().into_iter().nth(0).unwrap();
-    auction_bid(&mut router, &bidder, &marketplace, TOKEN_ID.to_string(), 140u128);
-
-    // Verify that auction cannot be voided before auction ends
-    let void_auction_msg = ExecuteMsg::VoidAuction {
-        token_id: TOKEN_ID.to_string(),
-    };
-    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &void_auction_msg, &[]);
-    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Auction invalid status: Open");
-
-    // Verify that auction cannot be voided after auction ends
-    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY * 2 + 10u64).seconds());
-    let void_auction_msg = ExecuteMsg::VoidAuction {
-        token_id: TOKEN_ID.to_string(),
-    };
-    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &void_auction_msg, &[]);
-    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Auction invalid status: Closed");
-
-    // Verify that auction cannot be voided by anyone
-    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY * 3 + 10u64).seconds());
-    let void_auction_msg = ExecuteMsg::VoidAuction {
-        token_id: TOKEN_ID.to_string(),
-    };
-    let res = router.execute_contract(bidder2.clone(), marketplace.clone(), &void_auction_msg, &[]);
-    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Unauthorized: only the bidder can void the auction");
-
-    // Verify that auction can be voided after the auction is expired
-    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY * 3 + 10u64).seconds());
-    let void_auction_msg = ExecuteMsg::VoidAuction {
-        token_id: TOKEN_ID.to_string(),
-    };
-    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &void_auction_msg, &[]);
-    assert!(res.is_ok());
-
-    // Verify NFT is transferred back to the seller
-    let query_owner_msg = Cw721QueryMsg::OwnerOf {
-        token_id: TOKEN_ID.to_string(),
-        include_expired: None,
-    };
-    let res: OwnerOfResponse = router
-        .wrap()
-        .query_wasm_smart(collection.clone(), &query_owner_msg)
-        .unwrap();
-    assert_eq!(res.owner, creator.to_string());
-
-    // Verify bidder is refunded
-    let post_bidder_balance = router.wrap().query_all_balances(bidder.clone()).unwrap().into_iter().nth(0).unwrap();
-    assert_eq!(prev_bidder_balance.amount, post_bidder_balance.amount);
 }
 
 #[test]
