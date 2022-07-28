@@ -397,10 +397,8 @@ pub fn query_collection_bids_by_expiry(
 }
 
 pub fn query_auction(deps: Deps, env: Env, token_id: TokenId) -> StdResult<AuctionResponse> {
-    let config = CONFIG.load(deps.storage)?;
     let auction = auctions().may_load(deps.storage, token_id)?;
-    let auction_status = auction.clone()
-        .map_or(None, |a| Some(a.get_auction_status(&env.block.time, config.auction_expiry_offset)));
+    let auction_status = auction.clone().map_or(None, |a| Some(a.get_auction_status(&env.block.time)));
     let is_reserve_price_met = auction.as_ref().map_or(None, |a| Some(a.is_reserve_price_met()));
 
     Ok(AuctionResponse { auction, auction_status, is_reserve_price_met })

@@ -29,8 +29,6 @@ pub struct Config {
     pub auction_min_duration: u64,
     /// The maximum duration of an auction 
     pub auction_max_duration: u64,
-    /// The amount of time a seller has to finalize an auction
-    pub auction_expiry_offset: u64,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
@@ -235,7 +233,6 @@ pub enum AuctionStatus {
     Pending,
     Open,
     Closed,
-    Expired,
 }
 
 impl Display for AuctionStatus {
@@ -245,15 +242,13 @@ impl Display for AuctionStatus {
 }
 
 impl Auction {
-    pub fn get_auction_status(&self, now: &Timestamp, void_offset: u64) -> AuctionStatus {
+    pub fn get_auction_status(&self, now: &Timestamp) -> AuctionStatus {
         if now < &self.start_time {
             AuctionStatus::Pending
         } else if now < &self.end_time {
             AuctionStatus::Open
-        } else if now < &self.end_time.plus_seconds(void_offset) {
-            AuctionStatus::Closed
         } else {
-            AuctionStatus::Expired
+            AuctionStatus::Closed
         }
     }
 

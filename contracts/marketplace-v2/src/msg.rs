@@ -30,9 +30,6 @@ pub struct InstantiateMsg {
     pub auction_min_duration: u64,
     /// The maximum duration of an auction 
     pub auction_max_duration: u64,
-    /// The amount of time a seller has to close an auction
-    /// that has not met the reserve price
-    pub auction_expiry_offset: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -47,7 +44,6 @@ pub enum ExecuteMsg {
         min_price: Option<Uint128>,
         auction_min_duration: Option<u64>,
         auction_max_duration: Option<u64>,
-        auction_expiry_offset: Option<u64>,
     },
     /// List an NFT on the marketplace by creating a new ask
     SetAsk {
@@ -98,22 +94,17 @@ pub enum ExecuteMsg {
         reserve_price: Option<Coin>,
         funds_recipient: Option<String>,
     },
-    /// Sellers can close a previously created auction
-    CloseAuction {
-        token_id: TokenId,
-        accept_highest_bid: bool,
-    },
-    /// Anyone can finalize an auction that has met the reserve price
-    FinalizeAuction {
-        token_id: TokenId,
-    },
     /// Place a bid on an existing auction
     SetAuctionBid {
         token_id: TokenId,
         price: Coin,
     },
-    /// Remove an existing bid on an auction, that is not the highest bid
-    VoidAuction {
+    /// Sellers can close a previously created auction
+    CloseAuction {
+        token_id: TokenId,
+    },
+    /// Anyone can finalize an auction that has met the reserve price
+    FinalizeAuction {
         token_id: TokenId,
     },
 }
