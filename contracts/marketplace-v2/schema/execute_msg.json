@@ -6,10 +6,10 @@
       "description": "Update the contract parameters",
       "type": "object",
       "required": [
-        "update_params"
+        "update_config"
       ],
       "properties": {
-        "update_params": {
+        "update_config": {
           "type": "object",
           "properties": {
             "ask_expiry": {
@@ -21,6 +21,30 @@
                   "type": "null"
                 }
               ]
+            },
+            "auction_expiry_offset": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "auction_max_duration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "auction_min_duration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             },
             "bid_expiry": {
               "anyOf": [
@@ -118,31 +142,6 @@
             "token_id"
           ],
           "properties": {
-            "token_id": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Update the price of an existing ask",
-      "type": "object",
-      "required": [
-        "update_ask_price"
-      ],
-      "properties": {
-        "update_ask_price": {
-          "type": "object",
-          "required": [
-            "price",
-            "token_id"
-          ],
-          "properties": {
-            "price": {
-              "$ref": "#/definitions/Coin"
-            },
             "token_id": {
               "type": "string"
             }
@@ -287,6 +286,147 @@
             "bidder": {
               "type": "string"
             },
+            "token_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Create an auction for a specified token",
+      "type": "object",
+      "required": [
+        "set_auction"
+      ],
+      "properties": {
+        "set_auction": {
+          "type": "object",
+          "required": [
+            "end_time",
+            "start_time",
+            "starting_price",
+            "token_id"
+          ],
+          "properties": {
+            "end_time": {
+              "$ref": "#/definitions/Timestamp"
+            },
+            "funds_recipient": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reserve_price": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Coin"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "start_time": {
+              "$ref": "#/definitions/Timestamp"
+            },
+            "starting_price": {
+              "$ref": "#/definitions/Coin"
+            },
+            "token_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Sellers can close a previously created auction",
+      "type": "object",
+      "required": [
+        "close_auction"
+      ],
+      "properties": {
+        "close_auction": {
+          "type": "object",
+          "required": [
+            "accept_highest_bid",
+            "token_id"
+          ],
+          "properties": {
+            "accept_highest_bid": {
+              "type": "boolean"
+            },
+            "token_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Anyone can finalize an auction that has met the reserve price",
+      "type": "object",
+      "required": [
+        "finalize_auction"
+      ],
+      "properties": {
+        "finalize_auction": {
+          "type": "object",
+          "required": [
+            "token_id"
+          ],
+          "properties": {
+            "token_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Place a bid on an existing auction",
+      "type": "object",
+      "required": [
+        "set_auction_bid"
+      ],
+      "properties": {
+        "set_auction_bid": {
+          "type": "object",
+          "required": [
+            "price",
+            "token_id"
+          ],
+          "properties": {
+            "price": {
+              "$ref": "#/definitions/Coin"
+            },
+            "token_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Remove an existing bid on an auction, that is not the highest bid",
+      "type": "object",
+      "required": [
+        "void_auction"
+      ],
+      "properties": {
+        "void_auction": {
+          "type": "object",
+          "required": [
+            "token_id"
+          ],
+          "properties": {
             "token_id": {
               "type": "string"
             }

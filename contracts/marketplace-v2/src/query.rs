@@ -1,9 +1,8 @@
 use crate::msg::{
-    QueryMsg, AskResponse, AsksResponse, QueryOptions, AskExpiryOffset, AskPriceOffset,
+    QueryMsg, AskResponse, AsksResponse, QueryOptions, TokenTimestampOffset, TokenPriceOffset,
     AskCountResponse, BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset,
     ConfigResponse, CollectionBidResponse, CollectionBidsResponse, CollectionBidPriceOffset,
-    CollectionBidExpiryOffset, AuctionResponse, AuctionsResponse, AuctionPriceOffset,
-    AuctionTimestampOffset,
+    CollectionBidExpiryOffset, AuctionResponse, AuctionsResponse,
 };
 use crate::state::{
     CONFIG, asks, TokenId, bids, bid_key, collection_bids, auctions
@@ -142,11 +141,11 @@ pub fn query_ask(deps: Deps, token_id: TokenId) -> StdResult<AskResponse> {
 
 pub fn query_asks_sorted_by_expiry(
     deps: Deps,
-    query_options: &QueryOptions<AskExpiryOffset>
+    query_options: &QueryOptions<TokenTimestampOffset>
 ) -> StdResult<AsksResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
     let start = query_options.start_after.as_ref().map(|offset| {
-        Bound::exclusive((offset.expires_at.seconds(), offset.token_id.clone()))
+        Bound::exclusive((offset.timestamp.seconds(), offset.token_id.clone()))
     });
     let order = option_bool_to_order(query_options.descending);
 
@@ -170,7 +169,7 @@ pub fn query_asks_sorted_by_expiry(
 
 pub fn query_asks_sorted_by_price(
     deps: Deps,
-    query_options: &QueryOptions<AskPriceOffset>
+    query_options: &QueryOptions<TokenPriceOffset>
 ) -> StdResult<AsksResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
     let start = query_options.start_after.as_ref().map(|offset| {
@@ -199,11 +198,11 @@ pub fn query_asks_sorted_by_price(
 pub fn query_asks_by_seller_expiry(
     deps: Deps,
     seller: Addr,
-    query_options: &QueryOptions<AskExpiryOffset>
+    query_options: &QueryOptions<TokenTimestampOffset>
 ) -> StdResult<AsksResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
     let start = query_options.start_after.as_ref().map(|offset| {
-        Bound::exclusive((offset.expires_at.seconds(), offset.token_id.clone()))
+        Bound::exclusive((offset.timestamp.seconds(), offset.token_id.clone()))
     });
     let order = option_bool_to_order(query_options.descending);
 
@@ -409,7 +408,7 @@ pub fn query_auction(deps: Deps, env: Env, token_id: TokenId) -> StdResult<Aucti
 
 pub fn query_auctions_by_end_time(
     deps: Deps,
-    query_options: &QueryOptions<AuctionTimestampOffset>
+    query_options: &QueryOptions<TokenTimestampOffset>
 ) -> StdResult<AuctionsResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
     let start = query_options.start_after.as_ref().map(|offset| {
@@ -437,7 +436,7 @@ pub fn query_auctions_by_end_time(
 
 pub fn query_auctions_by_highest_bid_price(
     deps: Deps,
-    query_options: &QueryOptions<AuctionPriceOffset>
+    query_options: &QueryOptions<TokenPriceOffset>
 ) -> StdResult<AuctionsResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
     let start = query_options.start_after.as_ref().map(|offset| {
@@ -466,7 +465,7 @@ pub fn query_auctions_by_highest_bid_price(
 pub fn query_auctions_by_seller_end_time(
     deps: Deps,
     seller: Addr,
-    query_options: &QueryOptions<AuctionTimestampOffset>
+    query_options: &QueryOptions<TokenTimestampOffset>
 ) -> StdResult<AuctionsResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
     let start = query_options.start_after.as_ref().map(|offset| {
@@ -496,7 +495,7 @@ pub fn query_auctions_by_seller_end_time(
 pub fn query_auctions_by_highest_bidder_end_time(
     deps: Deps,
     bidder: Addr,
-    query_options: &QueryOptions<AuctionTimestampOffset>
+    query_options: &QueryOptions<TokenTimestampOffset>
 ) -> StdResult<AuctionsResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
     let start = query_options.start_after.as_ref().map(|offset| {
