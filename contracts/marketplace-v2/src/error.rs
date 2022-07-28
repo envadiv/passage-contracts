@@ -50,7 +50,4 @@ pub enum ContractError {
 
     #[error("Reserve price restriction: {0}")]
     AuctionReservePriceRestriction(String),
-
-    #[error("Cannot remove highest auction bid")]
-    AuctionCannotRemoveHighestBid {},
 }

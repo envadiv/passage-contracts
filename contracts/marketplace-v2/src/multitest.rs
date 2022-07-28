@@ -4,7 +4,7 @@ use crate::helpers::ExpiryRange;
 use crate::msg::{
     ExecuteMsg, QueryMsg, AskResponse, AsksResponse, QueryOptions, AskPriceOffset, AskCountResponse,
     BidResponse, BidsResponse, BidExpiryOffset, ConfigResponse, CollectionBidResponse, CollectionBidsResponse,
-    AuctionResponse, AuctionsResponse, AuctionTimestampOffset, AuctionBidResponse, AuctionBidsResponse
+    AuctionResponse, AuctionsResponse, AuctionTimestampOffset,
 };
 use crate::state::{Ask, Bid, Config, CollectionBid, Auction, AuctionStatus, AuctionBid};
 use cosmwasm_std::{Addr, Empty, Timestamp, Attribute, coin, coins, Coin, Decimal, Uint128};
@@ -1048,6 +1048,7 @@ fn try_auction_creation_and_removal() {
         reserve_price: Some(coin(210, NATIVE_DENOM)),
         seller: creator.clone(),
         funds_recipient: None,
+        highest_bid: None,
     }, current_auction);
     
     // Check NFT is transferred to marketplace contract
@@ -1101,8 +1102,6 @@ fn try_auction_bid_creation_and_removal() {
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
 
-    let prev_bidder2_balance = router.wrap().query_all_balances(bidder2.clone()).unwrap().into_iter().nth(0).unwrap();
-
     // Mint NFT for owner
     mint(&mut router, &creator, &collection, TOKEN_ID.to_string());
     approve(&mut router, &creator, &collection, &marketplace, TOKEN_ID.to_string());
@@ -1152,6 +1151,9 @@ fn try_auction_bid_creation_and_removal() {
     let res = router.execute_contract(bidder.clone(), marketplace.clone(), &set_auction_bid, &[coin(100u128, NATIVE_DENOM)]);
     assert_eq!(&res.unwrap_err().root_cause().to_string(), "Auction bid too low");
 
+    let bidder_balance_a = router.wrap().query_all_balances(bidder.clone()).unwrap().into_iter().nth(0).unwrap();
+    let bidder2_balance_a = router.wrap().query_all_balances(bidder2.clone()).unwrap().into_iter().nth(0).unwrap();
+
     // AuctionBid creation should error when bid is less than or equal to the highest bid
     auction_bid(&mut router, &bidder, &marketplace, TOKEN_ID.to_string(), 140u128);
     let set_auction_bid = ExecuteMsg::SetAuctionBid {
@@ -1161,21 +1163,34 @@ fn try_auction_bid_creation_and_removal() {
     let res = router.execute_contract(bidder.clone(), marketplace.clone(), &set_auction_bid, &[coin(100u128, NATIVE_DENOM)]);
     assert_eq!(&res.unwrap_err().root_cause().to_string(), "Auction bid too low");
 
-    // Verify that removal of highest bid fails
-    let remove_auction_bid = ExecuteMsg::RemoveAuctionBid {
-        token_id: TOKEN_ID.to_string(),
+    // Verify that new auction bids update the auction obj
+    auction_bid(&mut router, &bidder2, &marketplace, TOKEN_ID.to_string(), 150u128);
+    let query_auction = QueryMsg::Auction {
+        token_id: TOKEN_ID.to_string()
     };
-    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &remove_auction_bid, &[]);
-    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Cannot remove highest auction bid");
+    let res: AuctionResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_auction)
+        .unwrap();
+    assert_eq!(Auction {
+        token_id: TOKEN_ID.to_string(),
+        seller: creator.clone(),
+        start_time: block_time.plus_seconds(ONE_DAY),
+        end_time: block_time.plus_seconds(ONE_DAY * 2),
+        starting_price: coin(110u128, NATIVE_DENOM),
+        reserve_price: Some(coin(210u128, NATIVE_DENOM)),
+        funds_recipient: None,
+        highest_bid: Some(AuctionBid {
+            bidder: bidder2.clone(),
+            price: coin(150u128, NATIVE_DENOM),
+        }),
+    }, res.auction.unwrap());
 
-    // Auction Bids can be removed
-    let bid_amount = 150u128;
-    auction_bid(&mut router, &bidder2, &marketplace, TOKEN_ID.to_string(), bid_amount);
-    let remove_auction_bid = ExecuteMsg::RemoveAuctionBid {
-        token_id: TOKEN_ID.to_string(),
-    };
-    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &remove_auction_bid, &[]);
-    assert!(res.is_ok());
+    // Verify that new auction bids refund the previous high bidder
+    let bidder_balance_b = router.wrap().query_all_balances(bidder.clone()).unwrap().into_iter().nth(0).unwrap();
+    let bidder2_balance_b = router.wrap().query_all_balances(bidder2.clone()).unwrap().into_iter().nth(0).unwrap();
+    assert_eq!(bidder_balance_a.amount, bidder_balance_b.amount);
+    assert_eq!(bidder2_balance_a.amount - Uint128::from(150u128), bidder2_balance_b.amount);
 
     // Auction with bids can be closed
     let close_auction = ExecuteMsg::CloseAuction {
@@ -1197,10 +1212,10 @@ fn try_auction_bid_creation_and_removal() {
     assert_eq!(res.owner, bidder2.to_string());
 
     // Check balances, validate that the bidder was debited, and that the seller was credited
-    let post_bidder2_balance = router.wrap().query_all_balances(bidder2.clone()).unwrap().into_iter().nth(0).unwrap();
-    let post_owner_balance = router.wrap().query_all_balances(creator.clone()).unwrap().into_iter().nth(0).unwrap();
-    assert_eq!(prev_bidder2_balance.amount - Uint128::from(bid_amount), post_bidder2_balance.amount);
-    assert_eq!(Uint128::from(bid_amount), post_owner_balance.amount);
+    let bidder2_balance_c = router.wrap().query_all_balances(bidder2.clone()).unwrap().into_iter().nth(0).unwrap();
+    let owner_balance = router.wrap().query_all_balances(creator.clone()).unwrap().into_iter().nth(0).unwrap();
+    assert_eq!(bidder2_balance_b.amount, bidder2_balance_c.amount);
+    assert_eq!(Uint128::from(150u128), owner_balance.amount);
 }
 
 #[test]
@@ -1281,7 +1296,7 @@ fn try_auction_expired() {
     let mut router = custom_mock_app();
     let block_time = router.block_info().time;
     // Setup intial accounts
-    let (_owner, bidder, creator, _bidder2) = setup_accounts(&mut router).unwrap();
+    let (_owner, bidder, creator, bidder2) = setup_accounts(&mut router).unwrap();
 
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
@@ -1301,30 +1316,55 @@ fn try_auction_expired() {
         None,
     );
     setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY + 10u64).seconds());
+
+    let prev_bidder_balance = router.wrap().query_all_balances(bidder.clone()).unwrap().into_iter().nth(0).unwrap();
     auction_bid(&mut router, &bidder, &marketplace, TOKEN_ID.to_string(), 140u128);
 
-    // Verify that bid cannot be removed before auction ends
-    let remove_auction_bid = ExecuteMsg::RemoveAuctionBid {
+    // Verify that auction cannot be voided before auction ends
+    let void_auction_msg = ExecuteMsg::VoidAuction {
         token_id: TOKEN_ID.to_string(),
     };
-    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &remove_auction_bid, &[]);
-    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Cannot remove highest auction bid");
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &void_auction_msg, &[]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Auction invalid status: Open");
 
-    // Verify that bid cannot be removed after auction ends
+    // Verify that auction cannot be voided after auction ends
     setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY * 2 + 10u64).seconds());
-    let remove_auction_bid = ExecuteMsg::RemoveAuctionBid {
+    let void_auction_msg = ExecuteMsg::VoidAuction {
         token_id: TOKEN_ID.to_string(),
     };
-    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &remove_auction_bid, &[]);
-    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Cannot remove highest auction bid");
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &void_auction_msg, &[]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Auction invalid status: Closed");
 
-    // Verify that bid can be removed after the auction is expired
+    // Verify that auction cannot be voided by anyone
     setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY * 3 + 10u64).seconds());
-    let remove_auction_bid = ExecuteMsg::RemoveAuctionBid {
+    let void_auction_msg = ExecuteMsg::VoidAuction {
         token_id: TOKEN_ID.to_string(),
     };
-    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &remove_auction_bid, &[]);
+    let res = router.execute_contract(bidder2.clone(), marketplace.clone(), &void_auction_msg, &[]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Unauthorized: only the bidder can void the auction");
+
+    // Verify that auction can be voided after the auction is expired
+    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY * 3 + 10u64).seconds());
+    let void_auction_msg = ExecuteMsg::VoidAuction {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res = router.execute_contract(bidder.clone(), marketplace.clone(), &void_auction_msg, &[]);
     assert!(res.is_ok());
+
+    // Verify NFT is transferred back to the seller
+    let query_owner_msg = Cw721QueryMsg::OwnerOf {
+        token_id: TOKEN_ID.to_string(),
+        include_expired: None,
+    };
+    let res: OwnerOfResponse = router
+        .wrap()
+        .query_wasm_smart(collection.clone(), &query_owner_msg)
+        .unwrap();
+    assert_eq!(res.owner, creator.to_string());
+
+    // Verify bidder is refunded
+    let post_bidder_balance = router.wrap().query_all_balances(bidder.clone()).unwrap().into_iter().nth(0).unwrap();
+    assert_eq!(prev_bidder_balance.amount, post_bidder_balance.amount);
 }
 
 #[test]
@@ -1332,7 +1372,7 @@ fn try_auction_queries() {
     let mut router = custom_mock_app();
     let block_time = router.block_info().time;
     // Setup intial accounts
-    let (_owner, _bidder, creator, _bidder2) = setup_accounts(&mut router).unwrap();
+    let (_owner, bidder, creator, bidder2) = setup_accounts(&mut router).unwrap();
 
     // Instantiate and configure contracts
     let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
@@ -1371,11 +1411,12 @@ fn try_auction_queries() {
         starting_price: coin(100u128 + token_id as u128, NATIVE_DENOM),
         reserve_price: Some(coin(200u128 + token_id as u128, NATIVE_DENOM)),
         funds_recipient: None,
+        highest_bid: None,
     }, res.auction.unwrap());
     assert_eq!(AuctionStatus::Pending, res.auction_status.unwrap());
 
-    // Verify that auctions can be sorted by starting price
-    let query_auctions = QueryMsg::AuctionsByStartingPrice {
+    // Verify that auctions can be sorted by end time
+    let query_auctions = QueryMsg::AuctionsByEndTime {
         query_options: QueryOptions {
             descending: Some(true),
             filter_expiry: None,
@@ -1396,33 +1437,59 @@ fn try_auction_queries() {
             starting_price: coin(100u128 + n as u128, NATIVE_DENOM),
             reserve_price: Some(coin(200u128 + n as u128, NATIVE_DENOM)),
             funds_recipient: None,
+            highest_bid: None
         }, res.clone().auctions.into_iter().nth(n as usize).unwrap());
     }
 
-    // Verify that auctions can be sorted by reserve price
-    let query_auctions = QueryMsg::AuctionsByReservePrice {
+    // Verify that auctions can be sorted by highest bid price
+    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY + 10u64).seconds());
+    auction_bid(&mut router, &bidder, &marketplace, "1".to_string(), 140u128);
+    auction_bid(&mut router, &bidder2, &marketplace, "3".to_string(), 250u128);
+    let query_auctions = QueryMsg::AuctionsByHighestBidPrice {
         query_options: QueryOptions {
-            descending: None,
-            filter_expiry: Some(block_time.plus_seconds(ONE_DAY * 2 + 2)),
+            descending: Some(true),
+            filter_expiry: None,
             start_after: None,
-            limit: None,
+            limit: Some(3),
         }
     };
     let res: AuctionsResponse = router
         .wrap()
         .query_wasm_smart(marketplace.clone(), &query_auctions)
         .unwrap();
-    for n in 3..5 {
-        assert_eq!(Auction {
-            token_id: n.to_string(),
-            seller: creator.clone(),
-            start_time: block_time.plus_seconds(ONE_DAY + n),
-            end_time: block_time.plus_seconds(ONE_DAY * 2 + n),
-            starting_price: coin(100u128 + n as u128, NATIVE_DENOM),
-            reserve_price: Some(coin(200u128 + n as u128, NATIVE_DENOM)),
-            funds_recipient: None,
-        }, res.clone().auctions.into_iter().nth(n as usize - 3).unwrap());
-    }
+    let n = 3;
+    assert_eq!(Auction {
+        token_id: n.to_string(),
+        seller: creator.clone(),
+        start_time: block_time.plus_seconds(ONE_DAY + n),
+        end_time: block_time.plus_seconds(ONE_DAY * 2 + n),
+        starting_price: coin(100u128 + n as u128, NATIVE_DENOM),
+        reserve_price: Some(coin(200u128 + n as u128, NATIVE_DENOM)),
+        funds_recipient: None,
+        highest_bid: Some(AuctionBid { price: coin(250u128, "ujunox".to_string()), bidder: bidder2.clone() }),
+    }, res.clone().auctions.into_iter().nth(0).unwrap());
+    let n = 1;
+    assert_eq!(Auction {
+        token_id: n.to_string(),
+        seller: creator.clone(),
+        start_time: block_time.plus_seconds(ONE_DAY + n),
+        end_time: block_time.plus_seconds(ONE_DAY * 2 + n),
+        starting_price: coin(100u128 + n as u128, NATIVE_DENOM),
+        reserve_price: Some(coin(200u128 + n as u128, NATIVE_DENOM)),
+        funds_recipient: None,
+        highest_bid: Some(AuctionBid { price: coin(140u128, "ujunox".to_string()), bidder: bidder.clone() }),
+    }, res.clone().auctions.into_iter().nth(1).unwrap());
+    let n = 4;
+    assert_eq!(Auction {
+        token_id: n.to_string(),
+        seller: creator.clone(),
+        start_time: block_time.plus_seconds(ONE_DAY + n),
+        end_time: block_time.plus_seconds(ONE_DAY * 2 + n),
+        starting_price: coin(100u128 + n as u128, NATIVE_DENOM),
+        reserve_price: Some(coin(200u128 + n as u128, NATIVE_DENOM)),
+        funds_recipient: None,
+        highest_bid: None,
+    }, res.clone().auctions.into_iter().nth(2).unwrap());
 
     // Verify that auctions can be queried by seller
     let query_auctions = QueryMsg::AuctionsBySellerEndTime {
@@ -1442,6 +1509,10 @@ fn try_auction_queries() {
         .query_wasm_smart(marketplace.clone(), &query_auctions)
         .unwrap();
     for n in 2..4 {
+        let highest_bid = match n {
+            3 => Some(AuctionBid { price: coin(250u128, "ujunox".to_string()), bidder: bidder2.clone() }),
+            _ => None,
+        };
         assert_eq!(Auction {
             token_id: n.to_string(),
             seller: creator.clone(),
@@ -1450,66 +1521,14 @@ fn try_auction_queries() {
             starting_price: coin(100u128 + n as u128, NATIVE_DENOM),
             reserve_price: Some(coin(200u128 + n as u128, NATIVE_DENOM)),
             funds_recipient: None,
+            highest_bid: highest_bid
         }, res.clone().auctions.into_iter().nth(n as usize - 2).unwrap());
     }
-}
 
-#[test]
-fn try_auction_bid_queries() {
-    let mut router = custom_mock_app();
-    let block_time = router.block_info().time;
-    // Setup intial accounts
-    let (_owner, bidder, creator, _bidder2) = setup_accounts(&mut router).unwrap();
 
-    // Instantiate and configure contracts
-    let (marketplace, collection) = setup_contracts(&mut router, &creator).unwrap();
-
-    // Prep
-    for idx in 1..5 {
-        mint(&mut router, &creator, &collection, idx.to_string());
-        approve(&mut router, &creator, &collection, &marketplace, idx.to_string());
-        auction(
-            &mut router,
-            &creator,
-            &marketplace,
-            idx.to_string(),
-            block_time.plus_seconds(ONE_DAY + idx as u64),
-            block_time.plus_seconds(ONE_DAY * 2 + idx as u64),
-            100u128 + idx as u128,
-            200u128 + idx as u128,
-            None,
-        );
-    }
-    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY + 10u64).seconds());
-    for idx in 1..5 {
-        auction_bid(
-            &mut router,
-            &bidder,
-            &marketplace,
-            idx.to_string(),
-            100u128 + idx as u128,
-        );
-    }
-
-    let token_id = 2u64;
-    let query_auction_bid = QueryMsg::AuctionBid {
-        token_id: token_id.to_string(),
-        bidder: bidder.to_string()
-    };
-    let res: AuctionBidResponse = router
-        .wrap()
-        .query_wasm_smart(marketplace.clone(), &query_auction_bid)
-        .unwrap();
-    assert_eq!(AuctionBid {
-        token_id: token_id.to_string(),
-        bidder: bidder.clone(),
-        price: coin(100u128 + 2, NATIVE_DENOM),
-    }, res.auction_bid.unwrap());
-
-    // Verify that auction bids can be queried by token price
-    let token_id = "3";
-    let query_auction_bids = QueryMsg::AuctionBidsByTokenPrice {
-        token_id: token_id.to_string(),
+    // Verify that auctions can be queried by bidder
+    let query_auctions = QueryMsg::AuctionsByBidderEndTime {
+        bidder: bidder.to_string(),
         query_options: QueryOptions {
             descending: None,
             filter_expiry: None,
@@ -1517,13 +1536,20 @@ fn try_auction_bid_queries() {
             limit: None,
         }
     };
-    let res: AuctionBidsResponse = router
+    let res: AuctionsResponse = router
         .wrap()
-        .query_wasm_smart(marketplace.clone(), &query_auction_bids)
+        .query_wasm_smart(marketplace.clone(), &query_auctions)
         .unwrap();
-    assert_eq!(AuctionBid {
-        token_id: token_id.to_string(),
-        bidder: bidder.clone(),
-        price: coin(100u128 + 3, NATIVE_DENOM),
-    }, res.clone().auction_bids.into_iter().nth(0).unwrap());
+    assert_eq!(res.auctions.len(), 1);
+    let n = 1;
+    assert_eq!(Auction {
+        token_id: n.to_string(),
+        seller: creator.clone(),
+        start_time: block_time.plus_seconds(ONE_DAY + n),
+        end_time: block_time.plus_seconds(ONE_DAY * 2 + n),
+        starting_price: coin(100u128 + n as u128, NATIVE_DENOM),
+        reserve_price: Some(coin(200u128 + n as u128, NATIVE_DENOM)),
+        funds_recipient: None,
+        highest_bid: Some(AuctionBid { price: coin(140u128, "ujunox".to_string()), bidder: bidder.clone() }),
+    }, res.clone().auctions.into_iter().nth(0).unwrap());
 }

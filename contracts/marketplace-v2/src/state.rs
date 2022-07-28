@@ -203,6 +203,13 @@ pub fn collection_bids<'a>(
     IndexedMap::new("col_bids", indexes)
 }
 
+/// Represents a bid (offer) on an auction in the marketplace
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AuctionBid {
+    pub bidder: Addr,
+    pub price: Coin,
+}
+
 /// Represents an auction on the marketplace
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Auction {
@@ -213,6 +220,7 @@ pub struct Auction {
     pub starting_price: Coin,
     pub reserve_price: Option<Coin>,
     pub funds_recipient: Option<Addr>,
+    pub highest_bid: Option<AuctionBid>
 }
 
 impl Recipient for Auction {
@@ -248,6 +256,13 @@ impl Auction {
             AuctionStatus::Expired
         }
     }
+
+    pub fn is_reserve_price_met(&self) -> bool {
+        self.reserve_price.as_ref().map_or(
+            false,
+            |r| self.highest_bid.as_ref().map_or(false, |h| h.price.amount >= r.amount)
+        )
+    }
 }
 
 /// Primary key for asks
@@ -255,74 +270,46 @@ pub type AuctionKey = TokenId;
 
 /// Defines indices for accessing Auctions
 pub struct AuctionIndices<'a> {
-    pub starting_price: MultiIndex<'a, u128, Auction, AuctionKey>,
-    pub reserve_price: MultiIndex<'a, u128, Auction, AuctionKey>,
-    pub seller_end_time: MultiIndex<'a, (Addr, u64), Auction, AuctionKey>,
+    pub end_time: MultiIndex<'a, u64, Auction, AuctionKey>,
+    pub highest_bid_price: MultiIndex<'a, u128, Auction, AuctionKey>,
+    pub seller_end_time: MultiIndex<'a, (String, u64), Auction, AuctionKey>,
+    pub highest_bidder_end_time: MultiIndex<'a, (String, u64), Auction, AuctionKey>,
 }
 
 impl<'a> IndexList<Auction> for AuctionIndices<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Auction>> + '_> {
-        let v: Vec<&dyn Index<Auction>> = vec![&self.starting_price, &self.reserve_price, &self.seller_end_time];
+        let v: Vec<&dyn Index<Auction>> = vec![
+            &self.end_time,
+            &self.highest_bid_price,
+            &self.seller_end_time,
+            &self.highest_bidder_end_time,
+        ];
         Box::new(v.into_iter())
     }
 }
 
 pub fn auctions<'a>() -> IndexedMap<'a, AuctionKey, Auction, AuctionIndices<'a>> {
     let indexes = AuctionIndices {
-        starting_price: MultiIndex::new(
-            |a: &Auction|  a.starting_price.amount.u128(),
+        end_time: MultiIndex::new(
+            |a: &Auction|  a.end_time.seconds(),
             "auctions",
-            "auctions__starting_price",
+            "auctions__end_time",
         ),
-        reserve_price: MultiIndex::new(
-            |a: &Auction|  a.reserve_price.as_ref().map_or(Uint128::MAX.u128(), |p| p.amount.u128()),
+        highest_bid_price: MultiIndex::new(
+            |a: &Auction|  a.highest_bid.as_ref().map_or(0, |b| b.price.amount.u128()),
             "auctions",
-            "auctions__reserve_price"
+            "auctions__highest_bid_price"
         ),
         seller_end_time: MultiIndex::new(
-            |d: &Auction|  (d.seller.clone(), d.end_time.seconds()),
+            |a: &Auction|  (a.seller.to_string(), a.end_time.seconds()),
             "auctions",
             "auctions__seller_end_time",
         ),
-    };
-    IndexedMap::new("auctions", indexes)
-}
-
-/// Represents a bid (offer) on an auction in the marketplace
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AuctionBid {
-    pub token_id: TokenId,
-    pub bidder: Addr,
-    pub price: Coin,
-}
-
-/// Primary key for auction_bids: (token_id, bidder)
-pub type AuctionBidKey = (TokenId, Addr);
-
-/// Convenience auction_bid key constructor
-pub fn auction_bid_key(token_id: TokenId, bidder: &Addr) -> BidKey {
-    (token_id, bidder.clone())
-}
-
-/// Defines indices for accessing bids
-pub struct AuctionBidIndices<'a> {
-    pub token_price: MultiIndex<'a, (String, u128), AuctionBid, AuctionBidKey>,
-}
-
-impl<'a> IndexList<AuctionBid> for AuctionBidIndices<'a> {
-    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<AuctionBid>> + '_> {
-        let v: Vec<&dyn Index<AuctionBid>> = vec![&self.token_price];
-        Box::new(v.into_iter())
-    }
-}
-
-pub fn auction_bids<'a>() -> IndexedMap<'a, AuctionBidKey, AuctionBid, AuctionBidIndices<'a>> {
-    let indexes = AuctionBidIndices {
-        token_price: MultiIndex::new(
-            |d: &AuctionBid| (d.token_id.clone(), d.price.amount.u128()),
-            "auction_bids",
-            "auction_bids__token_price",
+        highest_bidder_end_time: MultiIndex::new(
+            |a: &Auction|  (a.highest_bid.as_ref().map_or(String::from(""), |b| b.bidder.to_string()), a.end_time.seconds()),
+            "auctions",
+            "auctions__highest_bidder_end_time",
         ),
     };
-    IndexedMap::new("auction_bids", indexes)
+    IndexedMap::new("auctions", indexes)
 }
