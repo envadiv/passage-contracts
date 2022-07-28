@@ -231,6 +231,11 @@ pub enum QueryMsg {
     Auction {
         token_id: TokenId,
     },
+    /// Get the auctions sorted by the start time
+    /// Return type: `AuctionsResponse`
+    AuctionsByStartTime {
+        query_options: QueryOptions<TokenTimestampOffset>
+    },
     /// Get the auctions sorted by the end time
     /// Return type: `AuctionsResponse`
     AuctionsByEndTime {

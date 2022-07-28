@@ -1334,6 +1334,32 @@ fn try_auction_queries() {
     }, res.auction.unwrap());
     assert_eq!(AuctionStatus::Pending, res.auction_status.unwrap());
 
+    // Verify that auctions can be sorted by start time
+    let query_auctions = QueryMsg::AuctionsByStartTime {
+        query_options: QueryOptions {
+            descending: Some(false),
+            filter_expiry: None,
+            start_after: None,
+            limit: None,
+        }
+    };
+    let res: AuctionsResponse = router
+        .wrap()
+        .query_wasm_smart(marketplace.clone(), &query_auctions)
+        .unwrap();
+    for n in 1..5 {
+        assert_eq!(Auction {
+            token_id: n.to_string(),
+            seller: creator.clone(),
+            start_time: block_time.plus_seconds(ONE_DAY + n),
+            end_time: block_time.plus_seconds(ONE_DAY * 2 + n),
+            starting_price: coin(100u128 + n as u128, NATIVE_DENOM),
+            reserve_price: Some(coin(200u128 + n as u128, NATIVE_DENOM)),
+            funds_recipient: None,
+            highest_bid: None
+        }, res.clone().auctions.into_iter().nth(n as usize - 1).unwrap());
+    }
+
     // Verify that auctions can be sorted by end time
     let query_auctions = QueryMsg::AuctionsByEndTime {
         query_options: QueryOptions {

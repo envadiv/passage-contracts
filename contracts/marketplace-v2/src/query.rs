@@ -96,6 +96,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Auction {
             token_id,
         } => to_binary(&query_auction(deps, env, token_id)?),
+        QueryMsg::AuctionsByStartTime {
+            query_options
+        } => to_binary(&query_auctions_by_start_time(
+            deps,
+            &query_options,
+        )?),
         QueryMsg::AuctionsByEndTime {
             query_options
         } => to_binary(&query_auctions_by_end_time(
@@ -402,6 +408,34 @@ pub fn query_auction(deps: Deps, env: Env, token_id: TokenId) -> StdResult<Aucti
     let is_reserve_price_met = auction.as_ref().map_or(None, |a| Some(a.is_reserve_price_met()));
 
     Ok(AuctionResponse { auction, auction_status, is_reserve_price_met })
+}
+
+pub fn query_auctions_by_start_time(
+    deps: Deps,
+    query_options: &QueryOptions<TokenTimestampOffset>
+) -> StdResult<AuctionsResponse> {
+    let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
+    let start = query_options.start_after.as_ref().map(|offset| {
+        Bound::exclusive((offset.timestamp.seconds(), offset.token_id.clone()))
+    });
+    let order = option_bool_to_order(query_options.descending);
+
+    let auctions = auctions()
+        .idx
+        .start_time
+        .range(deps.storage, start, None, order)
+        .filter(|item| match item {
+            Ok((_, auction)) => match query_options.filter_expiry {
+                Some(ts) => ts < auction.end_time,
+                _ => true,
+            },
+            Err(_) => true,
+        })
+        .take(limit)
+        .map(|res| res.map(|item| item.1))
+        .collect::<StdResult<Vec<_>>>()?;
+
+    Ok(AuctionsResponse { auctions })
 }
 
 pub fn query_auctions_by_end_time(

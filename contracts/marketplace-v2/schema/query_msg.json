@@ -297,6 +297,27 @@
       "additionalProperties": false
     },
     {
+      "description": "Get the auctions sorted by the start time Return type: `AuctionsResponse`",
+      "type": "object",
+      "required": [
+        "auctions_by_start_time"
+      ],
+      "properties": {
+        "auctions_by_start_time": {
+          "type": "object",
+          "required": [
+            "query_options"
+          ],
+          "properties": {
+            "query_options": {
+              "$ref": "#/definitions/QueryOptions_for_TokenTimestampOffset"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "Get the auctions sorted by the end time Return type: `AuctionsResponse`",
       "type": "object",
       "required": [

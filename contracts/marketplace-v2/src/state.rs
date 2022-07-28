@@ -265,6 +265,7 @@ pub type AuctionKey = TokenId;
 
 /// Defines indices for accessing Auctions
 pub struct AuctionIndices<'a> {
+    pub start_time: MultiIndex<'a, u64, Auction, AuctionKey>,
     pub end_time: MultiIndex<'a, u64, Auction, AuctionKey>,
     pub highest_bid_price: MultiIndex<'a, u128, Auction, AuctionKey>,
     pub seller_end_time: MultiIndex<'a, (String, u64), Auction, AuctionKey>,
@@ -274,6 +275,7 @@ pub struct AuctionIndices<'a> {
 impl<'a> IndexList<Auction> for AuctionIndices<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Auction>> + '_> {
         let v: Vec<&dyn Index<Auction>> = vec![
+            &self.start_time,
             &self.end_time,
             &self.highest_bid_price,
             &self.seller_end_time,
@@ -285,6 +287,11 @@ impl<'a> IndexList<Auction> for AuctionIndices<'a> {
 
 pub fn auctions<'a>() -> IndexedMap<'a, AuctionKey, Auction, AuctionIndices<'a>> {
     let indexes = AuctionIndices {
+        start_time: MultiIndex::new(
+            |a: &Auction|  a.start_time.seconds(),
+            "auctions",
+            "auctions__start_time",
+        ),
         end_time: MultiIndex::new(
             |a: &Auction|  a.end_time.seconds(),
             "auctions",
