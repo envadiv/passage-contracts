@@ -1,5 +1,5 @@
 use crate::helpers::ExpiryRange;
-use crate::state::{Ask, TokenId, Bid, Config, CollectionBid, Auction, AuctionStatus, AuctionBid};
+use crate::state::{Ask, TokenId, Bid, Config, CollectionBid, Auction, AuctionStatus};
 use cosmwasm_std::{Addr, Coin, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -118,16 +118,25 @@ pub enum ExecuteMsg {
     },
 }
 
+/// Options when querying for Asks and Bids
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AskExpiryOffset {
-    pub expires_at: Timestamp,
-    pub token_id: TokenId,
+pub struct QueryOptions<T> {
+    pub descending: Option<bool>,
+    pub filter_expiry: Option<Timestamp>,
+    pub start_after: Option<T>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AskPriceOffset {
-    pub price: Uint128,
+pub struct TokenTimestampOffset {
     pub token_id: TokenId,
+    pub timestamp: Timestamp,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TokenPriceOffset {
+    pub token_id: TokenId,
+    pub price: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -142,15 +151,6 @@ pub struct BidTokenPriceOffset {
     pub price: u128,
     pub bidder: Addr,
     pub token_id: TokenId,
-}
-
-/// Options when querying for Asks and Bids
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct QueryOptions<T> {
-    pub descending: Option<bool>,
-    pub filter_expiry: Option<Timestamp>,
-    pub start_after: Option<T>,
-    pub limit: Option<u32>,
 }
 
 /// Offset for collection bid pagination
@@ -168,24 +168,6 @@ pub struct CollectionBidExpiryOffset {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AuctionStartingPriceOffset {
-    pub token_id: TokenId,
-    pub starting_price: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AuctionPriceOffset {
-    pub token_id: TokenId,
-    pub price: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AuctionTimestampOffset {
-    pub token_id: TokenId,
-    pub timestamp: Timestamp,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     /// Get the config for the contract
@@ -199,18 +181,18 @@ pub enum QueryMsg {
     /// Get all asks sorted by expiry
     /// Return type: `AsksResponse`
     AsksSortedByExpiry {
-        query_options: QueryOptions<AskExpiryOffset>
+        query_options: QueryOptions<TokenTimestampOffset>
     },
     /// Get all asks sorted by price
     /// Return type: `AsksResponse`
     AsksSortedByPrice {
-        query_options: QueryOptions<AskPriceOffset>
+        query_options: QueryOptions<TokenPriceOffset>
     },
     /// Get all asks by seller
     /// Return type: `AsksResponse`
     AsksBySellerExpiry {
         seller: String,
-        query_options: QueryOptions<AskExpiryOffset>
+        query_options: QueryOptions<TokenTimestampOffset>
     },
     /// Count of all asks
     /// Return type: `AskCountResponse`
@@ -261,24 +243,24 @@ pub enum QueryMsg {
     /// Get the auctions sorted by the end time
     /// Return type: `AuctionsResponse`
     AuctionsByEndTime {
-        query_options: QueryOptions<AuctionTimestampOffset>
+        query_options: QueryOptions<TokenTimestampOffset>
     },
     /// Get the auctions sorted by the highest bid price
     /// Return type: `AuctionsResponse`
     AuctionsByHighestBidPrice {
-        query_options: QueryOptions<AuctionPriceOffset>
+        query_options: QueryOptions<TokenPriceOffset>
     },
     /// Get all auctions sorted by seller and end time
     /// Return type: `AuctionsResponse`
     AuctionsBySellerEndTime {
         seller: String,
-        query_options: QueryOptions<AuctionTimestampOffset>
+        query_options: QueryOptions<TokenTimestampOffset>
     },
     /// Get all auctions sorted by bidder and end time
     /// Return type: `AuctionsResponse`
     AuctionsByBidderEndTime {
         bidder: String,
-        query_options: QueryOptions<AuctionTimestampOffset>
+        query_options: QueryOptions<TokenTimestampOffset>
     },
 }
 
@@ -332,14 +314,4 @@ pub struct AuctionResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AuctionsResponse {
     pub auctions: Vec<Auction>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AuctionBidResponse {
-    pub auction_bid: Option<AuctionBid>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AuctionBidsResponse {
-    pub auction_bids: Vec<AuctionBid>,
 }

@@ -2,9 +2,9 @@
 use crate::error::ContractError;
 use crate::helpers::ExpiryRange;
 use crate::msg::{
-    ExecuteMsg, QueryMsg, AskResponse, AsksResponse, QueryOptions, AskPriceOffset, AskCountResponse,
+    ExecuteMsg, QueryMsg, AskResponse, AsksResponse, QueryOptions, TokenPriceOffset, AskCountResponse,
     BidResponse, BidsResponse, BidExpiryOffset, ConfigResponse, CollectionBidResponse, CollectionBidsResponse,
-    AuctionResponse, AuctionsResponse, AuctionTimestampOffset,
+    AuctionResponse, AuctionsResponse, TokenTimestampOffset,
 };
 use crate::state::{Ask, Bid, Config, CollectionBid, Auction, AuctionStatus, AuctionBid};
 use cosmwasm_std::{Addr, Empty, Timestamp, Attribute, coin, coins, Coin, Decimal, Uint128};
@@ -525,7 +525,7 @@ fn try_ask_queries() {
         query_options: QueryOptions {
             descending: Some(false),
             filter_expiry: None,
-            start_after: Some(AskPriceOffset {
+            start_after: Some(TokenPriceOffset {
                 price: Uint128::from(102u128),
                 token_id: String::from("2")
             }),
@@ -1497,7 +1497,7 @@ fn try_auction_queries() {
         query_options: QueryOptions {
             descending: None,
             filter_expiry: None,
-            start_after: Some(AuctionTimestampOffset {
+            start_after: Some(TokenTimestampOffset {
                 token_id: "1".to_string(),
                 timestamp: block_time.plus_seconds(ONE_DAY * 2 + 1),
             }),
