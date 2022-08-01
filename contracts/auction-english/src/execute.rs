@@ -414,15 +414,11 @@ pub fn execute_finalize_auction(
 pub fn execute_void_auction(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     token_id: TokenId,
 ) -> Result<Response, ContractError> {
     // Only the bidder can remove their bid
     let auction = auctions().load(deps.storage, token_id.clone())?;
-    let highest_bid = auction.highest_bid.as_ref().unwrap();
-    if highest_bid.bidder != info.sender {
-        return Err(ContractError::Unauthorized(String::from("only the bidder can remove their bid")));
-    }
     
     // Validate the Auction is Expired
     let config = CONFIG.load(deps.storage)?; 
@@ -433,13 +429,16 @@ pub fn execute_void_auction(
     }
     
     let mut response = Response::new();
-    // Refund the bidder the bid amount
-    transfer_token(
-        highest_bid.price.clone(),
-        highest_bid.bidder.to_string(),
-        "refund-auction-bidder",
-        &mut response,
-    )?;
+    // Refund the bidder the bid amount, if a bid exists
+    if auction.highest_bid.is_some() {
+        let bid = auction.highest_bid.unwrap();
+        transfer_token(
+            bid.price.clone(),
+            bid.bidder.to_string(),
+            "refund-auction-bidder",
+            &mut response,
+        )?;
+    }
     // Return the NFT to the seller
     transfer_nft(&auction.token_id, &auction.seller, &config.cw721_address, &mut response)?;
     // Remove the auction
@@ -447,8 +446,7 @@ pub fn execute_void_auction(
 
     let event = Event::new("void-auction")
         .add_attribute("token_id", &auction.token_id.to_string())
-        .add_attribute("seller", &auction.seller.to_string())
-        .add_attribute("bidder", &highest_bid.bidder.to_string());
+        .add_attribute("seller", &auction.seller.to_string());
     response.events.push(event);
 
     Ok(response)
