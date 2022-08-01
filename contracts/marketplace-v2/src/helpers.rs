@@ -2,7 +2,7 @@ use crate::msg::{ExecuteMsg};
 use crate::error::ContractError;
 use crate::state::{
     Config, TokenId, Bid, bids, bid_key, Ask, asks, CollectionBid, collection_bids,
-    Expiration, Auction
+    Expiration
 };
 use cosmwasm_std::{
     to_binary, Addr, Api, BlockInfo, StdResult, Timestamp, WasmMsg,CosmosMsg, Order,
@@ -318,17 +318,4 @@ fn set_match_bid_outcome(event: &mut Event, outcome: &str) -> () {
         }
         attr.clone()
     }).collect();
-}
-
-pub fn validate_auction_times(auction: &Auction, config: &Config, now: &Timestamp) -> Result<(), ContractError> {
-    if &auction.start_time <= now {
-        return Err(ContractError::AuctionInvalidStartEndTime(String::from("start time must be in the future")));
-    }
-    if &auction.start_time.plus_seconds(config.auction_min_duration) > &auction.end_time {
-        return Err(ContractError::AuctionInvalidStartEndTime(String::from("duration is below minimum")));
-    }
-    if &auction.start_time.plus_seconds(config.auction_max_duration) < &auction.end_time {
-        return Err(ContractError::AuctionInvalidStartEndTime(String::from("duration is above maximum")));
-    }
-    Ok(())
 }
