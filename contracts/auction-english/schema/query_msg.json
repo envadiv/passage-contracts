@@ -1,0 +1,779 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryMsg",
+  "oneOf": [
+    {
+      "description": "Get the config for the contract Return type: `ConfigResponse`",
+      "type": "object",
+      "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get the current ask for specific NFT Return type: `AskResponse`",
+      "type": "object",
+      "required": [
+        "ask"
+      ],
+      "properties": {
+        "ask": {
+          "type": "object",
+          "required": [
+            "token_id"
+          ],
+          "properties": {
+            "token_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get all asks sorted by expiry Return type: `AsksResponse`",
+      "type": "object",
+      "required": [
+        "asks_sorted_by_expiry"
+      ],
+      "properties": {
+        "asks_sorted_by_expiry": {
+          "type": "object",
+          "required": [
+            "query_options"
+          ],
+          "properties": {
+            "query_options": {
+              "$ref": "#/definitions/QueryOptions_for_TokenTimestampOffset"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get all asks sorted by price Return type: `AsksResponse`",
+      "type": "object",
+      "required": [
+        "asks_sorted_by_price"
+      ],
+      "properties": {
+        "asks_sorted_by_price": {
+          "type": "object",
+          "required": [
+            "query_options"
+          ],
+          "properties": {
+            "query_options": {
+              "$ref": "#/definitions/QueryOptions_for_TokenPriceOffset"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get all asks by seller Return type: `AsksResponse`",
+      "type": "object",
+      "required": [
+        "asks_by_seller_expiry"
+      ],
+      "properties": {
+        "asks_by_seller_expiry": {
+          "type": "object",
+          "required": [
+            "query_options",
+            "seller"
+          ],
+          "properties": {
+            "query_options": {
+              "$ref": "#/definitions/QueryOptions_for_TokenTimestampOffset"
+            },
+            "seller": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Count of all asks Return type: `AskCountResponse`",
+      "type": "object",
+      "required": [
+        "ask_count"
+      ],
+      "properties": {
+        "ask_count": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get data for a specific bid Return type: `BidResponse`",
+      "type": "object",
+      "required": [
+        "bid"
+      ],
+      "properties": {
+        "bid": {
+          "type": "object",
+          "required": [
+            "bidder",
+            "token_id"
+          ],
+          "properties": {
+            "bidder": {
+              "type": "string"
+            },
+            "token_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get all bids sorted by expiry Return type: `BidsResponse`",
+      "type": "object",
+      "required": [
+        "bids_sorted_by_expiry"
+      ],
+      "properties": {
+        "bids_sorted_by_expiry": {
+          "type": "object",
+          "required": [
+            "query_options"
+          ],
+          "properties": {
+            "query_options": {
+              "$ref": "#/definitions/QueryOptions_for_BidExpiryOffset"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get all bids for a token sorted by price Return type: `BidsResponse`",
+      "type": "object",
+      "required": [
+        "bids_by_token_price"
+      ],
+      "properties": {
+        "bids_by_token_price": {
+          "type": "object",
+          "required": [
+            "query_options",
+            "token_id"
+          ],
+          "properties": {
+            "query_options": {
+              "$ref": "#/definitions/QueryOptions_for_BidTokenPriceOffset"
+            },
+            "token_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get all bids by bidders sorted by expiry Return type: `BidsResponse`",
+      "type": "object",
+      "required": [
+        "bids_by_bidder_expiry"
+      ],
+      "properties": {
+        "bids_by_bidder_expiry": {
+          "type": "object",
+          "required": [
+            "bidder",
+            "query_options"
+          ],
+          "properties": {
+            "bidder": {
+              "type": "string"
+            },
+            "query_options": {
+              "$ref": "#/definitions/QueryOptions_for_BidExpiryOffset"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get a bidders collection_bid Return type: `CollectionBidResponse`",
+      "type": "object",
+      "required": [
+        "collection_bid"
+      ],
+      "properties": {
+        "collection_bid": {
+          "type": "object",
+          "required": [
+            "bidder"
+          ],
+          "properties": {
+            "bidder": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get all collection_bids sorted by price Return type: `CollectionBidsResponse`",
+      "type": "object",
+      "required": [
+        "collection_bids_by_price"
+      ],
+      "properties": {
+        "collection_bids_by_price": {
+          "type": "object",
+          "required": [
+            "query_options"
+          ],
+          "properties": {
+            "query_options": {
+              "$ref": "#/definitions/QueryOptions_for_CollectionBidPriceOffset"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get all collection_bids sorted by expiry Return type: `CollectionBidsResponse`",
+      "type": "object",
+      "required": [
+        "collection_bids_by_expiry"
+      ],
+      "properties": {
+        "collection_bids_by_expiry": {
+          "type": "object",
+          "required": [
+            "query_options"
+          ],
+          "properties": {
+            "query_options": {
+              "$ref": "#/definitions/QueryOptions_for_CollectionBidExpiryOffset"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get the auction for a specific NFT Return type: `AuctionResponse`",
+      "type": "object",
+      "required": [
+        "auction"
+      ],
+      "properties": {
+        "auction": {
+          "type": "object",
+          "required": [
+            "token_id"
+          ],
+          "properties": {
+            "token_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get the auctions sorted by the start time Return type: `AuctionsResponse`",
+      "type": "object",
+      "required": [
+        "auctions_by_start_time"
+      ],
+      "properties": {
+        "auctions_by_start_time": {
+          "type": "object",
+          "required": [
+            "query_options"
+          ],
+          "properties": {
+            "query_options": {
+              "$ref": "#/definitions/QueryOptions_for_TokenTimestampOffset"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get the auctions sorted by the end time Return type: `AuctionsResponse`",
+      "type": "object",
+      "required": [
+        "auctions_by_end_time"
+      ],
+      "properties": {
+        "auctions_by_end_time": {
+          "type": "object",
+          "required": [
+            "query_options"
+          ],
+          "properties": {
+            "query_options": {
+              "$ref": "#/definitions/QueryOptions_for_TokenTimestampOffset"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get the auctions sorted by the highest bid price Return type: `AuctionsResponse`",
+      "type": "object",
+      "required": [
+        "auctions_by_highest_bid_price"
+      ],
+      "properties": {
+        "auctions_by_highest_bid_price": {
+          "type": "object",
+          "required": [
+            "query_options"
+          ],
+          "properties": {
+            "query_options": {
+              "$ref": "#/definitions/QueryOptions_for_TokenPriceOffset"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get all auctions sorted by seller and end time Return type: `AuctionsResponse`",
+      "type": "object",
+      "required": [
+        "auctions_by_seller_end_time"
+      ],
+      "properties": {
+        "auctions_by_seller_end_time": {
+          "type": "object",
+          "required": [
+            "query_options",
+            "seller"
+          ],
+          "properties": {
+            "query_options": {
+              "$ref": "#/definitions/QueryOptions_for_TokenTimestampOffset"
+            },
+            "seller": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Get all auctions sorted by bidder and end time Return type: `AuctionsResponse`",
+      "type": "object",
+      "required": [
+        "auctions_by_bidder_end_time"
+      ],
+      "properties": {
+        "auctions_by_bidder_end_time": {
+          "type": "object",
+          "required": [
+            "bidder",
+            "query_options"
+          ],
+          "properties": {
+            "bidder": {
+              "type": "string"
+            },
+            "query_options": {
+              "$ref": "#/definitions/QueryOptions_for_TokenTimestampOffset"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  ],
+  "definitions": {
+    "Addr": {
+      "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+      "type": "string"
+    },
+    "BidExpiryOffset": {
+      "type": "object",
+      "required": [
+        "bidder",
+        "expires_at",
+        "token_id"
+      ],
+      "properties": {
+        "bidder": {
+          "$ref": "#/definitions/Addr"
+        },
+        "expires_at": {
+          "$ref": "#/definitions/Timestamp"
+        },
+        "token_id": {
+          "type": "string"
+        }
+      }
+    },
+    "BidTokenPriceOffset": {
+      "type": "object",
+      "required": [
+        "bidder",
+        "price",
+        "token_id"
+      ],
+      "properties": {
+        "bidder": {
+          "$ref": "#/definitions/Addr"
+        },
+        "price": {
+          "type": "integer",
+          "format": "uint128",
+          "minimum": 0.0
+        },
+        "token_id": {
+          "type": "string"
+        }
+      }
+    },
+    "CollectionBidExpiryOffset": {
+      "description": "Offset for collection bid pagination",
+      "type": "object",
+      "required": [
+        "bidder",
+        "expires_at"
+      ],
+      "properties": {
+        "bidder": {
+          "$ref": "#/definitions/Addr"
+        },
+        "expires_at": {
+          "$ref": "#/definitions/Timestamp"
+        }
+      }
+    },
+    "CollectionBidPriceOffset": {
+      "description": "Offset for collection bid pagination",
+      "type": "object",
+      "required": [
+        "bidder",
+        "price"
+      ],
+      "properties": {
+        "bidder": {
+          "$ref": "#/definitions/Addr"
+        },
+        "price": {
+          "type": "integer",
+          "format": "uint128",
+          "minimum": 0.0
+        }
+      }
+    },
+    "QueryOptions_for_BidExpiryOffset": {
+      "description": "Options when querying for Asks and Bids",
+      "type": "object",
+      "properties": {
+        "descending": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "filter_expiry": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "start_after": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BidExpiryOffset"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "QueryOptions_for_BidTokenPriceOffset": {
+      "description": "Options when querying for Asks and Bids",
+      "type": "object",
+      "properties": {
+        "descending": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "filter_expiry": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "start_after": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BidTokenPriceOffset"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "QueryOptions_for_CollectionBidExpiryOffset": {
+      "description": "Options when querying for Asks and Bids",
+      "type": "object",
+      "properties": {
+        "descending": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "filter_expiry": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "start_after": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CollectionBidExpiryOffset"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "QueryOptions_for_CollectionBidPriceOffset": {
+      "description": "Options when querying for Asks and Bids",
+      "type": "object",
+      "properties": {
+        "descending": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "filter_expiry": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "start_after": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CollectionBidPriceOffset"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "QueryOptions_for_TokenPriceOffset": {
+      "description": "Options when querying for Asks and Bids",
+      "type": "object",
+      "properties": {
+        "descending": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "filter_expiry": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "start_after": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TokenPriceOffset"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "QueryOptions_for_TokenTimestampOffset": {
+      "description": "Options when querying for Asks and Bids",
+      "type": "object",
+      "properties": {
+        "descending": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "filter_expiry": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "start_after": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TokenTimestampOffset"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Timestamp": {
+      "description": "A point in time in nanosecond precision.\n\nThis type can represent times from 1970-01-01T00:00:00Z to 2554-07-21T23:34:33Z.\n\n## Examples\n\n``` # use cosmwasm_std::Timestamp; let ts = Timestamp::from_nanos(1_000_000_202); assert_eq!(ts.nanos(), 1_000_000_202); assert_eq!(ts.seconds(), 1); assert_eq!(ts.subsec_nanos(), 202);\n\nlet ts = ts.plus_seconds(2); assert_eq!(ts.nanos(), 3_000_000_202); assert_eq!(ts.seconds(), 3); assert_eq!(ts.subsec_nanos(), 202); ```",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Uint64"
+        }
+      ]
+    },
+    "TokenPriceOffset": {
+      "type": "object",
+      "required": [
+        "price",
+        "token_id"
+      ],
+      "properties": {
+        "price": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "token_id": {
+          "type": "string"
+        }
+      }
+    },
+    "TokenTimestampOffset": {
+      "type": "object",
+      "required": [
+        "timestamp",
+        "token_id"
+      ],
+      "properties": {
+        "timestamp": {
+          "$ref": "#/definitions/Timestamp"
+        },
+        "token_id": {
+          "type": "string"
+        }
+      }
+    },
+    "Uint128": {
+      "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
+      "type": "string"
+    },
+    "Uint64": {
+      "description": "A thin wrapper around u64 that is using strings for JSON encoding/decoding, such that the full u64 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u64` to get the value out:\n\n``` # use cosmwasm_std::Uint64; let a = Uint64::from(42u64); assert_eq!(a.u64(), 42);\n\nlet b = Uint64::from(70u32); assert_eq!(b.u64(), 70); ```",
+      "type": "string"
+    }
+  }
+}
