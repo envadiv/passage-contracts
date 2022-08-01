@@ -178,13 +178,13 @@ pub fn transfer_token(coin_send: Coin, recipient: String, event_label: &str, res
 
 pub fn validate_auction_times(auction: &Auction, config: &Config, now: &Timestamp) -> Result<(), ContractError> {
     if &auction.start_time <= now {
-        return Err(ContractError::AuctionInvalidStartEndTime(String::from("start time must be in the future")));
+        return Err(ContractError::InvalidStartEndTime(String::from("start time must be in the future")));
     }
     if &auction.start_time.plus_seconds(config.min_duration) > &auction.end_time {
-        return Err(ContractError::AuctionInvalidStartEndTime(String::from("duration is below minimum")));
+        return Err(ContractError::InvalidStartEndTime(String::from("duration is below minimum")));
     }
     if &auction.start_time.plus_seconds(config.max_duration) < &auction.end_time {
-        return Err(ContractError::AuctionInvalidStartEndTime(String::from("duration is above maximum")));
+        return Err(ContractError::InvalidStartEndTime(String::from("duration is above maximum")));
     }
     Ok(())
 }

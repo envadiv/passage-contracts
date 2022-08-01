@@ -12,17 +12,7 @@
         "update_config": {
           "type": "object",
           "properties": {
-            "ask_expiry": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/ExpiryRange"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "auction_max_duration": {
+            "buffer_duration": {
               "type": [
                 "integer",
                 "null"
@@ -30,7 +20,7 @@
               "format": "uint64",
               "minimum": 0.0
             },
-            "auction_min_duration": {
+            "closed_duration": {
               "type": [
                 "integer",
                 "null"
@@ -38,15 +28,37 @@
               "format": "uint64",
               "minimum": 0.0
             },
-            "bid_expiry": {
+            "collector_address": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "max_duration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "min_bid_increment": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/ExpiryRange"
+                  "$ref": "#/definitions/Uint128"
                 },
                 {
                   "type": "null"
                 }
               ]
+            },
+            "min_duration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             },
             "min_price": {
               "anyOf": [
@@ -74,212 +86,6 @@
               ],
               "format": "uint64",
               "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "List an NFT on the marketplace by creating a new ask",
-      "type": "object",
-      "required": [
-        "set_ask"
-      ],
-      "properties": {
-        "set_ask": {
-          "type": "object",
-          "required": [
-            "expires_at",
-            "price",
-            "token_id"
-          ],
-          "properties": {
-            "expires_at": {
-              "$ref": "#/definitions/Timestamp"
-            },
-            "funds_recipient": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "price": {
-              "$ref": "#/definitions/Coin"
-            },
-            "reserve_for": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "token_id": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Remove an existing ask from the marketplace",
-      "type": "object",
-      "required": [
-        "remove_ask"
-      ],
-      "properties": {
-        "remove_ask": {
-          "type": "object",
-          "required": [
-            "token_id"
-          ],
-          "properties": {
-            "token_id": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Place a bid on an existing ask",
-      "type": "object",
-      "required": [
-        "set_bid"
-      ],
-      "properties": {
-        "set_bid": {
-          "type": "object",
-          "required": [
-            "expires_at",
-            "price",
-            "token_id"
-          ],
-          "properties": {
-            "expires_at": {
-              "$ref": "#/definitions/Timestamp"
-            },
-            "price": {
-              "$ref": "#/definitions/Coin"
-            },
-            "token_id": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Remove an existing bid from an ask",
-      "type": "object",
-      "required": [
-        "remove_bid"
-      ],
-      "properties": {
-        "remove_bid": {
-          "type": "object",
-          "required": [
-            "token_id"
-          ],
-          "properties": {
-            "token_id": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Accept a bid on an existing ask",
-      "type": "object",
-      "required": [
-        "accept_bid"
-      ],
-      "properties": {
-        "accept_bid": {
-          "type": "object",
-          "required": [
-            "bidder",
-            "token_id"
-          ],
-          "properties": {
-            "bidder": {
-              "type": "string"
-            },
-            "token_id": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Place a bid (limit order) across an entire collection",
-      "type": "object",
-      "required": [
-        "set_collection_bid"
-      ],
-      "properties": {
-        "set_collection_bid": {
-          "type": "object",
-          "required": [
-            "expires_at",
-            "price",
-            "units"
-          ],
-          "properties": {
-            "expires_at": {
-              "$ref": "#/definitions/Timestamp"
-            },
-            "price": {
-              "$ref": "#/definitions/Coin"
-            },
-            "units": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Remove a bid (limit order) across an entire collection",
-      "type": "object",
-      "required": [
-        "remove_collection_bid"
-      ],
-      "properties": {
-        "remove_collection_bid": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Accept a collection bid",
-      "type": "object",
-      "required": [
-        "accept_collection_bid"
-      ],
-      "properties": {
-        "accept_collection_bid": {
-          "type": "object",
-          "required": [
-            "bidder",
-            "token_id"
-          ],
-          "properties": {
-            "bidder": {
-              "type": "string"
-            },
-            "token_id": {
-              "type": "string"
             }
           }
         }
@@ -361,7 +167,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Sellers can close a previously created auction",
+      "description": "Sellers can close a previously created auction that has not met the reserve price",
       "type": "object",
       "required": [
         "close_auction"
@@ -370,9 +176,13 @@
         "close_auction": {
           "type": "object",
           "required": [
+            "accept_highest_bid",
             "token_id"
           ],
           "properties": {
+            "accept_highest_bid": {
+              "type": "boolean"
+            },
             "token_id": {
               "type": "string"
             }
@@ -401,6 +211,27 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "The bidder can void an expired Auction that has not been determined by the seller",
+      "type": "object",
+      "required": [
+        "void_auction"
+      ],
+      "properties": {
+        "void_auction": {
+          "type": "object",
+          "required": [
+            "token_id"
+          ],
+          "properties": {
+            "token_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
@@ -416,25 +247,6 @@
         },
         "denom": {
           "type": "string"
-        }
-      }
-    },
-    "ExpiryRange": {
-      "type": "object",
-      "required": [
-        "max",
-        "min"
-      ],
-      "properties": {
-        "max": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
-        },
-        "min": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
         }
       }
     },

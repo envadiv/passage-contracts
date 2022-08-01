@@ -28,6 +28,16 @@
         "boolean",
         "null"
       ]
+    },
+    "next_bid_min": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "definitions": {
@@ -114,7 +124,8 @@
       "enum": [
         "Pending",
         "Open",
-        "Closed"
+        "Closed",
+        "Expired"
       ]
     },
     "Coin": {

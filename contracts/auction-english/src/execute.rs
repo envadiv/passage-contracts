@@ -214,13 +214,13 @@ pub fn execute_set_auction(
     if let Some(_reserve_price) = &auction.reserve_price {
         price_validate(&_reserve_price, &config)?;
         if _reserve_price.amount < auction.starting_price.amount {
-            return Err(ContractError::AuctionInvalidReservePrice(_reserve_price.amount, auction.starting_price.amount));
+            return Err(ContractError::InvalidReservePrice(_reserve_price.amount, auction.starting_price.amount));
         }
     }
 
     let existing_auction = auctions().may_load(deps.storage, auction.token_id.clone())?;
     if let Some(_existing_auction) = existing_auction {
-        return Err(ContractError::AuctionAlreadyExists(auction.token_id.clone()));
+        return Err(ContractError::AlreadyExists(auction.token_id.clone()));
     }
 
     auctions().save(deps.storage, auction.token_id.clone(), &auction)?;
@@ -257,12 +257,12 @@ pub fn execute_set_auction_bid(
     let auction_status = auction.get_auction_status(&env.block.time, config.closed_duration);
     match &auction_status {
         AuctionStatus::Open => {},
-        _ => return Err(ContractError::AuctionInvalidStatus(auction_status.to_string())),
+        _ => return Err(ContractError::InvalidStatus(auction_status.to_string())),
     }
 
     // Validate bid is higher than the minimum viable bid
     if auction_bid.price.amount < auction.get_next_bid_min(config.min_bid_increment) {
-        return Err(ContractError::AuctionBidTooLow {});
+        return Err(ContractError::BidTooLow {});
     }
     
     // If previous bid exists, refund it
@@ -316,7 +316,7 @@ pub fn execute_close_auction(
 
     // If reserve price has been met, seller cannot close auction
     if auction.is_reserve_price_met() {
-        return Err(ContractError::AuctionReservePriceRestriction(
+        return Err(ContractError::ReservePriceRestriction(
             "must finalize auction when reserve price is met".to_string(),
         ));
     }
@@ -375,7 +375,7 @@ pub fn execute_finalize_auction(
 
     // Validate reserve price is met
     if !auction.is_reserve_price_met() {
-        return Err(ContractError::AuctionReservePriceRestriction(
+        return Err(ContractError::ReservePriceRestriction(
             "reserve price not met".to_string(),
         ));
     }
@@ -385,7 +385,7 @@ pub fn execute_finalize_auction(
     let auction_status = auction.get_auction_status(&env.block.time, config.closed_duration);
     match &auction_status {
         AuctionStatus::Closed | AuctionStatus::Expired => {},
-        _ => return Err(ContractError::AuctionInvalidStatus(auction_status.to_string())),
+        _ => return Err(ContractError::InvalidStatus(auction_status.to_string())),
     }
 
     // Perform sale
@@ -429,7 +429,7 @@ pub fn execute_void_auction(
     let auction_status = auction.get_auction_status(&env.block.time, config.closed_duration);
     match &auction_status {
         AuctionStatus::Expired => {},
-        _ => return Err(ContractError::AuctionInvalidStatus(auction_status.to_string())),
+        _ => return Err(ContractError::InvalidStatus(auction_status.to_string())),
     }
     
     let mut response = Response::new();

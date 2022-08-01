@@ -1,7 +1,7 @@
 [workspace]
 members = ["contracts/*"]
 
-[profile.release.package.auctions-english]
+[profile.release.package.auction-english]
 codegen-units = 1
 incremental = false
 
