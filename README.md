@@ -35,6 +35,7 @@ Passage smart contracts written in CosmWasm and deployed to Juno.
 | pg721_legacy            | 557     | v0.1.6-alpha | 84f04434f55a73096e908b093e75153bfb637eb9091a7b267f7a516ad36ad49c | For deploying Town 1 to testnet                       |
 | minter-metadata-onchain | 801     | v0.1.7-alpha | f6bfc05ba1d5ea2dedabe3bae69ddc5d00dba6c032f3bc078821daf476a9d133 | Refactored MintInfo query, added SetAdmin execute msg |
 | minter-metadata-onchain | 866     | v0.1.8-alpha | 3f8e3db3b53c8bd4229f22263842beb3477fa1350228f08e71d4c49bca33e5d6 | Added recipient to Withdraw msg                       |
+| marketplace-v2          | 2121    | v0.1.9-alpha | 260f4ac512975897fcd448c7a8cb0d4513c1c922b7041884b1c5d56701119281 | Marketplace-v2 including Auctions                     |
 
 ### Testnet (uni-2)
 
@@ -58,7 +59,7 @@ junod tx wasm store artifacts/marketplace_legacy.wasm  --from juno19mmkdpvem2xvr
 **Deploy to testnet**
 
 ```bash
-junod tx wasm store artifacts/minter_metadata_onchain.wasm  --from juno19mmkdpvem2xvrddt8nukf5kfpjwfslrs7sgw8e --chain-id=uni-3 \
+junod tx wasm store artifacts/marketplace_v2.wasm  --from juno19mmkdpvem2xvrddt8nukf5kfpjwfslrs7sgw8e --chain-id=uni-3 \
   --gas-prices 0.1ujunox --gas auto --gas-adjustment 1.3 -b block -y
 ```
 
