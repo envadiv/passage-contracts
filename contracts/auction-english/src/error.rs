@@ -13,41 +13,30 @@ pub enum ContractError {
     #[error("Invalid price")]
     InvalidPrice {},
 
-    #[error("Bid expired")]
-    BidExpired {},
-
     #[error("{0}")]
     BidPaymentError(#[from] PaymentError),
 
     #[error("Incorrect bid payment: expected {0}, actual {1}")]
     IncorrectBidPayment(Uint128, Uint128),
 
-    // Expiry errors
-    #[error("Invalid expiration range")]
-    InvalidExpirationRange {},
-
-    #[error("Expiry min > max")]
-    InvalidExpiry {},
-
-    // Auction errors
     #[error("Invalid reserve price: reserve_price {0} < starting_price {1}")]
-    AuctionInvalidReservePrice(Uint128, Uint128),
+    InvalidReservePrice(Uint128, Uint128),
 
     #[error("Invalid start / end time: ${0}")]
-    AuctionInvalidStartEndTime(String),
+    InvalidStartEndTime(String),
 
     #[error("Auction already exists: token_id {0}")]
-    AuctionAlreadyExists(String),
+    AlreadyExists(String),
 
     #[error("Auction not found: token_id {0}")]
-    AuctionNotFound(String),
+    NotFound(String),
 
     #[error("Auction invalid status: {0}")]
-    AuctionInvalidStatus(String),
+    InvalidStatus(String),
 
     #[error("Auction bid too low")]
-    AuctionBidTooLow {},
+    BidTooLow {},
 
     #[error("Reserve price restriction: {0}")]
-    AuctionReservePriceRestriction(String),
+    ReservePriceRestriction(String),
 }
