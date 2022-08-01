@@ -19,8 +19,6 @@
       "type": "object",
       "required": [
         "ask_expiry",
-        "auction_max_duration",
-        "auction_min_duration",
         "bid_expiry",
         "collector_address",
         "cw721_address",
@@ -37,18 +35,6 @@
               "$ref": "#/definitions/ExpiryRange"
             }
           ]
-        },
-        "auction_max_duration": {
-          "description": "The maximum duration of an auction",
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
-        },
-        "auction_min_duration": {
-          "description": "The minimum duration of an auction",
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
         },
         "bid_expiry": {
           "description": "Valid time range for Bids (min, max) in seconds",
