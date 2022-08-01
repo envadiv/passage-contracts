@@ -30,6 +30,4 @@ fn main() {
     export_schema(&schema_for!(msg::ConfigResponse), &out_dir);
     export_schema(&schema_for!(msg::CollectionBidResponse), &out_dir);
     export_schema(&schema_for!(msg::CollectionBidsResponse), &out_dir);
-    export_schema(&schema_for!(msg::AuctionResponse), &out_dir);
-    export_schema(&schema_for!(msg::AuctionsResponse), &out_dir);
 }

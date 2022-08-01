@@ -1,5 +1,5 @@
 use crate::helpers::ExpiryRange;
-use crate::state::{Ask, TokenId, Bid, Config, CollectionBid, Auction, AuctionStatus};
+use crate::state::{Ask, TokenId, Bid, Config, CollectionBid};
 use cosmwasm_std::{Addr, Coin, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -42,8 +42,6 @@ pub enum ExecuteMsg {
         bid_expiry: Option<ExpiryRange>,
         operators: Option<Vec<String>>,
         min_price: Option<Uint128>,
-        auction_min_duration: Option<u64>,
-        auction_max_duration: Option<u64>,
     },
     /// List an NFT on the marketplace by creating a new ask
     SetAsk {
@@ -84,28 +82,6 @@ pub enum ExecuteMsg {
     AcceptCollectionBid {
         token_id: TokenId,
         bidder: String,
-    },
-    /// Create an auction for a specified token
-    SetAuction {
-        token_id: TokenId,
-        start_time: Timestamp,
-        end_time: Timestamp,
-        starting_price: Coin,
-        reserve_price: Option<Coin>,
-        funds_recipient: Option<String>,
-    },
-    /// Place a bid on an existing auction
-    SetAuctionBid {
-        token_id: TokenId,
-        price: Coin,
-    },
-    /// Sellers can close a previously created auction
-    CloseAuction {
-        token_id: TokenId,
-    },
-    /// Anyone can finalize an auction that has met the reserve price
-    FinalizeAuction {
-        token_id: TokenId,
     },
 }
 
@@ -226,38 +202,6 @@ pub enum QueryMsg {
     CollectionBidsByExpiry {
         query_options: QueryOptions<CollectionBidExpiryOffset>
     },
-    /// Get the auction for a specific NFT
-    /// Return type: `AuctionResponse`
-    Auction {
-        token_id: TokenId,
-    },
-    /// Get the auctions sorted by the start time
-    /// Return type: `AuctionsResponse`
-    AuctionsByStartTime {
-        query_options: QueryOptions<TokenTimestampOffset>
-    },
-    /// Get the auctions sorted by the end time
-    /// Return type: `AuctionsResponse`
-    AuctionsByEndTime {
-        query_options: QueryOptions<TokenTimestampOffset>
-    },
-    /// Get the auctions sorted by the highest bid price
-    /// Return type: `AuctionsResponse`
-    AuctionsByHighestBidPrice {
-        query_options: QueryOptions<TokenPriceOffset>
-    },
-    /// Get all auctions sorted by seller and end time
-    /// Return type: `AuctionsResponse`
-    AuctionsBySellerEndTime {
-        seller: String,
-        query_options: QueryOptions<TokenTimestampOffset>
-    },
-    /// Get all auctions sorted by bidder and end time
-    /// Return type: `AuctionsResponse`
-    AuctionsByBidderEndTime {
-        bidder: String,
-        query_options: QueryOptions<TokenTimestampOffset>
-    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -298,16 +242,4 @@ pub struct CollectionBidResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CollectionBidsResponse {
     pub collection_bids: Vec<CollectionBid>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AuctionResponse {
-    pub auction: Option<Auction>,
-    pub auction_status: Option<AuctionStatus>,
-    pub is_reserve_price_met: Option<bool>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AuctionsResponse {
-    pub auctions: Vec<Auction>,
 }
