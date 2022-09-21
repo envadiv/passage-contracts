@@ -820,6 +820,7 @@ dependencies = [
  "cw-utils 0.13.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "cw2 0.13.4",
  "cw4 0.13.2",
+ "cw721 0.13.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust_decimal",
  "schemars",
  "serde",

@@ -28,6 +28,7 @@ cw-storage-plus = "0.13.1"
 cw-utils = "0.13.1"
 cw2 = "0.13.1"
 cw4 = "0.13.1"
+cw721 = "0.13.2"
 schemars = "0.8"
 rust_decimal = { version = "1.14.3" }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
