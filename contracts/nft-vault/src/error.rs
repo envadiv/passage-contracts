@@ -1,6 +1,7 @@
 use cosmwasm_std::{StdError};
 use thiserror::Error;
 use crate::hooks::HookError;
+use cw_utils::PaymentError;
 
 #[derive(Error, Debug)]
 pub enum ContractError {
@@ -12,4 +13,7 @@ pub enum ContractError {
 
     #[error("{0}")]
     Hook(#[from] HookError),
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
 }

@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use cosmwasm_std::{to_binary, Addr, Binary, StdResult, Timestamp};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -29,6 +30,8 @@ pub enum ExecuteMsg {
     AddWithdrawHook { hook: String },
     /// Remove a withdraw hook
     RemoveWithdrawHook { hook: String },
+    /// Stake
+    Stake { token_id: String, },
 }
 
 
@@ -47,4 +50,39 @@ pub struct ConfigResponse {
     pub operators: Vec<String>,
     pub label: String,
     pub unstake_period: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum HookAction {
+    Create,
+    Delete,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct StakeHookMsg {
+    pub cw721_address: Addr,
+    pub token_id: String,
+    pub owner: Addr,
+    pub timestamp: Timestamp,
+}
+
+impl StakeHookMsg {
+    /// serializes the message
+    pub fn into_binary(self, action: HookAction) -> StdResult<Binary> {
+        let msg = match action {
+            HookAction::Create => StakeHookExecuteMsg::StakeCreatedHook(self),
+            HookAction::Delete => StakeHookExecuteMsg::StakeDeletedHook(self),
+        };
+        to_binary(&msg)
+    }
+}
+
+// This is just a helper to properly serialize the above message
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum StakeHookExecuteMsg {
+    StakeCreatedHook(StakeHookMsg),
+    StakeDeletedHook(StakeHookMsg),
 }

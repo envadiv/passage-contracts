@@ -1,10 +1,11 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Addr};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Addr, Event, WasmMsg, SubMsg, Reply};
+use cw_utils::{nonpayable};
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg};
-use crate::state::{CONFIG, STAKE_HOOKS, UNSTAKE_HOOKS, WITHDRAW_HOOKS};
-use crate::helpers::{map_validate, only_operator};
+use crate::msg::{ExecuteMsg, StakeHookMsg, HookAction};
+use crate::state::{CONFIG, VaultToken, VAULT_TOKENS, STAKE_HOOKS, UNSTAKE_HOOKS, WITHDRAW_HOOKS};
+use crate::helpers::{map_validate, only_operator, transfer_nft};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
@@ -51,6 +52,12 @@ pub fn execute(
         ExecuteMsg::RemoveWithdrawHook { hook } => execute_remove_withdraw_hook(
             deps,
             api.addr_validate(&hook)?
+        ),
+        ExecuteMsg::Stake { token_id } => execute_stake(
+            deps,
+            env,
+            info,
+            token_id
         ),
     }
 }
@@ -139,4 +146,86 @@ pub fn execute_remove_withdraw_hook(deps: DepsMut, hook: Addr) -> Result<Respons
         .add_attribute("action", "remove_withdraw_hook")
         .add_attribute("hook", hook);
     Ok(res)
+}
+
+pub fn execute_stake(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    token_id: String,
+) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
+    
+    let config = CONFIG.load(deps.storage)?;
+    
+    let mut response = Response::new();
+    transfer_nft(&token_id, &env.contract.address, &config.cw721_address, &mut response)?;
+
+    VAULT_TOKENS.save(deps.storage, token_id.clone(), &VaultToken {
+        token_id: token_id.clone(),
+        owner: info.sender.clone(),
+        stake_timestamp: env.block.time,
+    })?;
+
+    let submsgs = STAKE_HOOKS.prepare_hooks(deps.storage, |h| {
+        let msg = StakeHookMsg { 
+            token_id: token_id.clone(),
+            owner: info.sender.clone(),
+            cw721_address: config.cw721_address.clone(),
+            timestamp: env.block.time,
+        };
+        let execute = WasmMsg::Execute {
+            contract_addr: h.to_string(),
+            msg: msg.into_binary(HookAction::Create)?,
+            funds: vec![],
+        };
+        Ok(SubMsg::reply_on_error(execute, HookReply::Stake as u64))
+    })?;
+
+    let event = Event::new("stake-token")
+        .add_attribute("cw721_address", config.cw721_address.to_string())
+        .add_attribute("token_id", &token_id.to_string());
+
+    Ok(response.add_submessages(submsgs).add_event(event))
+}
+
+enum HookReply {
+    Stake = 1,
+    Unstake,
+    Withdraw,
+}
+
+impl From<u64> for HookReply {
+    fn from(item: u64) -> Self {
+        match item {
+            1 => HookReply::Stake,
+            2 => HookReply::Unstake,
+            3 => HookReply::Withdraw,
+            _ => panic!("invalid reply type"),
+        }
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match HookReply::from(msg.id) {
+        HookReply::Stake => {
+            let res = Response::new()
+                .add_attribute("action", "stake-hook-failed")
+                .add_attribute("error", msg.result.unwrap_err());
+            Ok(res)
+        }
+        HookReply::Unstake => {
+            let res = Response::new()
+                .add_attribute("action", "unstake-hook-failed")
+                .add_attribute("error", msg.result.unwrap_err());
+            Ok(res)
+        }
+        HookReply::Withdraw => {
+            let res = Response::new()
+                .add_attribute("action", "withdraw-hook-failed")
+                .add_attribute("error", msg.result.unwrap_err());
+            Ok(res)
+        }
+    }
 }
