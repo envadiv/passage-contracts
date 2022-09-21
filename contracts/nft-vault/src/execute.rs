@@ -1,9 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Addr};
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg};
-use crate::state::{CONFIG};
+use crate::state::{CONFIG, STAKE_HOOKS, UNSTAKE_HOOKS, WITHDRAW_HOOKS};
 use crate::helpers::{map_validate, only_operator};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -13,6 +13,8 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let api = deps.api;
+
     match msg {
         ExecuteMsg::UpdateConfig {
             operators,
@@ -25,6 +27,30 @@ pub fn execute(
             operators,
             label,
             unstake_period
+        ),
+        ExecuteMsg::AddStakeHook { hook } => execute_add_stake_hook(
+            deps,
+            api.addr_validate(&hook)?
+        ),
+        ExecuteMsg::RemoveStakeHook { hook } => execute_remove_stake_hook(
+            deps,
+            api.addr_validate(&hook)?
+        ),
+        ExecuteMsg::AddUnstakeHook { hook } => execute_add_unstake_hook(
+            deps,
+            api.addr_validate(&hook)?
+        ),
+        ExecuteMsg::RemoveUnstakeHook { hook } => execute_remove_unstake_hook(
+            deps,
+            api.addr_validate(&hook)?
+        ),
+        ExecuteMsg::AddWithdrawHook { hook } => execute_add_withdraw_hook(
+            deps,
+            api.addr_validate(&hook)?
+        ),
+        ExecuteMsg::RemoveWithdrawHook { hook } => execute_remove_withdraw_hook(
+            deps,
+            api.addr_validate(&hook)?
         ),
     }
 }
@@ -58,4 +84,59 @@ pub fn execute_update_config(
         .add_attribute("label", config.label)
         .add_attribute("unstake_period", config.unstake_period.to_string())
     )
+}
+
+pub fn execute_add_stake_hook(deps: DepsMut, hook: Addr) -> Result<Response, ContractError> {
+    STAKE_HOOKS.add_hook(deps.storage, hook.clone())?;
+
+    let res = Response::new()
+        .add_attribute("action", "add_stake_hook")
+        .add_attribute("hook", hook);
+    Ok(res)
+}
+
+pub fn execute_remove_stake_hook(deps: DepsMut, hook: Addr) -> Result<Response, ContractError> {
+    STAKE_HOOKS.remove_hook(deps.storage, hook.clone())?;
+
+    let res = Response::new()
+        .add_attribute("action", "remove_stake_hook")
+        .add_attribute("hook", hook);
+    Ok(res)
+}
+
+pub fn execute_add_unstake_hook(deps: DepsMut, hook: Addr) -> Result<Response, ContractError> {
+    UNSTAKE_HOOKS.add_hook(deps.storage, hook.clone())?;
+
+    let res = Response::new()
+        .add_attribute("action", "add_unstake_hook")
+        .add_attribute("hook", hook);
+    Ok(res)
+}
+
+pub fn execute_remove_unstake_hook(deps: DepsMut, hook: Addr) -> Result<Response, ContractError> {
+    UNSTAKE_HOOKS.remove_hook(deps.storage, hook.clone())?;
+
+    let res = Response::new()
+        .add_attribute("action", "remove_unstake_hook")
+        .add_attribute("hook", hook);
+    Ok(res)
+}
+
+
+pub fn execute_add_withdraw_hook(deps: DepsMut, hook: Addr) -> Result<Response, ContractError> {
+    WITHDRAW_HOOKS.add_hook(deps.storage, hook.clone())?;
+
+    let res = Response::new()
+        .add_attribute("action", "add_withdraw_hook")
+        .add_attribute("hook", hook);
+    Ok(res)
+}
+
+pub fn execute_remove_withdraw_hook(deps: DepsMut, hook: Addr) -> Result<Response, ContractError> {
+    WITHDRAW_HOOKS.remove_hook(deps.storage, hook.clone())?;
+
+    let res = Response::new()
+        .add_attribute("action", "remove_withdraw_hook")
+        .add_attribute("hook", hook);
+    Ok(res)
 }

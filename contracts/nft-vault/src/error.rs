@@ -1,5 +1,6 @@
 use cosmwasm_std::{StdError};
 use thiserror::Error;
+use crate::hooks::HookError;
 
 #[derive(Error, Debug)]
 pub enum ContractError {
@@ -8,4 +9,7 @@ pub enum ContractError {
 
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
+
+    #[error("{0}")]
+    Hook(#[from] HookError),
 }

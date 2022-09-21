@@ -2,6 +2,7 @@ use cosmwasm_std::{Addr};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use crate::hooks::Hooks;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -17,4 +18,8 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-pub const VAULT_TOKENS: Map<String, Addr> = Map::new("vault_tokens");
+pub const VAULT_TOKENS: Map<String, Addr> = Map::new("vault-tokens");
+
+pub const STAKE_HOOKS: Hooks = Hooks::new("stake-hooks");
+pub const UNSTAKE_HOOKS: Hooks = Hooks::new("unstake-hooks");
+pub const WITHDRAW_HOOKS: Hooks = Hooks::new("withdraw-hooks");

@@ -17,6 +17,18 @@ pub enum ExecuteMsg {
         label: Option<String>,
         unstake_period: Option<u64>,
     },
+    /// Add a new hook to be informed of all staking events
+    AddStakeHook { hook: String },
+    /// Remove a stake hook
+    RemoveStakeHook { hook: String },
+    /// Add a new hook to be informed of all unstaking events
+    AddUnstakeHook { hook: String },
+    /// Remove an unstake hook
+    RemoveUnstakeHook { hook: String },
+    /// Add a new hook to be informed of all withdraw events
+    AddWithdrawHook { hook: String },
+    /// Remove a withdraw hook
+    RemoveWithdrawHook { hook: String },
 }
 
 
@@ -24,6 +36,9 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
+    StakeHooks {},
+    UnstakeHooks {},
+    WithdrawHooks {}, 
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

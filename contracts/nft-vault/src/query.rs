@@ -1,5 +1,5 @@
 use crate::msg::{ConfigResponse, QueryMsg};
-use crate::state::{CONFIG};
+use crate::state::{CONFIG, STAKE_HOOKS, UNSTAKE_HOOKS, WITHDRAW_HOOKS};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, Env, StdResult};
@@ -8,6 +8,9 @@ use cosmwasm_std::{to_binary, Binary, Deps, Env, StdResult};
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
+        QueryMsg::StakeHooks {} => to_binary(&STAKE_HOOKS.query_hooks(deps)?),
+        QueryMsg::UnstakeHooks {} => to_binary(&UNSTAKE_HOOKS.query_hooks(deps)?),
+        QueryMsg::WithdrawHooks {} => to_binary(&WITHDRAW_HOOKS.query_hooks(deps)?),
     }
 }
 
