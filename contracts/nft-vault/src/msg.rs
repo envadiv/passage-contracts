@@ -39,6 +39,19 @@ pub enum ExecuteMsg {
     Withdraw { token_id: String, },
 }
 
+/// Options when querying for VaultTokens
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct QueryOptions<T> {
+    pub descending: Option<bool>,
+    pub start_after: Option<T>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TokenTimestampOffset {
+    pub token_id: String,
+    pub timestamp: Timestamp,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -46,7 +59,11 @@ pub enum QueryMsg {
     Config {},
     StakeHooks {},
     UnstakeHooks {},
-    WithdrawHooks {}, 
+    WithdrawHooks {},
+    VaultToken { token_id: String },
+    VaultTokensByOwner { owner: String, query_options: QueryOptions<TokenTimestampOffset> },
+    VaultTokensByStakeTimestamp { query_options: QueryOptions<TokenTimestampOffset> },
+    VaultTokensByUnstakeTimestamp { query_options: QueryOptions<TokenTimestampOffset> },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -55,6 +72,16 @@ pub struct ConfigResponse {
     pub operators: Vec<String>,
     pub label: String,
     pub unstake_period: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct VaultTokenResponse {
+    pub vault_token: Option<VaultToken>
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct VaultTokensResponse {
+    pub vault_tokens: Vec<VaultToken>
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

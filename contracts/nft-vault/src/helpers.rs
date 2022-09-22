@@ -1,6 +1,9 @@
 use crate::error::ContractError;
 use crate::state::{Config};
-use cosmwasm_std::{Addr, Api, StdResult, MessageInfo, SubMsg, Response, WasmMsg, Event, to_binary};
+use cosmwasm_std::{
+    Addr, Api, StdResult, MessageInfo, SubMsg, Response, WasmMsg, Event, to_binary,
+    Order
+};
 use cw721::{Cw721ExecuteMsg};
 
 pub fn map_validate(api: &dyn Api, addresses: &[String]) -> StdResult<Vec<Addr>> {
@@ -45,4 +48,11 @@ pub fn transfer_nft(token_id: &TokenId, recipient: &Addr, collection: &Addr, res
     response.events.push(event);
     
     Ok(())
+}
+
+pub fn option_bool_to_order(descending: Option<bool>) -> Order {
+    match descending {
+       Some(_descending) => if _descending { Order::Descending } else { Order::Ascending },
+       _ => Order::Ascending
+   }
 }
