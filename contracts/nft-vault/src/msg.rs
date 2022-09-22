@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use cosmwasm_std::{to_binary, Addr, Binary, StdResult, Timestamp};
+use crate::state::{VaultToken, VaultTokenStatus};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -30,8 +31,10 @@ pub enum ExecuteMsg {
     AddWithdrawHook { hook: String },
     /// Remove a withdraw hook
     RemoveWithdrawHook { hook: String },
-    /// Stake
+    /// Stake an NFT
     Stake { token_id: String, },
+    /// Unstake an NFT
+    Unstake { token_id: String, },
 }
 
 
@@ -55,25 +58,45 @@ pub struct ConfigResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum HookAction {
-    Create,
-    Delete,
+    Stake,
+    Unstake,
+    Withdraw
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub struct StakeHookMsg {
+pub struct HookMsg {
     pub cw721_address: Addr,
     pub token_id: String,
     pub owner: Addr,
-    pub timestamp: Timestamp,
+    pub stake_timestamp: Timestamp,
+    pub unstake_timestamp: Option<Timestamp>,
+    pub status: VaultTokenStatus,
 }
 
-impl StakeHookMsg {
+impl HookMsg {
+    pub fn new(
+        cw721_address: &Addr,
+        vault_token: &VaultToken,
+        now: &Timestamp,
+        unstake_period: u64,
+    ) -> Self {
+        HookMsg {
+            cw721_address: cw721_address.clone(),
+            token_id: vault_token.token_id.clone(),
+            owner: vault_token.owner.clone(),
+            stake_timestamp: vault_token.stake_timestamp.clone(),
+            unstake_timestamp: vault_token.unstake_timestamp.clone(),
+            status: vault_token.get_status(now, unstake_period),
+        }
+    }
+
     /// serializes the message
     pub fn into_binary(self, action: HookAction) -> StdResult<Binary> {
         let msg = match action {
-            HookAction::Create => StakeHookExecuteMsg::StakeCreatedHook(self),
-            HookAction::Delete => StakeHookExecuteMsg::StakeDeletedHook(self),
+            HookAction::Stake => HookExecuteMsg::StakeHook(self),
+            HookAction::Unstake => HookExecuteMsg::UnstakeHook(self),
+            HookAction::Withdraw => HookExecuteMsg::WithdrawHook(self),
         };
         to_binary(&msg)
     }
@@ -82,7 +105,8 @@ impl StakeHookMsg {
 // This is just a helper to properly serialize the above message
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum StakeHookExecuteMsg {
-    StakeCreatedHook(StakeHookMsg),
-    StakeDeletedHook(StakeHookMsg),
+pub enum HookExecuteMsg {
+    StakeHook(HookMsg),
+    UnstakeHook(HookMsg),
+    WithdrawHook(HookMsg),
 }

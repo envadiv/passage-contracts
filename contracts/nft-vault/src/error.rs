@@ -16,4 +16,7 @@ pub enum ContractError {
 
     #[error("{0}")]
     PaymentError(#[from] PaymentError),
+
+    #[error("InvalidStatus: {0}")]
+    InvalidStatus(String),
 }

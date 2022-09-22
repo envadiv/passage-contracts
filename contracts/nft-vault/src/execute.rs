@@ -1,10 +1,10 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Addr, Event, WasmMsg, SubMsg, Reply};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Addr, Event, WasmMsg, SubMsg, Reply, StdError};
 use cw_utils::{nonpayable};
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, StakeHookMsg, HookAction};
-use crate::state::{CONFIG, VaultToken, VAULT_TOKENS, STAKE_HOOKS, UNSTAKE_HOOKS, WITHDRAW_HOOKS};
+use crate::msg::{ExecuteMsg, HookMsg, HookAction};
+use crate::state::{CONFIG, VaultToken, VaultTokenStatus, VAULT_TOKENS, STAKE_HOOKS, UNSTAKE_HOOKS, WITHDRAW_HOOKS};
 use crate::helpers::{map_validate, only_operator, transfer_nft};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -54,6 +54,12 @@ pub fn execute(
             api.addr_validate(&hook)?
         ),
         ExecuteMsg::Stake { token_id } => execute_stake(
+            deps,
+            env,
+            info,
+            token_id
+        ),
+        ExecuteMsg::Unstake { token_id } => execute_unstake(
             deps,
             env,
             info,
@@ -156,27 +162,44 @@ pub fn execute_stake(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
     
-    let config = CONFIG.load(deps.storage)?;
-    
     let mut response = Response::new();
-    transfer_nft(&token_id, &env.contract.address, &config.cw721_address, &mut response)?;
 
-    VAULT_TOKENS.save(deps.storage, token_id.clone(), &VaultToken {
-        token_id: token_id.clone(),
-        owner: info.sender.clone(),
-        stake_timestamp: env.block.time,
-    })?;
+    let config = CONFIG.load(deps.storage)?;
+    let mut vault_token_option = VAULT_TOKENS.may_load(deps.storage, token_id.clone())?;
 
-    let submsgs = STAKE_HOOKS.prepare_hooks(deps.storage, |h| {
-        let msg = StakeHookMsg { 
+    if let Some(_vault_token) = &mut vault_token_option {
+        // Allow users to re-stake tokens that are either unstaking or transferrable
+        let status = _vault_token.get_status(&env.block.time, config.unstake_period);
+        if status == VaultTokenStatus::Staked {
+            return Err(ContractError::InvalidStatus(status.to_string()));
+        }
+        _vault_token.stake_timestamp = env.block.time;
+        _vault_token.unstake_timestamp = None;
+    } else {
+        // Allow users to stake tokens
+        transfer_nft(&token_id, &env.contract.address, &config.cw721_address, &mut response)?;
+
+        vault_token_option = Some(VaultToken {
             token_id: token_id.clone(),
             owner: info.sender.clone(),
-            cw721_address: config.cw721_address.clone(),
-            timestamp: env.block.time,
-        };
+            stake_timestamp: env.block.time,
+            unstake_timestamp: None
+        });
+    }
+
+    let vault_token = vault_token_option.unwrap();
+    VAULT_TOKENS.save(deps.storage, token_id.clone(), &vault_token)?;
+
+    let submsgs = STAKE_HOOKS.prepare_hooks(deps.storage, |h| {
+        let msg = HookMsg::new(
+            &config.cw721_address,
+            &vault_token,
+            &env.block.time,
+            config.unstake_period,
+        );
         let execute = WasmMsg::Execute {
             contract_addr: h.to_string(),
-            msg: msg.into_binary(HookAction::Create)?,
+            msg: msg.into_binary(HookAction::Stake)?,
             funds: vec![],
         };
         Ok(SubMsg::reply_on_error(execute, HookReply::Stake as u64))
@@ -186,6 +209,59 @@ pub fn execute_stake(
         .add_attribute("cw721_address", config.cw721_address.to_string())
         .add_attribute("token_id", &token_id.to_string());
 
+    Ok(response.add_submessages(submsgs).add_event(event))
+}
+
+pub fn execute_unstake(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    token_id: String,
+) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
+
+    let vault_token = VAULT_TOKENS.load(deps.storage, token_id.clone())?;
+
+    // Only original owner can unstake
+    if vault_token.owner != info.sender {
+        return Err(ContractError::Unauthorized("Only owner can unstake".to_string()));
+    }
+
+    let config = CONFIG.load(deps.storage)?;
+    let vault_token = VAULT_TOKENS.update(
+        deps.storage,
+        token_id.clone(),
+        |vault_token| -> Result<VaultToken, ContractError> {
+            let mut updated_vault_token = vault_token.unwrap();
+            let status = updated_vault_token.get_status(&env.block.time, config.unstake_period);
+            if status != VaultTokenStatus::Staked {
+                return Err(ContractError::InvalidStatus(status.to_string()));
+            }
+            updated_vault_token.unstake_timestamp = Some(env.block.time);
+            Ok(updated_vault_token)
+        }
+    )?;
+
+    let submsgs = UNSTAKE_HOOKS.prepare_hooks(deps.storage, |h| {
+        let msg = HookMsg::new(
+            &config.cw721_address,
+            &vault_token,
+            &env.block.time,
+            config.unstake_period,
+        );
+        let execute = WasmMsg::Execute {
+            contract_addr: h.to_string(),
+            msg: msg.into_binary(HookAction::Unstake)?,
+            funds: vec![],
+        };
+        Ok(SubMsg::reply_on_error(execute, HookReply::Unstake as u64))
+    })?;
+
+    let event = Event::new("unstake-token")
+        .add_attribute("cw721_address", config.cw721_address.to_string())
+        .add_attribute("token_id", &token_id.to_string());
+
+    let response = Response::new();
     Ok(response.add_submessages(submsgs).add_event(event))
 }
 
