@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Addr, Event, WasmMsg, SubMsg, Reply, StdError};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Addr, Event, WasmMsg, SubMsg, Reply};
 use cw_utils::{nonpayable};
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, HookMsg, HookAction};
@@ -60,6 +60,12 @@ pub fn execute(
             token_id
         ),
         ExecuteMsg::Unstake { token_id } => execute_unstake(
+            deps,
+            env,
+            info,
+            token_id
+        ),
+        ExecuteMsg::Withdraw { token_id } => execute_withdraw(
             deps,
             env,
             info,
@@ -262,6 +268,53 @@ pub fn execute_unstake(
         .add_attribute("token_id", &token_id.to_string());
 
     let response = Response::new();
+    Ok(response.add_submessages(submsgs).add_event(event))
+}
+
+pub fn execute_withdraw(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    token_id: String,
+) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
+
+    let vault_token = VAULT_TOKENS.load(deps.storage, token_id.clone())?;
+
+    // Only original owner can withdraw
+    if vault_token.owner != info.sender {
+        return Err(ContractError::Unauthorized("Only owner can withdraw".to_string()));
+    }
+
+    let config = CONFIG.load(deps.storage)?;
+    let status = vault_token.get_status(&env.block.time, config.unstake_period);
+    if status != VaultTokenStatus::Transferrable {
+        return Err(ContractError::InvalidStatus(status.to_string()));
+    }
+
+    let mut response = Response::new();
+    transfer_nft(&token_id, &vault_token.owner, &config.cw721_address, &mut response)?;
+    VAULT_TOKENS.remove(deps.storage, token_id.clone());
+
+    let submsgs = WITHDRAW_HOOKS.prepare_hooks(deps.storage, |h| {
+        let msg = HookMsg::new(
+            &config.cw721_address,
+            &vault_token,
+            &env.block.time,
+            config.unstake_period,
+        );
+        let execute = WasmMsg::Execute {
+            contract_addr: h.to_string(),
+            msg: msg.into_binary(HookAction::Withdraw)?,
+            funds: vec![],
+        };
+        Ok(SubMsg::reply_on_error(execute, HookReply::Withdraw as u64))
+    })?;
+
+    let event = Event::new("withdraw-token")
+        .add_attribute("cw721_address", config.cw721_address.to_string())
+        .add_attribute("token_id", &token_id.to_string());
+
     Ok(response.add_submessages(submsgs).add_event(event))
 }
 

@@ -35,6 +35,8 @@ pub enum ExecuteMsg {
     Stake { token_id: String, },
     /// Unstake an NFT
     Unstake { token_id: String, },
+    /// Withdraw an NFT
+    Withdraw { token_id: String, },
 }
 
 
