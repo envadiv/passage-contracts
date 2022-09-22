@@ -60,24 +60,28 @@ impl VaultToken {
 
 /// Defines indices for accessing VaultTokens
 pub struct VaultTokenIndices<'a> {
-    pub owner: MultiIndex<'a, Addr, VaultToken, String>,
+    pub owner_stake_timestamp: MultiIndex<'a, (Addr, u64), VaultToken, String>,
     pub stake_timestamp: MultiIndex<'a, u64, VaultToken, String>,
     pub unstake_timestamp: MultiIndex<'a, u64, VaultToken, String>,
 }
 
 impl<'a> IndexList<VaultToken> for VaultTokenIndices<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<VaultToken>> + '_> {
-        let v: Vec<&dyn Index<VaultToken>> = vec![&self.owner, &self.stake_timestamp, &self.unstake_timestamp];
+        let v: Vec<&dyn Index<VaultToken>> = vec![&self.owner_stake_timestamp, &self.stake_timestamp, &self.unstake_timestamp];
         Box::new(v.into_iter())
     }
 }
 
 pub fn vault_tokens<'a>() -> IndexedMap<'a, String, VaultToken, VaultTokenIndices<'a>> {
     let indexes = VaultTokenIndices {
-        owner: MultiIndex::new(|d: &VaultToken|  d.owner.clone(), "vault_tokens", "vault_tokens__owner"),
+        owner_stake_timestamp: MultiIndex::new(
+            |d: &VaultToken| (d.owner.clone(), d.stake_timestamp.seconds()),
+            "vault_tokens",
+            "vault_tokens__owner_stake_timestamp"
+        ),
         stake_timestamp: MultiIndex::new(|d: &VaultToken|  d.stake_timestamp.seconds(), "vault_tokens", "vault_tokens__stake_timestamp"),
         unstake_timestamp: MultiIndex::new(
-            |d: &VaultToken| d.unstake_timestamp.map_or(u64::MAX, |ts| ts.seconds()),
+            |d: &VaultToken| d.unstake_timestamp.map_or(0u64, |ts| ts.seconds()),
             "vault_tokens",
             "vault_tokens__unstake_timestamp",
         ),
