@@ -4,7 +4,7 @@ use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Addr, Event, WasmMsg, Su
 use cw_utils::{nonpayable};
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, HookMsg, HookAction};
-use crate::state::{CONFIG, VaultToken, VaultTokenStatus, VAULT_TOKENS, STAKE_HOOKS, UNSTAKE_HOOKS, WITHDRAW_HOOKS};
+use crate::state::{CONFIG, VaultToken, VaultTokenStatus, vault_tokens, STAKE_HOOKS, UNSTAKE_HOOKS, WITHDRAW_HOOKS};
 use crate::helpers::{map_validate, only_operator, transfer_nft};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -171,7 +171,7 @@ pub fn execute_stake(
     let mut response = Response::new();
 
     let config = CONFIG.load(deps.storage)?;
-    let mut vault_token_option = VAULT_TOKENS.may_load(deps.storage, token_id.clone())?;
+    let mut vault_token_option = vault_tokens().may_load(deps.storage, token_id.clone())?;
 
     if let Some(_vault_token) = &mut vault_token_option {
         // Allow users to re-stake tokens that are either unstaking or transferrable
@@ -194,7 +194,7 @@ pub fn execute_stake(
     }
 
     let vault_token = vault_token_option.unwrap();
-    VAULT_TOKENS.save(deps.storage, token_id.clone(), &vault_token)?;
+    vault_tokens().save(deps.storage, token_id.clone(), &vault_token)?;
 
     let submsgs = STAKE_HOOKS.prepare_hooks(deps.storage, |h| {
         let msg = HookMsg::new(
@@ -226,7 +226,7 @@ pub fn execute_unstake(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let vault_token = VAULT_TOKENS.load(deps.storage, token_id.clone())?;
+    let vault_token = vault_tokens().load(deps.storage, token_id.clone())?;
 
     // Only original owner can unstake
     if vault_token.owner != info.sender {
@@ -234,7 +234,7 @@ pub fn execute_unstake(
     }
 
     let config = CONFIG.load(deps.storage)?;
-    let vault_token = VAULT_TOKENS.update(
+    let vault_token = vault_tokens().update(
         deps.storage,
         token_id.clone(),
         |vault_token| -> Result<VaultToken, ContractError> {
@@ -279,7 +279,7 @@ pub fn execute_withdraw(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let vault_token = VAULT_TOKENS.load(deps.storage, token_id.clone())?;
+    let vault_token = vault_tokens().load(deps.storage, token_id.clone())?;
 
     // Only original owner can withdraw
     if vault_token.owner != info.sender {
@@ -294,7 +294,7 @@ pub fn execute_withdraw(
 
     let mut response = Response::new();
     transfer_nft(&token_id, &vault_token.owner, &config.cw721_address, &mut response)?;
-    VAULT_TOKENS.remove(deps.storage, token_id.clone());
+    vault_tokens().remove(deps.storage, token_id.clone())?;
 
     let submsgs = WITHDRAW_HOOKS.prepare_hooks(deps.storage, |h| {
         let msg = HookMsg::new(
