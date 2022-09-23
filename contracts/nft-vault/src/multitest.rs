@@ -6,8 +6,10 @@ use cw721::{Cw721QueryMsg, OwnerOfResponse};
 use pg721::msg::{InstantiateMsg as Pg721InstantiateMsg, ExecuteMsg as Pg721ExecuteMsg, RoyaltyInfoResponse};
 use pg721::state::CollectionInfo;
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, QueryMsg};
-use crate::msg::{InstantiateMsg as NftVaultInstantiateMsg, VaultTokenResponse};
+use crate::msg::{
+    ExecuteMsg, QueryMsg, QueryOptions, InstantiateMsg as NftVaultInstantiateMsg,
+    VaultTokenResponse, VaultTokensResponse
+};
 
 const TOKEN_ID_A: &str = "1";
 const TOKEN_ID_B: &str = "2";
@@ -320,4 +322,81 @@ fn try_nft_staking_happy_path() {
         .query_wasm_smart(nft_vault.clone(), &query_owner_msg)
         .unwrap();
     assert_eq!(res.vault_token, None);
+}
+
+
+#[test]
+fn try_nft_staking_queries() {
+    let mut router = custom_mock_app();
+
+    // Setup intial accounts
+    let (owner, creator) = setup_accounts(&mut router).unwrap();
+
+    // Instantiate and configure contracts
+    let (collection, nft_vault) = setup_contracts(&mut router, &creator).unwrap();
+
+    for n in 1..6 {
+        mint(&mut router, &creator, &owner, &collection, n.to_string());
+        approve(&mut router, &owner, &collection, &nft_vault, n.to_string());
+
+        let block_time = router.block_info().time;
+        setup_block_time(&mut router, block_time.seconds() + n);
+        let stake_msg = ExecuteMsg::Stake {
+            token_id: n.to_string(),
+        };
+        let res = router.execute_contract(owner.clone(), nft_vault.clone(), &stake_msg, &[]);
+        assert!(res.is_ok());
+    }
+
+    let query_msg = QueryMsg::VaultTokensByOwner {
+        owner: owner.to_string(),
+        query_options: QueryOptions {
+            limit: Some(2),
+            descending: Some(false),
+            start_after: None,
+        },
+    };
+    let res: VaultTokensResponse = router
+        .wrap()
+        .query_wasm_smart(nft_vault.clone(), &query_msg)
+        .unwrap();
+    for n in 1..2 {
+        assert_eq!(res.vault_tokens[n - 1].owner, owner.to_string());
+        assert_eq!(res.vault_tokens[n - 1].token_id, n.to_string());
+        assert_eq!(res.vault_tokens[n - 1].unstake_timestamp, None);
+    }
+
+    let query_msg = QueryMsg::VaultTokensByStakeTimestamp {
+        query_options: QueryOptions {
+            limit: Some(3),
+            descending: Some(true),
+            start_after: None,
+        },
+    };
+    let res: VaultTokensResponse = router
+        .wrap()
+        .query_wasm_smart(nft_vault.clone(), &query_msg)
+        .unwrap();
+    for n in 0..3 {
+        assert_eq!(res.vault_tokens[n].owner, owner.to_string());
+        assert_eq!(res.vault_tokens[n].token_id, (5 - n).to_string());
+        assert_eq!(res.vault_tokens[n].unstake_timestamp, None);
+    }
+
+    let query_msg = QueryMsg::VaultTokensByUnstakeTimestamp {
+        query_options: QueryOptions {
+            limit: Some(3),
+            descending: Some(true),
+            start_after: None,
+        },
+    };
+    let res: VaultTokensResponse = router
+        .wrap()
+        .query_wasm_smart(nft_vault.clone(), &query_msg)
+        .unwrap();
+    for n in 0..3 {
+        assert_eq!(res.vault_tokens[n].owner, owner.to_string());
+        assert_eq!(res.vault_tokens[n].token_id, (5 - n).to_string());
+        assert_eq!(res.vault_tokens[n].unstake_timestamp, None);
+    }
 }
