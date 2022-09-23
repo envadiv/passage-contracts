@@ -1,10 +1,11 @@
-use crate::error::ContractError;
-use crate::state::{Config};
 use cosmwasm_std::{
     Addr, Api, StdResult, MessageInfo, SubMsg, Response, WasmMsg, Event, to_binary,
-    Order
+    Order, Deps
 };
 use cw721::{Cw721ExecuteMsg};
+use cw721_base::helpers::Cw721Contract;
+use crate::error::ContractError;
+use crate::state::{Config};
 
 pub fn map_validate(api: &dyn Api, addresses: &[String]) -> StdResult<Vec<Addr>> {
     addresses
@@ -55,4 +56,18 @@ pub fn option_bool_to_order(descending: Option<bool>) -> Order {
        Some(_descending) => if _descending { Order::Descending } else { Order::Ascending },
        _ => Order::Ascending
    }
+}
+
+/// Checks to enforce only NFT owner can call
+pub fn only_owner(
+    deps: Deps,
+    info: &MessageInfo,
+    collection: &Addr,
+    token_id: &str,
+) -> Result<(), ContractError> {
+    let res = Cw721Contract(collection.clone()).owner_of(&deps.querier, token_id, false)?;
+    if res.owner != info.sender {
+        return Err(ContractError::Unauthorized(String::from("only the owner can call this function")));
+    }
+    Ok(())
 }
