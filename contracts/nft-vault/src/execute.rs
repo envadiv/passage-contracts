@@ -5,7 +5,7 @@ use cw_utils::{nonpayable};
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, HookMsg, HookAction};
 use crate::state::{CONFIG, VaultToken, VaultTokenStatus, vault_tokens, STAKE_HOOKS, UNSTAKE_HOOKS, WITHDRAW_HOOKS};
-use crate::helpers::{map_validate, only_operator, transfer_nft};
+use crate::helpers::{map_validate, only_operator, transfer_nft, only_owner};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
@@ -182,6 +182,8 @@ pub fn execute_stake(
         _vault_token.stake_timestamp = env.block.time;
         _vault_token.unstake_timestamp = None;
     } else {
+        only_owner(deps.as_ref(), &info, &config.cw721_address, &token_id)?;
+
         // Allow users to stake tokens
         transfer_nft(&token_id, &env.contract.address, &config.cw721_address, &mut response)?;
 
