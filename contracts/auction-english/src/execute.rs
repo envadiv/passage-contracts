@@ -6,7 +6,7 @@ use cw_utils::{maybe_addr, must_pay, nonpayable};
 
 use crate::error::ContractError;
 use crate::helpers::{
-    map_validate, finalize_sale, price_validate, only_seller,
+    map_validate, finalize_sale, price_validate, only_seller, only_owner,
     only_operator, transfer_nft, transfer_token, validate_auction_times
 };
 use crate::msg::{InstantiateMsg, ExecuteMsg};
@@ -217,6 +217,8 @@ pub fn execute_set_auction(
             return Err(ContractError::InvalidReservePrice(_reserve_price.amount, auction.starting_price.amount));
         }
     }
+
+    only_owner(deps.as_ref(), &info, &config.cw721_address, &auction.token_id)?;
 
     let existing_auction = auctions().may_load(deps.storage, auction.token_id.clone())?;
     if let Some(_existing_auction) = existing_auction {
