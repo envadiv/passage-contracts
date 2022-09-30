@@ -112,8 +112,6 @@ fn setup_contracts(
         bid_expiry: ExpiryRange::new(ONE_DAY, SIX_MOS),
         operators: vec!["operator".to_string()],
         min_price: Uint128::from(5u128),
-        auction_min_duration: ONE_DAY,
-        auction_max_duration: SIX_MOS,
     };
     let marketplace = router
         .instantiate_contract(

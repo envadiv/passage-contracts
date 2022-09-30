@@ -26,10 +26,6 @@ pub struct InstantiateMsg {
     pub operators: Vec<String>,
     /// Min value for bids and asks
     pub min_price: Uint128,
-    /// The minimum duration of an auction 
-    pub auction_min_duration: u64,
-    /// The maximum duration of an auction 
-    pub auction_max_duration: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
