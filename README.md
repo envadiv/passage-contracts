@@ -3,8 +3,8 @@
 Passage smart contracts written in CosmWasm and deployed to Juno.
 
 ## Diagram
-![Screen Shot 2022-09-29 at 3 06 37 PM](https://user-images.githubusercontent.com/6496257/193121168-9a5f52a5-4447-4732-9cea-caefc455063e.png)
 
+![Screen Shot 2022-09-29 at 3 06 37 PM](https://user-images.githubusercontent.com/6496257/193121168-9a5f52a5-4447-4732-9cea-caefc455063e.png)
 
 ## Contracts
 
@@ -17,6 +17,17 @@ Passage smart contracts written in CosmWasm and deployed to Juno.
 | pg721-metadata-onchain  | 478     | v0.1.8-alpha | be256a2235558736018a0bdb4ee9d5c80bf2a73f4411e29be771debe6c6b1c58 | 8.000106ujuno  |       |
 | minter-metadata-onchain | 480     | v0.1.8-alpha | 3f8e3db3b53c8bd4229f22263842beb3477fa1350228f08e71d4c49bca33e5d6 | 4.0814907ujuno |       |
 | marketplace-legacy      | 490     | v0.1.8-alpha | 46bc19eea386551aa58267c9844d4b1b77b32ac535326cae2897733ab610b35c | 3.360571ujuno  |       |
+
+### Testnet (uni-5)
+
+| Contract           | Code ID | Version      | Checksum                                                         | Notes             |
+| ------------------ | ------- | ------------ | ---------------------------------------------------------------- | ----------------- |
+| marketplace-v2     | 682     | v0.1.9-alpha | 960f3460f66b3f786a71ebeac873bfb626296e816b4959576a2f31db9bc758fe | Pre-audit release |
+| pg721              | 684     | v0.1.9-alpha | 858ad95e058eec1be83b03852ea7b60c8dfae67169927844f7633a1c911396c3 | Redeploy on uni-5 |
+| marketplace-legacy | 685     | v0.1.9-alpha | 6ac6a166f673930a274a919cdbf80fdaefdd2c0a9e491fa3cd8248334872271d | Redeploy on uni-5 |
+| minter             | 686     | v0.1.9-alpha | fb6e7b06536eed2283c5000300b43ffdd9b26665c5af68627a18b6c28a072d14 | Redeploy on uni-5 |
+| auction-english    | 687     | v0.1.9-alpha | 32e9df3bbc4e15f7ae5d7be6d731ef8c58f0f70c59c8a34a4de914669393d99a | Pre-audit release |
+| nft-vault          | 688     | v0.1.9-alpha | 69dd5d7ed6c33a267fbe851554b5f781f2cbcc0c8a500ff2407db852440a1dc6 | Initial release   |
 
 ### Testnet (uni-3)
 
