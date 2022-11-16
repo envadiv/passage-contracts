@@ -441,7 +441,7 @@ pub fn execute_set_collection_bid(
     if let Some(existing_bid) = collection_bids().may_load(deps.storage, collection_bid_key.clone())? {
         collection_bids().remove(deps.storage, collection_bid_key.clone())?;
         transfer_token(
-            existing_bid.price,
+            coin(existing_bid.total_cost(), existing_bid.price.denom),
             existing_bid.bidder.to_string(),
             "refund-collection-bidder",
             &mut response,
@@ -474,7 +474,7 @@ pub fn execute_remove_collection_bid(
 
     collection_bids().remove(deps.storage, collection_bid_key)?;
     transfer_token(
-        collection_bid.price,
+        coin(collection_bid.total_cost(), collection_bid.price.denom),
         collection_bid.bidder.to_string(),
         "refund-collection-bidder",
         &mut response,

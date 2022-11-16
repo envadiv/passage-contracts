@@ -905,3 +905,71 @@ fn try_collection_bid_flow() {
         .unwrap();
     assert_eq!(res.collection_bids.len(), 0);
 }
+
+#[test]
+fn test_refund_collection_bid() {
+    let mut router = custom_mock_app();
+    let block_time = router.block_info().time;
+    // Setup intial accounts
+    let (_owner, bidder, creator, _bidder2) = setup_accounts(&mut router).unwrap();
+
+    // Instantiate and configure contracts
+    let (marketplace, _collection) = setup_contracts(&mut router, &creator).unwrap();
+
+    // Create a bid of 10 units for 100 tokens each
+    let ten_units = 10u32;
+    let collection_bid_price = coin(100u128, NATIVE_DENOM);
+    let ts = block_time.plus_seconds(ONE_DAY + 10 as u64);
+    let set_collection_bid = ExecuteMsg::SetCollectionBid {
+        units: ten_units.clone(),
+        price: collection_bid_price.clone().clone(),
+        expires_at: ts.clone(),
+    };
+    let sent_coin = coin(
+        collection_bid_price.clone().amount.u128() * ten_units as u128,
+        collection_bid_price.clone().denom,
+    );
+    let res = router.execute_contract(
+        bidder.clone(),
+        marketplace.clone(),
+        &set_collection_bid,
+        &[sent_coin],
+    );
+    assert!(res.is_ok());
+
+    // Now we create a new bid of 1 unit for 100 tokens each
+    // We expect the first bid to be refunded
+    let one_unit = 1u32;
+    let set_collection_bid = ExecuteMsg::SetCollectionBid {
+        units: one_unit.clone(),
+        price: collection_bid_price.clone(),
+        expires_at: ts.clone(),
+    };
+    let sent_coin = coin(
+        collection_bid_price.clone().amount.u128() * one_unit as u128,
+        collection_bid_price.clone().denom,
+    );
+    let res = router.execute_contract(
+        bidder.clone(),
+        marketplace.clone(),
+        &set_collection_bid,
+        &[sent_coin],
+    );
+    assert!(res.is_ok());
+
+    // Find the res.unwrap().events that has field "ty" named "transfer":
+    let refund_event = res
+        .unwrap()
+        .events
+        .into_iter()
+        .find(|e| e.ty == "transfer")
+        .unwrap();
+    // Make sure the value is of 10 units * 100 tokens = 1000ujunox
+    assert_eq!(
+        refund_event.attributes[2].value,
+        format!(
+            "{}ujunox",
+            collection_bid_price.amount.u128() * ten_units as u128
+        )
+    );
+}
