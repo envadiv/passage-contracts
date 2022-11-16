@@ -324,7 +324,6 @@ fn try_nft_staking_happy_path() {
     assert_eq!(res.vault_token, None);
 }
 
-
 #[test]
 fn try_nft_staking_queries() {
     let mut router = custom_mock_app();
@@ -399,4 +398,72 @@ fn try_nft_staking_queries() {
         assert_eq!(res.vault_tokens[n].token_id, (5 - n).to_string());
         assert_eq!(res.vault_tokens[n].unstake_timestamp, None);
     }
+}
+
+#[test]
+fn try_unauthorized_hook_messages() {
+    let mut router = custom_mock_app();
+
+    // Setup intial accounts
+    let (owner, creator) = setup_accounts(&mut router).unwrap();
+
+    // Instantiate and configure contracts
+    let (_, nft_vault) = setup_contracts(&mut router, &creator).unwrap();
+
+    let dummy_addr = Addr::unchecked("dummy");
+    let unauthorized_err = ContractError::Unauthorized("only an operator can call this function".to_string()).to_string();
+
+    let add_stake_hook_msg = ExecuteMsg::AddStakeHook {
+        hook: dummy_addr.to_string(),
+    };
+    let res = router.execute_contract(owner.clone(), nft_vault.clone(), &add_stake_hook_msg, &[]);
+    assert_eq!(
+        res.unwrap_err().source().unwrap().to_string(),
+        unauthorized_err,
+    );
+
+    let remove_stake_hook_msg = ExecuteMsg::RemoveStakeHook {
+        hook: dummy_addr.to_string(),
+    };
+    let res = router.execute_contract(owner.clone(), nft_vault.clone(), &remove_stake_hook_msg, &[]);
+    assert_eq!(
+        res.unwrap_err().source().unwrap().to_string(),
+        unauthorized_err,
+    );
+
+    let add_unstake_hook_msg = ExecuteMsg::AddUnstakeHook {
+        hook: dummy_addr.to_string(),
+    };
+    let res = router.execute_contract(owner.clone(), nft_vault.clone(), &add_unstake_hook_msg, &[]);
+    assert_eq!(
+        res.unwrap_err().source().unwrap().to_string(),
+        unauthorized_err,
+    );
+
+    let remove_unstake_hook_msg = ExecuteMsg::RemoveUnstakeHook {
+        hook: dummy_addr.to_string(),
+    };
+    let res = router.execute_contract(owner.clone(), nft_vault.clone(), &remove_unstake_hook_msg, &[]);
+    assert_eq!(
+        res.unwrap_err().source().unwrap().to_string(),
+        unauthorized_err,
+    );
+
+    let add_withdraw_hook_msg = ExecuteMsg::AddWithdrawHook {
+        hook: dummy_addr.to_string(),
+    };
+    let res = router.execute_contract(owner.clone(), nft_vault.clone(), &add_withdraw_hook_msg, &[]);
+    assert_eq!(
+        res.unwrap_err().source().unwrap().to_string(),
+        unauthorized_err,
+    );
+
+    let remove_withdraw_hook_msg = ExecuteMsg::RemoveWithdrawHook {
+        hook: dummy_addr.to_string(),
+    };
+    let res = router.execute_contract(owner.clone(), nft_vault.clone(), &remove_withdraw_hook_msg, &[]);
+    assert_eq!(
+        res.unwrap_err().source().unwrap().to_string(),
+        unauthorized_err,
+    );
 }
