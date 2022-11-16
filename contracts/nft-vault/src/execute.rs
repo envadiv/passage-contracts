@@ -174,6 +174,10 @@ pub fn execute_stake(
     let mut vault_token_option = vault_tokens().may_load(deps.storage, token_id.clone())?;
 
     if let Some(_vault_token) = &mut vault_token_option {
+        // Only the original owner can re-stake
+        if _vault_token.owner != info.sender {
+            return Err(ContractError::Unauthorized("Only owner can restake".to_string()));
+        }
         // Allow users to re-stake tokens that are either unstaking or transferrable
         let status = _vault_token.get_status(&env.block.time, config.unstake_period);
         if status == VaultTokenStatus::Staked {
