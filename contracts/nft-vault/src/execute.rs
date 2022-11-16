@@ -31,26 +31,32 @@ pub fn execute(
         ),
         ExecuteMsg::AddStakeHook { hook } => execute_add_stake_hook(
             deps,
+            info,
             api.addr_validate(&hook)?
         ),
         ExecuteMsg::RemoveStakeHook { hook } => execute_remove_stake_hook(
             deps,
+            info,
             api.addr_validate(&hook)?
         ),
         ExecuteMsg::AddUnstakeHook { hook } => execute_add_unstake_hook(
             deps,
+            info,
             api.addr_validate(&hook)?
         ),
         ExecuteMsg::RemoveUnstakeHook { hook } => execute_remove_unstake_hook(
             deps,
+            info,
             api.addr_validate(&hook)?
         ),
         ExecuteMsg::AddWithdrawHook { hook } => execute_add_withdraw_hook(
             deps,
+            info,
             api.addr_validate(&hook)?
         ),
         ExecuteMsg::RemoveWithdrawHook { hook } => execute_remove_withdraw_hook(
             deps,
+            info,
             api.addr_validate(&hook)?
         ),
         ExecuteMsg::Stake { token_id } => execute_stake(
@@ -105,7 +111,10 @@ pub fn execute_update_config(
     )
 }
 
-pub fn execute_add_stake_hook(deps: DepsMut, hook: Addr) -> Result<Response, ContractError> {
+pub fn execute_add_stake_hook(deps: DepsMut, info: MessageInfo, hook: Addr) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    only_operator(&info, &config)?;
+
     STAKE_HOOKS.add_hook(deps.storage, hook.clone())?;
 
     let res = Response::new()
@@ -114,7 +123,10 @@ pub fn execute_add_stake_hook(deps: DepsMut, hook: Addr) -> Result<Response, Con
     Ok(res)
 }
 
-pub fn execute_remove_stake_hook(deps: DepsMut, hook: Addr) -> Result<Response, ContractError> {
+pub fn execute_remove_stake_hook(deps: DepsMut, info: MessageInfo, hook: Addr) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    only_operator(&info, &config)?;
+
     STAKE_HOOKS.remove_hook(deps.storage, hook.clone())?;
 
     let res = Response::new()
@@ -123,7 +135,10 @@ pub fn execute_remove_stake_hook(deps: DepsMut, hook: Addr) -> Result<Response, 
     Ok(res)
 }
 
-pub fn execute_add_unstake_hook(deps: DepsMut, hook: Addr) -> Result<Response, ContractError> {
+pub fn execute_add_unstake_hook(deps: DepsMut, info: MessageInfo, hook: Addr) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    only_operator(&info, &config)?;
+
     UNSTAKE_HOOKS.add_hook(deps.storage, hook.clone())?;
 
     let res = Response::new()
@@ -132,7 +147,10 @@ pub fn execute_add_unstake_hook(deps: DepsMut, hook: Addr) -> Result<Response, C
     Ok(res)
 }
 
-pub fn execute_remove_unstake_hook(deps: DepsMut, hook: Addr) -> Result<Response, ContractError> {
+pub fn execute_remove_unstake_hook(deps: DepsMut, info: MessageInfo, hook: Addr) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    only_operator(&info, &config)?;
+
     UNSTAKE_HOOKS.remove_hook(deps.storage, hook.clone())?;
 
     let res = Response::new()
@@ -142,7 +160,10 @@ pub fn execute_remove_unstake_hook(deps: DepsMut, hook: Addr) -> Result<Response
 }
 
 
-pub fn execute_add_withdraw_hook(deps: DepsMut, hook: Addr) -> Result<Response, ContractError> {
+pub fn execute_add_withdraw_hook(deps: DepsMut, info: MessageInfo, hook: Addr) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    only_operator(&info, &config)?;
+
     WITHDRAW_HOOKS.add_hook(deps.storage, hook.clone())?;
 
     let res = Response::new()
@@ -151,7 +172,10 @@ pub fn execute_add_withdraw_hook(deps: DepsMut, hook: Addr) -> Result<Response, 
     Ok(res)
 }
 
-pub fn execute_remove_withdraw_hook(deps: DepsMut, hook: Addr) -> Result<Response, ContractError> {
+pub fn execute_remove_withdraw_hook(deps: DepsMut, info: MessageInfo, hook: Addr) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    only_operator(&info, &config)?;
+
     WITHDRAW_HOOKS.remove_hook(deps.storage, hook.clone())?;
 
     let res = Response::new()
