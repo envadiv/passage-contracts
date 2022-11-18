@@ -412,16 +412,25 @@ pub fn execute_finalize_auction(
     Ok(response.add_event(event))
 }
 
-/// If an auction is expired, and the seller has not made a determination, the bidder may remove their bid
+/// If an auction is expired, and the seller has not made a determination within the closed_duration window,
+/// then anyone can void the auction (refund the highest bid and return the NFT to the owner). Note, this
+/// is only possible if the auction reserve price has not been met.
 pub fn execute_void_auction(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     token_id: TokenId,
 ) -> Result<Response, ContractError> {
-    // Only the bidder can remove their bid
+    nonpayable(&info)?;
     let auction = auctions().load(deps.storage, token_id.clone())?;
     
+    // If reserve price has been met, the auction must be finalized
+    if auction.is_reserve_price_met() {
+        return Err(ContractError::ReservePriceRestriction(
+            "must finalize auction when reserve price is met".to_string(),
+        ));
+    }
+
     // Validate the Auction is Expired
     let config = CONFIG.load(deps.storage)?; 
     let auction_status = auction.get_auction_status(&env.block.time, config.closed_duration);
