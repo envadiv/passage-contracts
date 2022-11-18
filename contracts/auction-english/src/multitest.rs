@@ -599,6 +599,146 @@ fn try_auction_bid_reserve_price_met() {
 }
 
 #[test]
+fn try_auction_void() {
+    let mut router = custom_mock_app();
+    let block_time = router.block_info().time;
+    // Setup intial accounts
+    let (_owner, bidder, creator, bidder2) = setup_accounts(&mut router).unwrap();
+
+    // Instantiate and configure contracts
+    let (auction_english, collection) = setup_contracts(&mut router, &creator).unwrap();
+
+    // Mint NFT for owner
+    mint(&mut router, &creator, &collection, TOKEN_ID.to_string());
+    approve(&mut router, &creator, &collection, &auction_english, TOKEN_ID.to_string());
+    auction(
+        &mut router,
+        &creator,
+        &auction_english,
+        TOKEN_ID.to_string(),
+        block_time.plus_seconds(ONE_DAY),
+        block_time.plus_seconds(ONE_DAY * 2),
+        110u128,
+        210u128,
+        None,
+    );
+
+    // Create an auction bid
+    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY + TEN_MINS).seconds());
+    auction_bid(&mut router, &bidder, &auction_english, TOKEN_ID.to_string(), 150u128);
+
+    // Auction cannot be voided while Auction is still Open
+    let query_auction = QueryMsg::Auction {
+        token_id: TOKEN_ID.to_string()
+    };
+    let res: AuctionResponse = router
+        .wrap()
+        .query_wasm_smart(auction_english.clone(), &query_auction)
+        .unwrap();
+    assert_eq!(AuctionStatus::Open, res.auction_status.unwrap());
+
+    let void_auction = ExecuteMsg::VoidAuction {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res = router.execute_contract(bidder.clone(), auction_english.clone(), &void_auction, &[]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Auction invalid status: Open");
+
+    // Auction cannot be voided while Auction is still Closed
+    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY * 2 + TEN_MINS).seconds());
+    let query_auction = QueryMsg::Auction {
+        token_id: TOKEN_ID.to_string()
+    };
+    let res: AuctionResponse = router
+        .wrap()
+        .query_wasm_smart(auction_english.clone(), &query_auction)
+        .unwrap();
+    assert_eq!(AuctionStatus::Closed, res.auction_status.unwrap());
+
+    let void_auction = ExecuteMsg::VoidAuction {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res = router.execute_contract(bidder.clone(), auction_english.clone(), &void_auction, &[]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Auction invalid status: Closed");
+
+    // Meet the reserve price
+    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY + TEN_MINS).seconds());
+    auction_bid(&mut router, &bidder, &auction_english, TOKEN_ID.to_string(), 240u128);
+
+    // Auction cannot be voided if Auction reserve price is met
+    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY * 3 + TEN_MINS).seconds());
+    let query_auction = QueryMsg::Auction {
+        token_id: TOKEN_ID.to_string()
+    };
+    let res: AuctionResponse = router
+        .wrap()
+        .query_wasm_smart(auction_english.clone(), &query_auction)
+        .unwrap();
+    assert_eq!(AuctionStatus::Expired, res.auction_status.unwrap());
+
+    let void_auction = ExecuteMsg::VoidAuction {
+        token_id: TOKEN_ID.to_string(),
+    };
+    let res = router.execute_contract(bidder.clone(), auction_english.clone(), &void_auction, &[]);
+    assert_eq!(&res.unwrap_err().root_cause().to_string(), "Reserve price restriction: must finalize auction when reserve price is met");
+
+    // Create a new Auction to test successful void auction messages
+    let block_time = block_time.plus_seconds(ONE_DAY * 4);
+    let token_id = "124".to_string();
+    mint(&mut router, &creator, &collection, token_id.to_string());
+    approve(&mut router, &creator, &collection, &auction_english, token_id.to_string());
+    auction(
+        &mut router,
+        &creator,
+        &auction_english,
+        token_id.to_string(),
+        block_time.plus_seconds(ONE_DAY),
+        block_time.plus_seconds(ONE_DAY * 2),
+        110u128,
+        210u128,
+        None,
+    );
+
+    // Create an auction bid
+    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY + TEN_MINS).seconds());
+    let prev_bidder_balance = router.wrap().query_all_balances(bidder.clone()).unwrap().into_iter().nth(0).unwrap();
+    auction_bid(&mut router, &bidder, &auction_english, token_id.to_string(), 150u128);
+
+    setup_block_time(&mut router, block_time.plus_seconds(ONE_DAY * 3 + TEN_MINS).seconds());
+
+    // Auction can be voided by anyone, not just the bidder
+    let query_owner_msg = Cw721QueryMsg::OwnerOf {
+        token_id: token_id.to_string(),
+        include_expired: None,
+    };
+    let res: OwnerOfResponse = router
+        .wrap()
+        .query_wasm_smart(collection.clone(), &query_owner_msg)
+        .unwrap();
+    assert_eq!(res.owner, auction_english.to_string());
+
+    let void_auction = ExecuteMsg::VoidAuction {
+        token_id: token_id.to_string(),
+    };
+    let res = router.execute_contract(bidder2.clone(), auction_english.clone(), &void_auction, &[]);
+    assert!(res.is_ok());
+
+    // Check NFT is transferred back to the original owner
+    let query_owner_msg = Cw721QueryMsg::OwnerOf {
+        token_id: token_id.to_string(),
+        include_expired: None,
+    };
+    let res: OwnerOfResponse = router
+        .wrap()
+        .query_wasm_smart(collection.clone(), &query_owner_msg)
+        .unwrap();
+    assert_eq!(res.owner, creator.to_string());
+
+    // Check balances, validate that the bidder was refunded
+    let post_bidder_balance = router.wrap().query_all_balances(bidder.clone()).unwrap().into_iter().nth(0).unwrap();
+    assert_eq!(prev_bidder_balance.amount, post_bidder_balance.amount);
+}
+
+#[test]
 fn try_auction_queries() {
     let mut router = custom_mock_app();
     let block_time = router.block_info().time;
