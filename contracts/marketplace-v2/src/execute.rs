@@ -425,7 +425,7 @@ pub fn execute_set_collection_bid(
     
     // Escrows the amount (price * units)
     let payment_amount = must_pay(&info, &config.denom)?;
-    price_validate(&coin(collection_bid.total_cost(), &config.denom), &config)?;
+    price_validate(&collection_bid.price, &config)?;
     if Uint128::from(collection_bid.total_cost()) != payment_amount  {
         return Err(ContractError::IncorrectBidPayment(
             Uint128::from(collection_bid.total_cost()),
@@ -524,11 +524,11 @@ pub fn execute_accept_collection_bid(
 
     match collection_bid.units {
         1 => {
-            // Remove accepted bid
+            // Remove accepted collection bid when no units remain
             collection_bids().remove(deps.storage, collection_bid_key)?;
         },
         _ => {
-            // Remove accepted bid
+            // Decrement the number of units on the collection bid by 1
             collection_bid.units -= 1;
             store_collection_bid(deps.storage, &collection_bid)?;
         }
