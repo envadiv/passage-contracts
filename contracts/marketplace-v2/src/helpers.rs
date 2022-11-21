@@ -106,12 +106,14 @@ pub fn payout(
 
     // Charge market fee
     let market_fee = payment_amount * config.trading_fee_percent / Uint128::from(100u128);
-    transfer_token(
-        coin(market_fee.u128(), &config.denom),
-        config.collector_address.to_string(),
-        "payout-market",
-        response
-    )?;
+    if market_fee > Uint128::zero() {
+        transfer_token(
+            coin(market_fee.u128(), &config.denom),
+            config.collector_address.to_string(),
+            "payout-market",
+            response
+        )?;
+    }
 
     // Query royalties
     let collection_info: CollectionInfoResponse = deps
@@ -124,12 +126,14 @@ pub fn payout(
         None => None
     };
     if let Some(_royalties) = &royalties {
-        transfer_token(
-            coin(_royalties.0.u128(), &config.denom),
-            _royalties.1.to_string(),
-            "payout-royalty",
-            response
-        )?;
+        if _royalties.0 > Uint128::zero() {
+            transfer_token(
+                coin(_royalties.0.u128(), &config.denom),
+                _royalties.1.to_string(),
+                "payout-royalty",
+                response
+            )?;
+        }
     };
 
     // Pay seller
