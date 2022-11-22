@@ -31,3 +31,6 @@ thiserror = { version = "1.0" }
 [dev-dependencies]
 cosmwasm-schema = { version = "1.0.0-beta3" }
 cw-multi-test = { git = "https://github.com/CosmWasm/cw-plus" }
+
+[profile.release]
+overflow-checks = true

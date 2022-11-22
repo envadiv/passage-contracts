@@ -37,3 +37,6 @@ anyhow = "1"
 cosmwasm-schema = { version = "1.0.0-beta" }
 cw-multi-test = "0.13.1"
 derivative = "2"
+
+[profile.release]
+overflow-checks = true
