@@ -7,7 +7,8 @@ use cw_utils::{maybe_addr, must_pay, nonpayable};
 use crate::error::ContractError;
 use crate::helpers::{
     map_validate, finalize_sale, price_validate, only_seller, only_owner,
-    only_operator, transfer_nft, transfer_token, validate_auction_times
+    only_operator, transfer_nft, transfer_token, validate_auction_times,
+    validate_config
 };
 use crate::msg::{InstantiateMsg, ExecuteMsg};
 use crate::state::{
@@ -42,6 +43,7 @@ pub fn instantiate(
         closed_duration: msg.closed_duration,
         buffer_duration: msg.buffer_duration,
     };
+    validate_config(&config)?;
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new())
@@ -193,7 +195,7 @@ pub fn execute_update_config(
     if let Some(_buffer_duration) = buffer_duration {
         config.buffer_duration = _buffer_duration;
     }
-    
+    validate_config(&config)?;
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new())
 }

@@ -6,7 +6,7 @@ use crate::state::{
 use cosmwasm_std::{
     to_binary, Addr, Api, StdResult, WasmMsg,CosmosMsg, Order,
     Deps, Event, Coin, coin, Uint128, Response, MessageInfo, Storage, Attribute,
-    BankMsg, SubMsg, Env
+    BankMsg, SubMsg, Env, Decimal
 };
 use pg721::msg::{CollectionInfoResponse, QueryMsg as Pg721QueryMsg};
 use schemars::JsonSchema;
@@ -332,4 +332,17 @@ fn set_match_outcome(event: &mut Event, outcome: &str) -> () {
         }
         attr.clone()
     }).collect();
+}
+
+pub fn validate_config(config: &Config) -> Result<(), ContractError> {
+    if config.trading_fee_percent > Decimal::percent(10000) {
+        return Err(ContractError::InvalidConfig(String::from("trading_fee_percent must be less than or equal to 100")));
+    }
+    if config.operators.is_empty() {
+        return Err(ContractError::InvalidConfig(String::from("operators must be non-empty")));
+    }
+    if config.min_price.is_zero() {
+        return Err(ContractError::InvalidConfig(String::from("min_price must be greater than zero")));
+    }
+    Ok(())
 }

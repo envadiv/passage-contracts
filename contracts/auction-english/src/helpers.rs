@@ -4,7 +4,7 @@ use crate::state::{
 };
 use cosmwasm_std::{
     to_binary, Addr, Api, StdResult, Timestamp, WasmMsg, Order, Deps,
-    Event, Coin, coin, Uint128, Response, MessageInfo, BankMsg, SubMsg
+    Event, Coin, coin, Uint128, Response, MessageInfo, BankMsg, SubMsg, Decimal
 };
 use pg721::msg::{CollectionInfoResponse, QueryMsg as Pg721QueryMsg};
 use cw721::{Cw721ExecuteMsg};
@@ -204,6 +204,34 @@ pub fn validate_auction_times(auction: &Auction, config: &Config, now: &Timestam
     }
     if &auction.start_time.plus_seconds(config.max_duration) < &auction.end_time {
         return Err(ContractError::InvalidStartEndTime(String::from("duration is above maximum")));
+    }
+    Ok(())
+}
+
+pub fn validate_config(config: &Config) -> Result<(), ContractError> {
+    if config.trading_fee_percent > Decimal::percent(10000) {
+        return Err(ContractError::InvalidConfig(String::from("trading_fee_percent must be less than or equal to 100")));
+    }
+    if config.operators.is_empty() {
+        return Err(ContractError::InvalidConfig(String::from("operators must be non-empty")));
+    }
+    if config.min_price.is_zero() {
+        return Err(ContractError::InvalidConfig(String::from("min_price must be greater than zero")));
+    }
+    if config.min_bid_increment.is_zero() {
+        return Err(ContractError::InvalidConfig(String::from("min_bid_increment must be greater than zero")));
+    }
+    if config.min_duration == 0 {
+        return Err(ContractError::InvalidConfig(String::from("min_duration must be greater than zero")));
+    }
+    if config.max_duration == 0 {
+        return Err(ContractError::InvalidConfig(String::from("max_duration must be greater than zero")));
+    }
+    if config.min_duration > config.max_duration {
+        return Err(ContractError::InvalidConfig(String::from("max_duration must be greater than or equal to min_duration")));
+    }
+    if config.closed_duration == 0 {
+        return Err(ContractError::InvalidConfig(String::from("closed_duration must be greater than zero")));
     }
     Ok(())
 }
