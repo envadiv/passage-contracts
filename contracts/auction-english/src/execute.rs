@@ -377,6 +377,14 @@ pub fn execute_finalize_auction(
     // Validate auction exists
     let auction = auctions().load(deps.storage, token_id.clone())?;
 
+    // Validate that a bid exists
+    let bid = match &auction.highest_bid {
+        Some(bid) => bid,
+        None => return Err(ContractError::ReservePriceRestriction(
+            "auction has no bid".to_string(),
+        )),
+    };
+
     // Validate reserve price is met
     if !auction.is_reserve_price_met() {
         return Err(ContractError::ReservePriceRestriction(
@@ -394,7 +402,6 @@ pub fn execute_finalize_auction(
 
     // Perform sale
     let mut response = Response::new();
-    let bid = auction.highest_bid.as_ref().unwrap();
     finalize_sale(
         deps.as_ref(),
         &bid.bidder,
