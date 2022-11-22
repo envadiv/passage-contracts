@@ -39,3 +39,6 @@ cw-utils = "0.13.2"
 [dev-dependencies]
 cosmwasm-schema = { version = "1.0.0-rc.0" }
 cw-multi-test = { version = "0.13.2" }
+
+[profile.release]
+overflow-checks = true
