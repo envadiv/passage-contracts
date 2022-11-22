@@ -39,4 +39,7 @@ pub enum ContractError {
 
     #[error("Reserve price restriction: {0}")]
     ReservePriceRestriction(String),
+
+    #[error("Invalid config: {0}")]
+    InvalidConfig(String),
 }

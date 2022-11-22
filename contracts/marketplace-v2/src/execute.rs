@@ -11,7 +11,7 @@ use crate::error::ContractError;
 use crate::helpers::{
     map_validate, finalize_sale, price_validate, store_bid,
     store_collection_bid, only_owner_or_seller, only_seller,
-    only_operator, transfer_nft, transfer_token, match_bid, match_ask,
+    only_operator, transfer_nft, transfer_token, match_bid, match_ask, validate_config,
 };
 use crate::msg::{InstantiateMsg, ExecuteMsg};
 use crate::state::{
@@ -42,6 +42,7 @@ pub fn instantiate(
         operators: map_validate(deps.api, &msg.operators)?,
         min_price: msg.min_price,
     };
+    validate_config(&config)?;
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new())
@@ -160,7 +161,7 @@ pub fn execute_update_config(
     if let Some(_min_price) = min_price {
         config.min_price = _min_price;
     }
-    
+    validate_config(&config)?;
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new())
 }
