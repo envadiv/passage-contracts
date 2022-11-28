@@ -25,6 +25,7 @@ pub enum ExecuteMsg {
     SetWhitelist { whitelist: String },
     UpdateStartTime(Timestamp),
     UpdatePerAddressLimit { per_address_limit: u32 },
+    UpdateUnitPrice { unit_price: Coin },
     MintTo { recipient: String },
     MintFor { token_id: u32, recipient: String },
     Withdraw { recipient: String },

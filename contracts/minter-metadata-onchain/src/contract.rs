@@ -3,7 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Order, Reply, ReplyOn, StdError, StdResult, Timestamp, WasmMsg,
-    Response, SubMsg, Event,
+    Response, SubMsg, Event
 };
 use cw_storage_plus::{Bound};
 use cw2::set_contract_version;
@@ -128,6 +128,7 @@ pub fn execute(
         ExecuteMsg::UpdatePerAddressLimit { per_address_limit } => {
             execute_update_per_address_limit(deps, env, info, per_address_limit)
         }
+        ExecuteMsg::UpdateUnitPrice { unit_price } => execute_update_unit_price(deps, env, info, unit_price),
         ExecuteMsg::MintTo { recipient } => execute_mint_to(deps, env, info, recipient),
         ExecuteMsg::MintFor {
             token_id,
@@ -530,6 +531,27 @@ pub fn execute_update_per_address_limit(
         .add_attribute("action", "update_per_address_limit")
         .add_attribute("sender", info.sender)
         .add_attribute("limit", per_address_limit.to_string()))
+}
+
+pub fn execute_update_unit_price(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    unit_price: Coin,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    if info.sender != config.admin {
+        return Err(ContractError::Unauthorized(
+            "Sender is not an admin".to_owned(),
+        ));
+    }
+
+    config.unit_price = unit_price.clone();
+    CONFIG.save(deps.storage, &config)?;
+    Ok(Response::new()
+        .add_attribute("action", "update_unit_price")
+        .add_attribute("sender", info.sender)
+        .add_attribute("unit_price", unit_price.to_string()))
 }
 
 // if admin_no_fee => no fee,
