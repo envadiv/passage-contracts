@@ -1246,13 +1246,13 @@ fn test_update_start_time() {
 fn test_update_unit_price() {
     let mut router = custom_mock_app();
     setup_block_time(&mut router, START_TIME - 1);
-    let (creator, buyer) = setup_accounts(&mut router);
+    let (creator, _buyer) = setup_accounts(&mut router);
     let num_tokens = 2;
-    let (minter_addr, config) = setup_minter_contract(&mut router, &creator, num_tokens);
+    let (minter_addr, _config) = setup_minter_contract(&mut router, &creator, num_tokens);
 
     let new_unit_price = coin(UNIT_PRICE + 100u128, NATIVE_DENOM);
     let msg = ExecuteMsg::UpdateUnitPrice { unit_price: new_unit_price.clone() };
-    let res = router
+    let _res = router
         .execute_contract(creator, minter_addr.clone(), &msg, &[])
         .unwrap();
 

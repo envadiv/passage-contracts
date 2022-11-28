@@ -285,7 +285,7 @@ pub fn execute_mint_sender(
 
     // If there is no active whitelist right now, check public mint
     // Check if after start_time
-    if is_public_mint(deps.as_ref(), &info)? && (env.block.time < config.start_time) {
+    if is_public_mint(deps.as_ref(), &info, &config)? && (env.block.time < config.start_time) {
         return Err(ContractError::BeforeMintStartTime {});
     }
 
@@ -295,13 +295,13 @@ pub fn execute_mint_sender(
         return Err(ContractError::MaxPerAddressLimitExceeded {});
     }
 
-    _execute_mint(deps, env, info, action, false, None, None)
+    _execute_mint(deps, env, info, &config, action, false, None, None)
 }
 
 // Check if a whitelist exists and not ended
 // Sender has to be whitelisted to mint
-fn is_public_mint(deps: Deps, info: &MessageInfo) -> Result<bool, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+fn is_public_mint(deps: Deps, info: &MessageInfo, config: &Config) -> Result<bool, ContractError> {
+    let config = config.clone();
 
     // If there is no whitelist, there's only a public mint
     if config.whitelist.is_none() {
@@ -356,7 +356,7 @@ pub fn execute_mint_to(
         ));
     }
 
-    _execute_mint(deps, env, info, action, true, Some(recipient), None)
+    _execute_mint(deps, env, info, &config, action, true, Some(recipient), None)
 }
 
 pub fn execute_mint_for(
@@ -377,7 +377,7 @@ pub fn execute_mint_for(
         ));
     }
 
-    _execute_mint(deps, env, info, action, true, Some(recipient), Some(token_id))
+    _execute_mint(deps, env, info, &config, action, true, Some(recipient), Some(token_id))
 }
 
 // Generalize checks and mint message creation
@@ -388,12 +388,12 @@ fn _execute_mint(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    config: &Config,
     action: &str,
     is_admin: bool,
     recipient: Option<Addr>,
     token_id: Option<u32>,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
     let cw721_address = CW721_ADDRESS.load(deps.storage)?;
 
     let recipient_addr = match recipient {
@@ -401,7 +401,7 @@ fn _execute_mint(
         None => info.sender.clone(),
     };
 
-    let mint_price: Coin = mint_price(deps.as_ref(), is_admin)?;
+    let mint_price: Coin = mint_price(deps.as_ref(), &config, is_admin)?;
     // Exact payment only accepted
     let payment = may_pay(&info, &config.unit_price.denom)?;
     if payment != mint_price.amount {
@@ -557,9 +557,8 @@ pub fn execute_update_unit_price(
 // if admin_no_fee => no fee,
 // else if in whitelist => whitelist price
 // else => config unit price
-pub fn mint_price(deps: Deps, is_admin: bool) -> Result<Coin, StdError> {
-    let config = CONFIG.load(deps.storage)?;
-
+pub fn mint_price(deps: Deps, config: &Config, is_admin: bool) -> Result<Coin, StdError> {
+    let config = config.clone();
     if is_admin {
         return Ok(coin(0, config.unit_price.denom));
     }
@@ -659,7 +658,7 @@ fn query_num_remaining(deps: Deps) -> StdResult<NumRemainingResponse> {
 
 fn query_mint_price(deps: Deps) -> StdResult<MintPriceResponse> {
     let config = CONFIG.load(deps.storage)?;
-    let current_price = mint_price(deps, false)?;
+    let current_price = mint_price(deps, &config, false)?;
     let public_price = config.unit_price;
     let whitelist_price: Option<Coin> = if let Some(whitelist) = config.whitelist {
         let wl_config: WhitelistConfigResponse = deps
