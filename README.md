@@ -20,14 +20,15 @@ Passage smart contracts written in CosmWasm and deployed to Juno.
 
 ### Testnet (uni-5)
 
-| Contract           | Code ID | Version      | Checksum                                                         | Notes             |
-| ------------------ | ------- | ------------ | ---------------------------------------------------------------- | ----------------- |
-| marketplace-v2     | 682     | v0.1.9-alpha | 960f3460f66b3f786a71ebeac873bfb626296e816b4959576a2f31db9bc758fe | Pre-audit release |
-| pg721              | 684     | v0.1.9-alpha | 858ad95e058eec1be83b03852ea7b60c8dfae67169927844f7633a1c911396c3 | Redeploy on uni-5 |
-| marketplace-legacy | 685     | v0.1.9-alpha | 6ac6a166f673930a274a919cdbf80fdaefdd2c0a9e491fa3cd8248334872271d | Redeploy on uni-5 |
-| minter             | 686     | v0.1.9-alpha | fb6e7b06536eed2283c5000300b43ffdd9b26665c5af68627a18b6c28a072d14 | Redeploy on uni-5 |
-| auction-english    | 687     | v0.1.9-alpha | 32e9df3bbc4e15f7ae5d7be6d731ef8c58f0f70c59c8a34a4de914669393d99a | Pre-audit release |
-| nft-vault          | 688     | v0.1.9-alpha | 69dd5d7ed6c33a267fbe851554b5f781f2cbcc0c8a500ff2407db852440a1dc6 | Initial release   |
+| Contract                | Code ID | Version      | Checksum                                                         | Notes             |
+| ----------------------- | ------- | ------------ | ---------------------------------------------------------------- | ----------------- |
+| marketplace-v2          | 682     | v0.1.9-alpha | 960f3460f66b3f786a71ebeac873bfb626296e816b4959576a2f31db9bc758fe | Pre-audit release |
+| pg721                   | 684     | v0.1.9-alpha | 858ad95e058eec1be83b03852ea7b60c8dfae67169927844f7633a1c911396c3 | Redeploy on uni-5 |
+| marketplace-legacy      | 685     | v0.1.9-alpha | 6ac6a166f673930a274a919cdbf80fdaefdd2c0a9e491fa3cd8248334872271d | Redeploy on uni-5 |
+| minter                  | 686     | v0.1.9-alpha | fb6e7b06536eed2283c5000300b43ffdd9b26665c5af68627a18b6c28a072d14 | Redeploy on uni-5 |
+| auction-english         | 687     | v0.1.9-alpha | 32e9df3bbc4e15f7ae5d7be6d731ef8c58f0f70c59c8a34a4de914669393d99a | Pre-audit release |
+| nft-vault               | 688     | v0.1.9-alpha | 69dd5d7ed6c33a267fbe851554b5f781f2cbcc0c8a500ff2407db852440a1dc6 | Initial release   |
+| minter-metadata-onchain | 2770    | v0.1.9-alpha | f3fb80a6764c803e6c313e78c89db8c64358e6522a96624fd0325f821b9e40f2 | Migration test    |
 
 ### Testnet (uni-3)
 
@@ -70,7 +71,7 @@ junod tx wasm store artifacts/marketplace_legacy.wasm  --from juno19mmkdpvem2xvr
 **Deploy to testnet**
 
 ```bash
-junod tx wasm store artifacts/marketplace_v2.wasm  --from juno19mmkdpvem2xvrddt8nukf5kfpjwfslrs7sgw8e --chain-id=uni-3 \
+junod tx wasm store artifacts/minter_metadata_onchain.wasm  --from juno19mmkdpvem2xvrddt8nukf5kfpjwfslrs7sgw8e --chain-id=uni-5 \
   --gas-prices 0.1ujunox --gas auto --gas-adjustment 1.3 -b block -y
 ```
 
