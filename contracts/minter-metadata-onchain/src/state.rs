@@ -44,7 +44,7 @@ impl<'a> IndexList<TokenMint> for TokenMintIndices<'a> {
 
 pub fn token_mints<'a>() -> IndexedMap<'a, TokenId, TokenMint, TokenMintIndices<'a>> {
     let indexes = TokenMintIndices {
-        is_minted: MultiIndex::new(|d: &TokenMint|  d.is_minted as u8, "token_mint", "token_mint__is_minted"),
+        is_minted: MultiIndex::new(|_, d: &TokenMint|  d.is_minted as u8, "token_mint", "token_mint__is_minted"),
     };
     IndexedMap::new("token_mint", indexes)
 }
