@@ -1241,6 +1241,28 @@ fn test_update_start_time() {
     );
 }
 
+
+#[test]
+fn test_update_unit_price() {
+    let mut router = custom_mock_app();
+    setup_block_time(&mut router, START_TIME - 1);
+    let (creator, buyer) = setup_accounts(&mut router);
+    let num_tokens = 2;
+    let (minter_addr, config) = setup_minter_contract(&mut router, &creator, num_tokens);
+
+    let new_unit_price = coin(UNIT_PRICE + 100u128, NATIVE_DENOM);
+    let msg = ExecuteMsg::UpdateUnitPrice { unit_price: new_unit_price.clone() };
+    let res = router
+        .execute_contract(creator, minter_addr.clone(), &msg, &[])
+        .unwrap();
+
+    let config: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(minter_addr.clone(), &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(config.unit_price, new_unit_price);
+}
+
 #[test]
 fn test_invalid_start_time() {
     let mut router = custom_mock_app();
