@@ -24,3 +24,8 @@ pub struct Metadata {
 
 pub type Extension = Option<Metadata>;
 pub type ExecuteMsg = cw721_base::ExecuteMsg<Extension>;
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+pub struct MigrateMsg {
+    pub minter: String,
+}
