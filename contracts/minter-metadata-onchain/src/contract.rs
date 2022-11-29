@@ -17,11 +17,11 @@ use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
     QueryMsg, StartTimeResponse, TokenMetadata, TokenMintResponse, TokenMintsResponse,
-    NumMintedResponse, NumRemainingResponse,
+    NumMintedResponse, NumRemainingResponse
 };
 use crate::state::{
-    CONFIG, MINTER_ADDRS, CW721_ADDRESS,
-    Config, TokenMint, token_mints
+    CONFIG, MINTER_ADDRS, CW721_ADDRESS, NUM_MINTABLE_TOKENS,
+    Config, TokenMint, token_mints, 
 };
 use whitelist::msg::{
     ConfigResponse as WhitelistConfigResponse, HasMemberResponse, QueryMsg as WhitelistQueryMsg,
@@ -83,6 +83,7 @@ pub fn instantiate(
         start_time: msg.start_time,
     };
     CONFIG.save(deps.storage, &config)?;
+    NUM_MINTABLE_TOKENS.save(deps.storage, &0)?;
 
     // Submessage to instantiate cw721 contract
     let sub_msgs: Vec<SubMsg> = vec![SubMsg {
@@ -153,6 +154,11 @@ pub fn execute_upsert_token_metadatas(
             "Sender is not an admin".to_owned(),
         ));
     };
+
+    // Update the number of mintable tokens
+    let num_new_tokens = token_metadatas.len();
+    let num_mintable_tokens = NUM_MINTABLE_TOKENS.load(deps.storage)?;
+    NUM_MINTABLE_TOKENS.save(deps.storage, &(num_mintable_tokens + num_new_tokens as u32))?;
 
     let mut append_token_ids = vec![];
     for token_metadata in token_metadatas {
@@ -410,15 +416,9 @@ fn _execute_mint(
             mint_price,
         ));
     }
-    
-    let mintable_token_ids_result: StdResult<Vec<u32>> = token_mints()
-        .idx
-        .is_minted
-        .prefix(0)
-        .keys(deps.storage, None, None, Order::Ascending)
-        .collect();
-    let mintable_token_ids = mintable_token_ids_result?;
-    if mintable_token_ids.is_empty() {
+
+    let num_mintable_tokens = NUM_MINTABLE_TOKENS.load(deps.storage)?;
+    if num_mintable_tokens == 0 {
         return Err(ContractError::SoldOut {});
     }
 
@@ -430,8 +430,16 @@ fn _execute_mint(
             token_id
         }
         None => {
-            let random_index = env.block.time.nanos() % mintable_token_ids.len() as u64;
-            mintable_token_ids[random_index as usize]
+            // Fetch a token id from the list of mintable tokens
+            let random_index = env.block.time.nanos() % num_mintable_tokens as u64;
+            token_mints()
+                .idx
+                .is_minted
+                .prefix(0)
+                .keys(deps.storage, None, None, Order::Ascending)
+                .skip(random_index as usize)
+                .take(1)
+                .collect::<StdResult<Vec<_>>>()?[0]
         }
     };
 
@@ -463,6 +471,9 @@ fn _execute_mint(
             Ok(updated_token_mint)
         }
     )?;
+
+    // Decrement num mintable tokens
+    NUM_MINTABLE_TOKENS.save(deps.storage, &(num_mintable_tokens - 1))?;
 
     // Save the new mint count for the sender's address
     let new_mint_count = mint_count(deps.as_ref(), &info)? + 1;
@@ -636,23 +647,14 @@ fn query_start_time(deps: Deps) -> StdResult<StartTimeResponse> {
 }
 
 fn query_num_minted(deps: Deps) -> StdResult<NumMintedResponse> {
-    let num_minted: u32 = token_mints()
-        .idx
-        .is_minted
-        .prefix(1)
-        .keys_raw(deps.storage, None, None, Order::Ascending)
-        .count() as u32;
+    let config = CONFIG.load(deps.storage)?;
+    let num_remaining: u32 = NUM_MINTABLE_TOKENS.load(deps.storage)?;
+    let num_minted: u32 = config.max_num_tokens - num_remaining;
     return Ok(NumMintedResponse { num_minted });
 }
 
 fn query_num_remaining(deps: Deps) -> StdResult<NumRemainingResponse> {
-    let num_remaining: u32 = token_mints()
-        .idx
-        .is_minted
-        .prefix(0)
-        .keys(deps.storage, None, None, Order::Ascending)
-        .count() as u32;
-
+    let num_remaining: u32 = NUM_MINTABLE_TOKENS.load(deps.storage)?;
     Ok(NumRemainingResponse { num_remaining })
 }
 
