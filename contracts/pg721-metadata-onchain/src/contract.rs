@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult, Response};
-use cw2::set_contract_version;
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult, Response, Event};
+use cw2::{set_contract_version, get_contract_version};
 
 use crate::ContractError;
 use cw721::ContractInfoResponse;
@@ -10,7 +10,7 @@ use url::Url;
 
 use crate::msg::{
     CollectionInfoResponse, InstantiateMsg, QueryMsg, RoyaltyInfoResponse,
-    Extension, ExecuteMsg
+    Extension, ExecuteMsg, MigrateMsg
 };
 use crate::state::{CollectionInfo, RoyaltyInfo, COLLECTION_INFO};
 
@@ -119,6 +119,30 @@ fn query_config(deps: Deps) -> StdResult<CollectionInfoResponse> {
         external_link: info.external_link,
         royalty_info: royalty_info_res,
     })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let storage_version: &str = &get_contract_version(deps.storage)?.version.to_string();
+
+    let mut response = Response::new();
+    if storage_version < CONTRACT_VERSION {
+        set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+        let minter = deps.api.addr_validate(&msg.minter)?;
+        Pg721MetadataContract::default()
+            .minter
+            .save(deps.storage, &minter)?;
+
+        let event = Event::new("migrate-storage")
+            .add_attribute("new-minter", minter.to_string());
+        response.events.push(event);
+    }
+
+    let event = Event::new("contract-migrated")
+        .add_attribute("prev-version", storage_version)
+        .add_attribute("next-version", CONTRACT_VERSION);
+    response.events.push(event);
+    Ok(response)
 }
 
 #[cfg(test)]
