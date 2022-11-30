@@ -116,7 +116,8 @@ fn setup_minter_contract(
         per_address_limit: 5,
         whitelist: None,
         cw721_code_id,
-        cw721_instantiate_msg: Pg721InstantiateMsg {
+        cw721_address: None,
+        cw721_instantiate_msg: Some(Pg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: creator.to_string(),
@@ -130,7 +131,7 @@ fn setup_minter_contract(
                     share: Decimal::percent(10),
                 }),
             },
-        },
+        }),
     };
     let minter_addr = router
         .instantiate_contract(
@@ -259,7 +260,8 @@ fn initialization() {
         per_address_limit: 0,
         whitelist: None,
         cw721_code_id: 1,
-        cw721_instantiate_msg: Pg721InstantiateMsg {
+        cw721_address: None,
+        cw721_instantiate_msg: Some(Pg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
@@ -273,7 +275,7 @@ fn initialization() {
                     share: Decimal::percent(10),
                 }),
             },
-        },
+        }),
     };
     instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
 
@@ -286,7 +288,8 @@ fn initialization() {
         per_address_limit: 5,
         whitelist: None,
         cw721_code_id: 1,
-        cw721_instantiate_msg: Pg721InstantiateMsg {
+        cw721_address: None,
+        cw721_instantiate_msg: Some(Pg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: info.sender.to_string(),
@@ -300,9 +303,51 @@ fn initialization() {
                     share: Decimal::percent(10),
                 }),
             },
-        },
+        }),
     };
     instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+}
+
+#[test]
+fn initialization_with_cw721_addr() {
+    let mut router = custom_mock_app();
+    let (creator, _buyer) = setup_accounts(&mut router);
+
+    // Upload contract code
+    let cw721_code_id = router.store_code(contract_cw721());
+    let minter_code_id = router.store_code(contract_minter());
+    let creation_fee = coins(CREATION_FEE, NATIVE_DENOM);
+
+    let cw721_addr = String::from("test_cw721_adr");
+
+    // Instantiate minter contract
+    let msg = InstantiateMsg {
+        unit_price: coin(UNIT_PRICE, NATIVE_DENOM),
+        max_num_tokens: 100u32,
+        start_time: Timestamp::from_nanos(START_TIME),
+        per_address_limit: 5,
+        whitelist: None,
+        cw721_code_id,
+        cw721_address: Some(cw721_addr.clone()),
+        cw721_instantiate_msg: None,
+    };
+    let minter_addr = router
+        .instantiate_contract(
+            minter_code_id,
+            creator.clone(),
+            &msg,
+            &creation_fee,
+            "Minter",
+            None,
+        )
+        .unwrap();
+
+    let config: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(minter_addr.clone(), &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(config.cw721_address, cw721_addr.clone());
+
 }
 
 #[test]
@@ -1154,7 +1199,8 @@ fn test_start_time_before_genesis() {
         per_address_limit: 5,
         whitelist: None,
         cw721_code_id,
-        cw721_instantiate_msg: Pg721InstantiateMsg {
+        cw721_address: None,
+        cw721_instantiate_msg: Some(Pg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: creator.to_string(),
@@ -1168,7 +1214,7 @@ fn test_start_time_before_genesis() {
                     share: Decimal::percent(10),
                 }),
             },
-        },
+        }),
     };
     let minter_addr = router
         .instantiate_contract(minter_code_id, creator, &msg, &creation_fee, "Minter", None)
@@ -1203,7 +1249,8 @@ fn test_update_start_time() {
         per_address_limit: 5,
         whitelist: None,
         cw721_code_id,
-        cw721_instantiate_msg: Pg721InstantiateMsg {
+        cw721_address: None,
+        cw721_instantiate_msg: Some(Pg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: creator.to_string(),
@@ -1214,7 +1261,7 @@ fn test_update_start_time() {
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: None,
             },
-        },
+        }),
     };
     let minter_addr = router
         .instantiate_contract(
@@ -1282,7 +1329,8 @@ fn test_invalid_start_time() {
         per_address_limit: 5,
         whitelist: None,
         cw721_code_id,
-        cw721_instantiate_msg: Pg721InstantiateMsg {
+        cw721_address: None,
+        cw721_instantiate_msg: Some(Pg721InstantiateMsg {
             name: String::from("TEST"),
             symbol: String::from("TEST"),
             minter: creator.to_string(),
@@ -1293,7 +1341,7 @@ fn test_invalid_start_time() {
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: None,
             },
-        },
+        }),
     };
 
     // move date after genesis mint
