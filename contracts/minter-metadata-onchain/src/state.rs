@@ -19,7 +19,7 @@ pub struct Config {
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const CW721_ADDRESS: Item<Addr> = Item::new("cw721_address");
 pub const MINTER_ADDRS: Map<Addr, u32> = Map::new("minter_address");
-pub const NUM_MINTABLE_TOKENS: Item<u32> = Item::new("num_mintable_tokens");
+pub const MINTABLE_TOKEN_IDS: Item<Vec<u32>> = Item::new("mintable_token_ids");
 
 pub type TokenId = u32;
 
