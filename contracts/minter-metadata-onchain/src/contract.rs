@@ -20,7 +20,7 @@ use crate::msg::{
     NumMintedResponse, NumRemainingResponse
 };
 use crate::state::{
-    CONFIG, MINTER_ADDRS, CW721_ADDRESS, NUM_MINTABLE_TOKENS,
+    CONFIG, MINTER_ADDRS, CW721_ADDRESS, MINTABLE_TOKEN_IDS,
     Config, TokenMint, token_mints, 
 };
 use whitelist::msg::{
@@ -88,7 +88,7 @@ pub fn instantiate(
         start_time: msg.start_time,
     };
     CONFIG.save(deps.storage, &config)?;
-    NUM_MINTABLE_TOKENS.save(deps.storage, &0)?;
+    MINTABLE_TOKEN_IDS.save(deps.storage, &vec![])?;
 
     let response = match msg.cw721_address {
         Some(_addr) => {
@@ -170,11 +170,6 @@ pub fn execute_upsert_token_metadatas(
         ));
     };
 
-    // Update the number of mintable tokens
-    let num_new_tokens = token_metadatas.len();
-    let num_mintable_tokens = NUM_MINTABLE_TOKENS.load(deps.storage)?;
-    NUM_MINTABLE_TOKENS.save(deps.storage, &(num_mintable_tokens + num_new_tokens as u32))?;
-
     let mut append_token_ids = vec![];
     for token_metadata in token_metadatas {
         if token_metadata.token_id == 0 || token_metadata.token_id > config.max_num_tokens {
@@ -198,6 +193,10 @@ pub fn execute_upsert_token_metadatas(
         )?;
         append_token_ids.push(token_metadata.token_id);
     }
+
+    let mut mintable_token_ids = MINTABLE_TOKEN_IDS.load(deps.storage)?;
+    mintable_token_ids.append(&mut append_token_ids.clone());
+    MINTABLE_TOKEN_IDS.save(deps.storage, &mintable_token_ids)?;
 
     let mut response = Response::new();
     let append_token_ids_fmt: Vec<String> = append_token_ids
@@ -432,32 +431,27 @@ fn _execute_mint(
         ));
     }
 
-    let num_mintable_tokens = NUM_MINTABLE_TOKENS.load(deps.storage)?;
-    if num_mintable_tokens == 0 {
+    let mut mintable_token_ids = MINTABLE_TOKEN_IDS.load(deps.storage)?;
+    if mintable_token_ids.is_empty() {
         return Err(ContractError::SoldOut {});
     }
 
-    let mintable_token_id = match token_id {
+    let mintable_token_position = match token_id {
         Some(token_id) => {
             if token_id == 0 || token_id > config.max_num_tokens {
                 return Err(ContractError::InvalidTokenId {});
             }
-            token_id
+            match mintable_token_ids.iter().position(|_id| *_id == token_id) {
+                Some(position) => position,
+                None => return Err(ContractError::TokenAlreadyMinted { token_id })
+            }
         }
         None => {
-            // Fetch a token id from the list of mintable tokens
-            let random_index = env.block.time.nanos() % num_mintable_tokens as u64;
-            token_mints()
-                .idx
-                .is_minted
-                .prefix(0)
-                .keys(deps.storage, None, None, Order::Ascending)
-                .skip(random_index as usize)
-                .take(1)
-                .collect::<StdResult<Vec<_>>>()?[0]
+            env.block.time.nanos() as usize % mintable_token_ids.len()
         }
     };
 
+    let mintable_token_id = mintable_token_ids[mintable_token_position];
     let token_mint = token_mints().load(deps.storage, mintable_token_id)?;
     if token_mint.is_minted {
         return Err(ContractError::TokenAlreadyMinted { token_id: mintable_token_id });
@@ -487,8 +481,9 @@ fn _execute_mint(
         }
     )?;
 
-    // Decrement num mintable tokens
-    NUM_MINTABLE_TOKENS.save(deps.storage, &(num_mintable_tokens - 1))?;
+    // Remove mintable token id
+    mintable_token_ids.remove(mintable_token_position);
+    MINTABLE_TOKEN_IDS.save(deps.storage, &mintable_token_ids)?;
 
     // Save the new mint count for the sender's address
     let new_mint_count = mint_count(deps.as_ref(), &info)? + 1;
@@ -663,14 +658,14 @@ fn query_start_time(deps: Deps) -> StdResult<StartTimeResponse> {
 
 fn query_num_minted(deps: Deps) -> StdResult<NumMintedResponse> {
     let config = CONFIG.load(deps.storage)?;
-    let num_remaining: u32 = NUM_MINTABLE_TOKENS.load(deps.storage)?;
-    let num_minted: u32 = config.max_num_tokens - num_remaining;
+    let mintable_token_ids = MINTABLE_TOKEN_IDS.load(deps.storage)?;
+    let num_minted: u32 = config.max_num_tokens - mintable_token_ids.len() as u32;
     return Ok(NumMintedResponse { num_minted });
 }
 
 fn query_num_remaining(deps: Deps) -> StdResult<NumRemainingResponse> {
-    let num_remaining: u32 = NUM_MINTABLE_TOKENS.load(deps.storage)?;
-    Ok(NumRemainingResponse { num_remaining })
+    let mintable_token_ids = MINTABLE_TOKEN_IDS.load(deps.storage)?;
+    Ok(NumRemainingResponse { num_remaining: mintable_token_ids.len() as u32 })
 }
 
 fn query_mint_price(deps: Deps) -> StdResult<MintPriceResponse> {
