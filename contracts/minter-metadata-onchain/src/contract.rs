@@ -43,6 +43,11 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    if msg.cw721_instantiate_msg.is_none() && msg.cw721_address.is_none() ||
+       msg.cw721_instantiate_msg.is_some() && msg.cw721_address.is_some() {
+        return Err(ContractError::InvalidInstantiateMsg {});
+    }
+
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     // Check the number of tokens is more than zero
@@ -85,32 +90,42 @@ pub fn instantiate(
     CONFIG.save(deps.storage, &config)?;
     NUM_MINTABLE_TOKENS.save(deps.storage, &0)?;
 
-    // Submessage to instantiate cw721 contract
-    let sub_msgs: Vec<SubMsg> = vec![SubMsg {
-        msg: WasmMsg::Instantiate {
-            code_id: msg.cw721_code_id,
-            msg: to_binary(&Pg721InstantiateMsg {
-                name: msg.cw721_instantiate_msg.name,
-                symbol: msg.cw721_instantiate_msg.symbol,
-                minter: env.contract.address.to_string(),
-                collection_info: msg.cw721_instantiate_msg.collection_info,
-            })?,
-            funds: info.funds,
-            admin: Some(info.sender.to_string()),
-            label: String::from("Fixed price minter"),
+    let response = match msg.cw721_address {
+        Some(_addr) => {
+            let cw721_address = deps.api.addr_validate(&_addr)?;
+            CW721_ADDRESS.save(deps.storage, &cw721_address)?;
+            Response::new()
+        },
+        None => {
+            let cw721_instantiate_msg = msg.cw721_instantiate_msg.unwrap();
+            // Submessage to instantiate cw721 contract
+            let sub_msgs: Vec<SubMsg> = vec![SubMsg {
+                msg: WasmMsg::Instantiate {
+                    code_id: msg.cw721_code_id,
+                    msg: to_binary(&Pg721InstantiateMsg {
+                        name: cw721_instantiate_msg.name,
+                        symbol: cw721_instantiate_msg.symbol,
+                        minter: env.contract.address.to_string(),
+                        collection_info: cw721_instantiate_msg.collection_info,
+                    })?,
+                    funds: info.funds,
+                    admin: Some(info.sender.to_string()),
+                    label: String::from("Fixed price minter"),
+                }
+                .into(),
+                id: INSTANTIATE_CW721_REPLY_ID,
+                gas_limit: None,
+                reply_on: ReplyOn::Success,
+            }];
+            Response::new().add_submessages(sub_msgs)
         }
-        .into(),
-        id: INSTANTIATE_CW721_REPLY_ID,
-        gas_limit: None,
-        reply_on: ReplyOn::Success,
-    }];
+    };
 
-    Ok(Response::new()
+    Ok(response
         .add_attribute("action", "instantiate")
         .add_attribute("contract_name", CONTRACT_NAME)
         .add_attribute("contract_version", CONTRACT_VERSION)
-        .add_attribute("sender", info.sender)
-        .add_submessages(sub_msgs))
+        .add_attribute("sender", info.sender))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

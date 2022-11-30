@@ -49,6 +49,9 @@ pub enum ContractError {
     #[error("InvalidStartTime {0} < {1}")]
     InvalidStartTime(Timestamp, Timestamp),
 
+    #[error("Must set either cw721_address or cw721_instantiate_msg, but not both")]
+    InvalidInstantiateMsg {},
+
     #[error("Instantiate cw721 error")]
     InstantiatePg721Error {},
 

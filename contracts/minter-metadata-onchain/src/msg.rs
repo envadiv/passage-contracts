@@ -9,11 +9,12 @@ use crate::state::{TokenMint};
 pub struct InstantiateMsg {
     pub max_num_tokens: u32,
     pub cw721_code_id: u64,
-    pub cw721_instantiate_msg: Pg721InstantiateMsg,
     pub start_time: Timestamp,
     pub per_address_limit: u32,
     pub unit_price: Coin,
     pub whitelist: Option<String>,
+    pub cw721_address: Option<String>,
+    pub cw721_instantiate_msg: Option<Pg721InstantiateMsg>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
