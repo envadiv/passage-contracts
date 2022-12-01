@@ -6,7 +6,7 @@ use cosmwasm_std::{
     Response, SubMsg, Event
 };
 use cw_storage_plus::{Bound};
-use cw2::set_contract_version;
+use cw2::{set_contract_version, get_contract_version};
 use cw721_base::MintMsg;
 use cw_utils::{may_pay, parse_reply_instantiate_data};
 use pg721_metadata_onchain::msg::{
@@ -17,7 +17,7 @@ use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
     QueryMsg, StartTimeResponse, TokenMetadata, TokenMintResponse, TokenMintsResponse,
-    NumMintedResponse, NumRemainingResponse
+    NumMintedResponse, NumRemainingResponse, MigrateMsg
 };
 use crate::state::{
     CONFIG, MINTER_ADDRS, CW721_ADDRESS, MINTABLE_TOKEN_IDS,
@@ -739,4 +739,18 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
         }
         Err(_) => Err(ContractError::InstantiatePg721Error {}),
     }
+}
+
+#[entry_point]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let storage_version: &str = &get_contract_version(deps.storage)?.version.to_string();
+
+    let mut response = Response::new();
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let event = Event::new("contract-migrated")
+        .add_attribute("prev-version", storage_version)
+        .add_attribute("next-version", CONTRACT_VERSION);
+    response.events.push(event);
+    Ok(response)
 }
