@@ -172,7 +172,7 @@ pub fn execute_upsert_token_metadatas(
 
     let mut append_token_ids = vec![];
     for token_metadata in token_metadatas {
-        if token_metadata.token_id == 0 || token_metadata.token_id > config.max_num_tokens {
+        if token_metadata.token_id == 0 {
             return Err(ContractError::InvalidTokenId {});
         }
         token_mints().update(
@@ -438,7 +438,7 @@ fn _execute_mint(
 
     let mintable_token_position = match token_id {
         Some(token_id) => {
-            if token_id == 0 || token_id > config.max_num_tokens {
+            if token_id == 0 {
                 return Err(ContractError::InvalidTokenId {});
             }
             match mintable_token_ids.iter().position(|_id| *_id == token_id) {
