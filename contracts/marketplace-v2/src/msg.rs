@@ -26,6 +26,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// Update the contract parameters
     UpdateConfig {
+        collector_address: Option<String>,
         trading_fee_bps: Option<u64>,
         operators: Option<Vec<String>>,
         min_price: Option<Uint128>,
