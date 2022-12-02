@@ -14,14 +14,11 @@ fn main() {
     export_schema(&schema_for!(msg::ExecuteMsg), &out_dir);
     export_schema(&schema_for!(msg::QueryMsg), &out_dir);
 
-    export_schema(&schema_for!(msg::QueryOptions<msg::TokenTimestampOffset>), &out_dir);
+    export_schema(&schema_for!(msg::QueryOptions<msg::TokenAddrOffset>), &out_dir);
     export_schema(&schema_for!(msg::QueryOptions<msg::TokenPriceOffset>), &out_dir);
-    export_schema(&schema_for!(msg::QueryOptions<msg::BidExpiryOffset>), &out_dir);
     export_schema(&schema_for!(msg::QueryOptions<msg::BidTokenPriceOffset>), &out_dir);
     export_schema(&schema_for!(msg::QueryOptions<msg::CollectionBidPriceOffset>), &out_dir);
-    export_schema(&schema_for!(msg::QueryOptions<msg::CollectionBidExpiryOffset>), &out_dir);
     export_schema(&schema_for!(msg::CollectionBidPriceOffset), &out_dir);
-    export_schema(&schema_for!(msg::CollectionBidExpiryOffset), &out_dir);
     export_schema(&schema_for!(msg::AskResponse), &out_dir);
     export_schema(&schema_for!(msg::AsksResponse), &out_dir);
     export_schema(&schema_for!(msg::AskCountResponse), &out_dir);

@@ -1,11 +1,11 @@
 use crate::msg::{ExecuteMsg};
 use crate::error::ContractError;
 use crate::state::{
-    Config, TokenId, Bid, bids, bid_key, Ask, asks, CollectionBid, collection_bids,
+    Config, TokenId, Bid, bids, Ask, asks
 };
 use cosmwasm_std::{
     to_binary, Addr, Api, StdResult, WasmMsg,CosmosMsg, Order,
-    Deps, Event, Coin, coin, Uint128, Response, MessageInfo, Storage, Attribute,
+    Deps, Event, Coin, coin, Uint128, Response, MessageInfo, Attribute,
     BankMsg, SubMsg, Env, Decimal
 };
 use pg721::msg::{CollectionInfoResponse, QueryMsg as Pg721QueryMsg};
@@ -163,22 +163,6 @@ pub fn price_validate(price: &Coin, config: &Config) -> Result<(), ContractError
     }
 
     Ok(())
-}
-
-pub fn store_bid(store: &mut dyn Storage, bid: &Bid) -> StdResult<()> {
-    bids().save(
-        store,
-        bid_key(&bid.bidder, bid.token_id.clone()),
-        bid,
-    )
-}
-
-pub fn store_collection_bid(store: &mut dyn Storage, collection_bid: &CollectionBid) -> StdResult<()> {
-    collection_bids().save(
-        store,
-        collection_bid.bidder.clone(),
-        collection_bid,
-    )
 }
 
 /// Checks to enforce only NFT owner can call

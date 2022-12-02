@@ -9,8 +9,7 @@ use cw_utils::{maybe_addr, must_pay, nonpayable};
 
 use crate::error::ContractError;
 use crate::helpers::{
-    map_validate, finalize_sale, price_validate, store_bid,
-    store_collection_bid, only_owner_or_seller, only_seller,
+    map_validate, finalize_sale, price_validate, only_owner_or_seller, only_seller,
     only_operator, transfer_nft, transfer_token, match_bid, match_ask, validate_config,
 };
 use crate::msg::{InstantiateMsg, ExecuteMsg};
@@ -61,12 +60,14 @@ pub fn execute(
 
     match msg {
         ExecuteMsg::UpdateConfig {
+            collector_address,
             trading_fee_bps,
             operators,
             min_price,
         } => execute_update_config(
             deps,
             info,
+            collector_address,
             trading_fee_bps,
             operators,
             min_price,
@@ -145,6 +146,7 @@ pub fn execute(
 pub fn execute_update_config(
     deps: DepsMut,
     info: MessageInfo,
+    collector_address: Option<String>,
     trading_fee_bps: Option<u64>,
     operators: Option<Vec<String>>,
     min_price: Option<Uint128>,
@@ -152,6 +154,9 @@ pub fn execute_update_config(
     let mut config = CONFIG.load(deps.storage)?;
     only_operator(&info, &config)?;
 
+    if let Some(_collector_address) = collector_address {
+        config.collector_address = deps.api.addr_validate(&_collector_address)?;
+    }
     if let Some(_trading_fee_bps) = trading_fee_bps {
         config.trading_fee_percent = Decimal::percent(_trading_fee_bps);
     }
@@ -290,7 +295,7 @@ pub fn execute_set_bid(
 
     // If bid exists, refund the escrowed tokens
     if let Some(existing_bid) = bids().may_load(deps.storage, bid_key.clone())? {
-        bids().remove(deps.storage, bid_key)?;
+        bids().remove(deps.storage, bid_key.clone())?;
         transfer_token(
             existing_bid.price,
             existing_bid.bidder.to_string(),
@@ -322,8 +327,8 @@ pub fn execute_set_bid(
             asks().remove(deps.storage, ask_key.clone())?;
         },
         // If matching ask not found:
-        // * store bid
-        None => store_bid(deps.storage, &bid)?,
+        // * save bid
+        None => { bids().save(deps.storage, bid_key, &bid)? }
     };
 
     let event = Event::new("set-bid")
@@ -531,7 +536,7 @@ pub fn execute_accept_collection_bid(
         _ => {
             // Decrement the number of units on the collection bid by 1
             collection_bid.units -= 1;
-            store_collection_bid(deps.storage, &collection_bid)?;
+            collection_bids().save(deps.storage, collection_bid_key, &collection_bid)?;
         }
     }
 
