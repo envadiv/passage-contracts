@@ -2,10 +2,9 @@ use crate::msg::{ExecuteMsg};
 use crate::error::ContractError;
 use crate::state::{
     Config, TokenId, Bid, bids, bid_key, Ask, asks, CollectionBid, collection_bids,
-    Expiration
 };
 use cosmwasm_std::{
-    to_binary, Addr, Api, BlockInfo, StdResult, Timestamp, WasmMsg,CosmosMsg, Order,
+    to_binary, Addr, Api, StdResult, WasmMsg,CosmosMsg, Order,
     Deps, Event, Coin, coin, Uint128, Response, MessageInfo, Storage, Attribute,
     BankMsg, SubMsg, Env
 };
@@ -42,34 +41,6 @@ pub fn map_validate(api: &dyn Api, addresses: &[String]) -> StdResult<Vec<Addr>>
         .collect()
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct ExpiryRange {
-    pub min: u64,
-    pub max: u64,
-}
-
-impl ExpiryRange {
-    pub fn new(min: u64, max: u64) -> Self {
-        ExpiryRange { min, max }
-    }
-
-    /// Validates if given expires time is within the allowable range
-    pub fn is_valid(&self, block: &BlockInfo, expires: Timestamp) -> Result<(), ContractError> {
-        let now = block.time;
-        if !(expires > now.plus_seconds(self.min) && expires <= now.plus_seconds(self.max)) {
-            return Err(ContractError::InvalidExpirationRange {});
-        }
-        Ok(())
-    }
-
-    pub fn validate(&self) -> Result<(), ContractError> {
-        if self.min > self.max {
-            return Err(ContractError::InvalidExpiry {});
-        }
-        Ok(())
-    }
-}
-
 pub fn option_bool_to_order(descending: Option<bool>) -> Order {
      match descending {
         Some(_descending) => if _descending { Order::Descending } else { Order::Ascending },
@@ -84,10 +55,20 @@ pub fn finalize_sale(
     token_id: &TokenId,
     payment_amount: Uint128,
     payment_recipient: &Addr,
+    surplus_amount: Uint128,
+    surplus_recipient: &Addr,
     config: &Config,
     res: &mut Response,
 ) -> StdResult<()> {
-    payout(deps, payment_amount, payment_recipient, &config, res)?;
+    payout(
+        deps,
+        payment_amount,
+        payment_recipient,
+        surplus_amount,
+        surplus_recipient,
+        &config,
+        res,
+    )?;
 
     transfer_nft(&token_id, bidder, &config.cw721_address, res)?;
 
@@ -107,9 +88,20 @@ pub fn payout(
     deps: Deps,
     payment_amount: Uint128,
     payment_recipient: &Addr,
+    surplus_amount: Uint128,
+    surplus_recipient: &Addr,
     config: &Config,
     response: &mut Response,
 ) -> StdResult<()> {
+    if surplus_amount > Uint128::zero() {
+        transfer_token(
+            coin(surplus_amount.u128(), &config.denom),
+            surplus_recipient.to_string(),
+            "payout-surplus",
+            response
+        )?;
+    }
+
     let cw721_address = config.cw721_address.to_string();
 
     // Charge market fee
@@ -172,7 +164,7 @@ pub fn price_validate(price: &Coin, config: &Config) -> Result<(), ContractError
 pub fn store_bid(store: &mut dyn Storage, bid: &Bid) -> StdResult<()> {
     bids().save(
         store,
-        bid_key(bid.token_id.clone(), &bid.bidder),
+        bid_key(&bid.bidder, bid.token_id.clone()),
         bid,
     )
 }
@@ -274,7 +266,37 @@ pub fn transfer_token(coin_send: Coin, recipient: String, event_label: &str, res
     Ok(())
 }
 
-pub fn match_bid(deps: Deps, env: Env, bid: &Bid, response: &mut Response) -> StdResult<Option<Ask>> {
+pub fn match_ask(deps: Deps, ask: &Ask, response: &mut Response) -> StdResult<Option<Bid>> {
+    let highest_bid_results = bids()
+        .idx
+        .token_price
+        .sub_prefix(ask.token_id.clone())
+        .range(deps.storage, None, None, Order::Descending)
+        .take(1usize)
+        .map(|item| item.map(|(_, b)| b))
+        .collect::<StdResult<Vec<_>>>()?;
+
+    let highest_bid_option = highest_bid_results.get(0);
+    if let None = highest_bid_option {
+        return Ok(None)
+    }
+
+    let highest_bid = highest_bid_option.unwrap().clone();
+    let mut event = Event::new("match-ask")
+        .add_attribute("token-id", ask.token_id.clone())
+        .add_attribute("outcome", "match");
+    
+    if highest_bid.price.amount < ask.price.amount {
+        set_match_outcome(&mut event, "ask-too-high");
+        response.events.push(event);
+        return Ok(None)
+    }
+
+    response.events.push(event);
+    return Ok(Some(highest_bid))
+}
+
+pub fn match_bid(deps: Deps, _env: &Env, bid: &Bid, response: &mut Response) -> StdResult<Option<Ask>> {
     let matching_ask = asks().may_load(deps.storage, bid.token_id.clone())?;
 
     if let None = matching_ask {
@@ -286,20 +308,8 @@ pub fn match_bid(deps: Deps, env: Env, bid: &Bid, response: &mut Response) -> St
         .add_attribute("token-id", bid.token_id.clone())
         .add_attribute("outcome", "match");
     
-    if existing_ask.is_expired(&env.block.time) {
-        set_match_bid_outcome(&mut event, "ask-expired");
-        response.events.push(event);
-        return Ok(None)
-    }
-    if let Some(reserved_for) = &existing_ask.reserve_for {
-        if reserved_for != &bid.bidder {
-            set_match_bid_outcome(&mut event, "token-reserved");
-            response.events.push(event);
-            return Ok(None)
-        }
-    }
-    if existing_ask.price != bid.price {
-        set_match_bid_outcome(&mut event, "invalid-price");
+    if existing_ask.price.amount > bid.price.amount {
+        set_match_outcome(&mut event, "bid-too-low");
         response.events.push(event);
         return Ok(None)
     }
@@ -308,7 +318,7 @@ pub fn match_bid(deps: Deps, env: Env, bid: &Bid, response: &mut Response) -> St
     return Ok(Some(existing_ask))
 }
 
-fn set_match_bid_outcome(event: &mut Event, outcome: &str) -> () {
+fn set_match_outcome(event: &mut Event, outcome: &str) -> () {
     event.attributes = event.attributes.iter_mut().map(|attr| {
         if attr.key == "outcome" {
             return Attribute {

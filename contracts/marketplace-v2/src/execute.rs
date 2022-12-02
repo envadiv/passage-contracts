@@ -9,15 +9,16 @@ use cw_utils::{maybe_addr, must_pay, nonpayable};
 
 use crate::error::ContractError;
 use crate::helpers::{
-    map_validate, ExpiryRange, finalize_sale, price_validate, store_bid,
+    map_validate, finalize_sale, price_validate, store_bid,
     store_collection_bid, only_owner_or_seller, only_seller,
-    only_operator, transfer_nft, transfer_token, match_bid,
+    only_operator, transfer_nft, transfer_token, match_bid, match_ask,
 };
 use crate::msg::{InstantiateMsg, ExecuteMsg};
 use crate::state::{
-    Config, CONFIG, Ask, asks, TokenId, bid_key, bids, Expiration, Recipient,
+    Config, CONFIG, Ask, asks, TokenId, bid_key, bids, Recipient,
     Bid, CollectionBid, collection_bids
 };
+use cw721_base::helpers::Cw721Contract;
 
 // Version info for migration info
 const CONTRACT_NAME: &str = "crates.io:marketplace-v2";
@@ -32,17 +33,12 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    msg.ask_expiry.validate()?;
-    msg.bid_expiry.validate()?;
-
     let api = deps.api;
     let config = Config {
         cw721_address: api.addr_validate(&msg.cw721_address)?,
         denom: msg.denom,
         collector_address: api.addr_validate(&msg.collector_address)?,
         trading_fee_percent: Decimal::percent(msg.trading_fee_bps),
-        ask_expiry: msg.ask_expiry,
-        bid_expiry: msg.bid_expiry,
         operators: map_validate(deps.api, &msg.operators)?,
         min_price: msg.min_price,
     };
@@ -65,17 +61,12 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateConfig {
             trading_fee_bps,
-            ask_expiry,
-            bid_expiry,
             operators,
             min_price,
         } => execute_update_config(
             deps,
-            env,
             info,
             trading_fee_bps,
-            ask_expiry,
-            bid_expiry,
             operators,
             min_price,
         ),
@@ -83,8 +74,6 @@ pub fn execute(
             token_id,
             price,
             funds_recipient,
-            reserve_for,
-            expires_at,
         } => execute_set_ask(
             deps,
             env,
@@ -94,8 +83,6 @@ pub fn execute(
                 seller: message_info.sender,
                 price,
                 funds_recipient: maybe_addr(api, funds_recipient)?,
-                reserve_for: maybe_addr(api, reserve_for)?,
-                expires_at,
             },
         ),
         ExecuteMsg::RemoveAsk {
@@ -104,7 +91,6 @@ pub fn execute(
         ExecuteMsg::SetBid {
             token_id,
             price,
-            expires_at,
         } => execute_set_bid(
             deps,
             env,
@@ -113,7 +99,6 @@ pub fn execute(
                 token_id,
                 bidder: message_info.sender,
                 price,
-                expires_at,
             },
         ),
         ExecuteMsg::RemoveBid {
@@ -124,7 +109,6 @@ pub fn execute(
             bidder,
         } => execute_accept_bid(
             deps,
-            env,
             info,
             token_id,
             api.addr_validate(&bidder)?,
@@ -132,16 +116,13 @@ pub fn execute(
         ExecuteMsg::SetCollectionBid {
             units,
             price,
-            expires_at,
         } => execute_set_collection_bid(
             deps,
-            env,
             info,
             CollectionBid {
                 units,
                 price,
                 bidder: message_info.sender,
-                expires_at
             }
         ),
         ExecuteMsg::RemoveCollectionBid { } => {
@@ -152,7 +133,6 @@ pub fn execute(
             bidder,
         } => execute_accept_collection_bid(
             deps,
-            env,
             info,
             token_id,
             api.addr_validate(&bidder)?,
@@ -163,11 +143,8 @@ pub fn execute(
 /// An operator may update the marketplace config
 pub fn execute_update_config(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     trading_fee_bps: Option<u64>,
-    ask_expiry: Option<ExpiryRange>,
-    bid_expiry: Option<ExpiryRange>,
     operators: Option<Vec<String>>,
     min_price: Option<Uint128>,
 ) -> Result<Response, ContractError> {
@@ -176,14 +153,6 @@ pub fn execute_update_config(
 
     if let Some(_trading_fee_bps) = trading_fee_bps {
         config.trading_fee_percent = Decimal::percent(_trading_fee_bps);
-    }
-    if let Some(_ask_expiry) = ask_expiry {
-        _ask_expiry.validate()?;
-        config.ask_expiry = _ask_expiry;
-    }
-    if let Some(_bid_expiry) = bid_expiry {
-        _bid_expiry.validate()?;
-        config.bid_expiry = _bid_expiry;
     }
     if let Some(_operators) = operators {
         config.operators = map_validate(deps.api, &_operators)?;
@@ -206,7 +175,6 @@ pub fn execute_set_ask(
     nonpayable(&info)?;
     
     let config = CONFIG.load(deps.storage)?;
-    config.ask_expiry.is_valid(&env.block, ask.expires_at)?;
     price_validate(&ask.price, &config)?;
 
     let existing_ask = asks().load(deps.storage, ask.token_id.clone()).ok();
@@ -218,26 +186,59 @@ pub fn execute_set_ask(
         &existing_ask.clone().map_or(None, |a| Some(a.seller)),
     )?;
 
-    // Upsert ask
-    asks().update(
-        deps.storage,
-        ask.token_id.clone(),
-        |_| -> Result<Ask, StdError> { Ok(ask.clone()) },
-    )?;
-
     let mut response = Response::new();
+    let matching_bid = match_ask(deps.as_ref(), &ask, &mut response)?;
 
-    match existing_ask {
-        None => transfer_nft(&ask.token_id, &env.contract.address, &config.cw721_address, &mut response)?,
-        _ => (),
+    match matching_bid {
+        // If matching bid found:
+        // * finalize sale
+        // * remove bid
+        // * if existing ask exists, remove it
+        Some(bid) => {
+            finalize_sale(
+                deps.as_ref(),
+                &bid.bidder,
+                &ask.token_id,
+                bid.price.amount,
+                &ask.get_recipient(),
+                Uint128::zero(),
+                &bid.bidder,
+                &config,
+                &mut response,
+            )?;
+            bids().remove(
+                deps.storage,
+                bid_key(&bid.bidder, bid.token_id.clone())
+            )?;
+            if let Some(_existing_ask) = existing_ask  {
+                asks().remove(
+                    deps.storage,
+                    _existing_ask.token_id
+                )?;
+            }
+        },
+        // If matching bid not found:
+        // * update ask
+        // * if contract is not the owner of the NFT, transfer NFT to contract
+        None => {
+            asks().update(
+                deps.storage,
+                ask.token_id.clone(),
+                |_| -> Result<Ask, StdError> { Ok(ask.clone()) },
+            )?;
+            let res = Cw721Contract(config.cw721_address.clone())
+                .owner_of(&deps.querier, ask.token_id.clone(), false)?;
+            if res.owner != env.contract.address {
+                transfer_nft(&ask.token_id, &env.contract.address, &config.cw721_address, &mut response)?;
+            }
+        }
     }
 
     let event = Event::new("set-ask")
         .add_attribute("collection", config.cw721_address.to_string())
         .add_attribute("token_id", ask.token_id.to_string())
         .add_attribute("seller", ask.seller)
-        .add_attribute("price", ask.price.to_string())
-        .add_attribute("expires_at", ask.expires_at.to_string());
+        .add_attribute("price", ask.price.to_string());
 
     Ok(response.add_event(event))
 }
@@ -276,15 +277,14 @@ pub fn execute_set_bid(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    let payment_amount = must_pay(&info, &config.denom)?;
-    if bid.price.amount != payment_amount  {
-        return Err(ContractError::IncorrectBidPayment(bid.price.amount, payment_amount));
+    let received_amount = must_pay(&info, &config.denom)?;
+    if bid.price.amount != received_amount  {
+        return Err(ContractError::IncorrectBidPayment(bid.price.amount, received_amount));
     }
     price_validate(&bid.price, &config)?;
-    config.bid_expiry.is_valid(&env.block, bid.expires_at)?;
 
     let mut response = Response::new();
-    let bid_key = bid_key(bid.token_id.clone(), &bid.bidder);
+    let bid_key = bid_key(&bid.bidder, bid.token_id.clone());
     let ask_key = &bid.token_id;
 
     // If bid exists, refund the escrowed tokens
@@ -298,30 +298,37 @@ pub fn execute_set_bid(
         )?;
     }
 
-    let matching_ask = match_bid(deps.as_ref(), env, &bid, &mut response)?;
-
     // If existing ask found, finalize the sale
+    let matching_ask = match_bid(deps.as_ref(), &env, &bid, &mut response)?;
     match matching_ask {
+        // If matching ask found:
+        // * calculate surplus
+        // * finalize sale
+        // * remove ask
         Some(ask) => {
-            asks().remove(deps.storage, ask_key.clone())?;
+            let surplus_amount = received_amount - ask.price.amount;
             finalize_sale(
                 deps.as_ref(),
                 &bid.bidder,
                 &ask.token_id,
-                payment_amount,
+                ask.price.amount,
                 &ask.get_recipient(),
+                surplus_amount,
+                &bid.bidder,
                 &config,
                 &mut response,
-            )?
+            )?;
+            asks().remove(deps.storage, ask_key.clone())?;
         },
+        // If matching ask not found:
+        // * store bid
         None => store_bid(deps.storage, &bid)?,
     };
 
     let event = Event::new("set-bid")
         .add_attribute("token_id", bid.token_id.to_string())
         .add_attribute("bidder", bid.bidder)
-        .add_attribute("price", bid.price.to_string())
-        .add_attribute("expires_at", bid.expires_at.to_string());
+        .add_attribute("price", bid.price.to_string());
     response.events.push(event);
 
     Ok(response)
@@ -337,7 +344,7 @@ pub fn execute_remove_bid(
     nonpayable(&info)?;
     let bidder = info.sender;
 
-    let key = bid_key(token_id.clone(), &bidder);
+    let key = bid_key(&bidder, token_id.clone());
     let bid = bids().load(deps.storage, key.clone())?;
     bids().remove(deps.storage, key)?;
 
@@ -355,18 +362,14 @@ pub fn execute_remove_bid(
 /// Seller can accept a bid which transfers funds as well as the token. The bid may or may not be associated with an ask.
 pub fn execute_accept_bid(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     token_id: TokenId,
     bidder: Addr,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let bid_key = bid_key(token_id.clone(), &bidder);
+    let bid_key = bid_key(&bidder, token_id.clone());
     let bid = bids().load(deps.storage, bid_key.clone())?;
-    if bid.is_expired(&env.block.time) {
-        return Err(ContractError::BidExpired {});
-    }
 
     let config = CONFIG.load(deps.storage)?;
     let existing_ask = asks().may_load(deps.storage, token_id.clone())?;
@@ -397,6 +400,8 @@ pub fn execute_accept_bid(
         &token_id,
         bid.price.amount,
         &payment_recipient,
+        Uint128::zero(),
+        &bid.bidder,
         &config,
         &mut response,
     )?;
@@ -407,8 +412,7 @@ pub fn execute_accept_bid(
     let event = Event::new("accept-bid")
         .add_attribute("token_id", token_id.to_string())
         .add_attribute("bidder", bidder)
-        .add_attribute("price", bid.price.to_string())
-        .add_attribute("expires_at", bid.expires_at.to_string());
+        .add_attribute("price", bid.price.to_string());
     response.events.push(event);
 
     Ok(response)
@@ -417,23 +421,24 @@ pub fn execute_accept_bid(
 /// Place a collection bid (limit order) across an entire collection
 pub fn execute_set_collection_bid(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     collection_bid: CollectionBid
 ) -> Result<Response, ContractError> {
+    if collection_bid.units == 0 {
+        return Err(ContractError::InvalidCollectionBid {});
+    }
+
     let config = CONFIG.load(deps.storage)?;
     
     // Escrows the amount (price * units)
-    let payment_amount = must_pay(&info, &config.denom)?;
+    let received_amount = must_pay(&info, &config.denom)?;
     price_validate(&collection_bid.price, &config)?;
-    if Uint128::from(collection_bid.total_cost()) != payment_amount  {
+    if Uint128::from(collection_bid.total_cost()) != received_amount  {
         return Err(ContractError::IncorrectBidPayment(
             Uint128::from(collection_bid.total_cost()),
-            payment_amount,
+            received_amount,
         ));
     }
-    config.bid_expiry.is_valid(&env.block, collection_bid.expires_at)?;
-
     let collection_bid_key = collection_bid.bidder.clone();
     let mut response = Response::new();
 
@@ -452,8 +457,7 @@ pub fn execute_set_collection_bid(
     let event = Event::new("set-collection-bid")
         .add_attribute("bidder", collection_bid.bidder)
         .add_attribute("price", collection_bid.price.to_string())
-        .add_attribute("units", collection_bid.units.to_string())
-        .add_attribute("expires_at", collection_bid.expires_at.to_string());
+        .add_attribute("units", collection_bid.units.to_string());
     response.events.push(event);
 
     Ok(response)
@@ -490,7 +494,6 @@ pub fn execute_remove_collection_bid(
 /// Owner/seller of an item in a collection can accept a collection bid which transfers funds as well as a token
 pub fn execute_accept_collection_bid(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     token_id: TokenId,
     bidder: Addr,
@@ -499,9 +502,6 @@ pub fn execute_accept_collection_bid(
 
     let collection_bid_key = bidder.clone();
     let mut collection_bid = collection_bids().load(deps.storage, collection_bid_key.clone())?;
-    if collection_bid.is_expired(&env.block.time) {
-        return Err(ContractError::BidExpired {});
-    }
 
     let config = CONFIG.load(deps.storage)?;
     let existing_ask = asks().may_load(deps.storage, token_id.clone())?;
@@ -543,6 +543,8 @@ pub fn execute_accept_collection_bid(
         &token_id,
         collection_bid.price.amount,
         &payment_recipient,
+        Uint128::zero(),
+        &collection_bid.bidder,
         &config,
         &mut response,
     )?;
@@ -550,8 +552,7 @@ pub fn execute_accept_collection_bid(
     let event = Event::new("accept-collection-bid")
         .add_attribute("bidder", collection_bid.bidder)
         .add_attribute("price", collection_bid.price.to_string())
-        .add_attribute("units", collection_bid.units.to_string())
-        .add_attribute("expires_at", collection_bid.expires_at.to_string());
+        .add_attribute("units", collection_bid.units.to_string());
     response.events.push(event);
 
     Ok(response)

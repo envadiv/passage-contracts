@@ -1,6 +1,5 @@
-use crate::helpers::ExpiryRange;
 use crate::state::{Ask, TokenId, Bid, Config, CollectionBid};
-use cosmwasm_std::{Addr, Coin, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Coin, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -15,12 +14,6 @@ pub struct InstantiateMsg {
     /// Fair Burn fee for winning bids
     /// 0.25% = 25, 0.5% = 50, 1% = 100, 2.5% = 250
     pub trading_fee_bps: u64,
-    /// Valid time range for Asks
-    /// (min, max) in seconds
-    pub ask_expiry: ExpiryRange,
-    /// Valid time range for Bids
-    /// (min, max) in seconds
-    pub bid_expiry: ExpiryRange,
     /// Operators are entites that are responsible for maintaining the active state of Asks.
     /// They listen to NFT transfer events, and update the active state of Asks.
     pub operators: Vec<String>,
@@ -34,8 +27,6 @@ pub enum ExecuteMsg {
     /// Update the contract parameters
     UpdateConfig {
         trading_fee_bps: Option<u64>,
-        ask_expiry: Option<ExpiryRange>,
-        bid_expiry: Option<ExpiryRange>,
         operators: Option<Vec<String>>,
         min_price: Option<Uint128>,
     },
@@ -44,8 +35,6 @@ pub enum ExecuteMsg {
         token_id: TokenId,
         price: Coin,
         funds_recipient: Option<String>,
-        reserve_for: Option<String>,
-        expires_at: Timestamp,
     },
     /// Remove an existing ask from the marketplace
     RemoveAsk {
@@ -55,7 +44,6 @@ pub enum ExecuteMsg {
     SetBid {
         token_id: TokenId,
         price: Coin,
-        expires_at: Timestamp,
     },
     /// Remove an existing bid from an ask
     RemoveBid {
@@ -70,7 +58,6 @@ pub enum ExecuteMsg {
     SetCollectionBid {
         units: u32,
         price: Coin,
-        expires_at: Timestamp,
     },
     /// Remove a bid (limit order) across an entire collection
     RemoveCollectionBid { },
@@ -85,15 +72,8 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct QueryOptions<T> {
     pub descending: Option<bool>,
-    pub filter_expiry: Option<Timestamp>,
     pub start_after: Option<T>,
     pub limit: Option<u32>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct TokenTimestampOffset {
-    pub token_id: TokenId,
-    pub timestamp: Timestamp,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -103,10 +83,9 @@ pub struct TokenPriceOffset {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct BidExpiryOffset {
-    pub expires_at: Timestamp,
-    pub bidder: Addr,
+pub struct TokenAddrOffset {
     pub token_id: TokenId,
+    pub address: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -123,12 +102,6 @@ pub struct CollectionBidPriceOffset {
     pub price: u128,
 }
 
-/// Offset for collection bid pagination
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct CollectionBidExpiryOffset {
-    pub bidder: Addr,
-    pub expires_at: Timestamp,
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -141,11 +114,6 @@ pub enum QueryMsg {
     Ask {
         token_id: TokenId,
     },
-    /// Get all asks sorted by expiry
-    /// Return type: `AsksResponse`
-    AsksSortedByExpiry {
-        query_options: QueryOptions<TokenTimestampOffset>
-    },
     /// Get all asks sorted by price
     /// Return type: `AsksResponse`
     AsksSortedByPrice {
@@ -153,9 +121,8 @@ pub enum QueryMsg {
     },
     /// Get all asks by seller
     /// Return type: `AsksResponse`
-    AsksBySellerExpiry {
-        seller: String,
-        query_options: QueryOptions<TokenTimestampOffset>
+    AsksBySeller {
+        query_options: QueryOptions<TokenAddrOffset>
     },
     /// Count of all asks
     /// Return type: `AskCountResponse`
@@ -166,11 +133,6 @@ pub enum QueryMsg {
         token_id: TokenId,
         bidder: String,
     },
-    /// Get all bids sorted by expiry
-    /// Return type: `BidsResponse`
-    BidsSortedByExpiry {
-        query_options: QueryOptions<BidExpiryOffset>
-    },
     /// Get all bids for a token sorted by price
     /// Return type: `BidsResponse`
     BidsByTokenPrice {
@@ -179,9 +141,8 @@ pub enum QueryMsg {
     },
     /// Get all bids by bidders sorted by expiry
     /// Return type: `BidsResponse`
-    BidsByBidderExpiry {
-        bidder: String,
-        query_options: QueryOptions<BidExpiryOffset>
+    BidsByBidder {
+        query_options: QueryOptions<TokenAddrOffset>
     },
     /// Get a bidders collection_bid
     /// Return type: `CollectionBidResponse`
@@ -192,11 +153,6 @@ pub enum QueryMsg {
     /// Return type: `CollectionBidsResponse`
     CollectionBidsByPrice {
         query_options: QueryOptions<CollectionBidPriceOffset>
-    },
-    /// Get all collection_bids sorted by expiry
-    /// Return type: `CollectionBidsResponse`
-    CollectionBidsByExpiry {
-        query_options: QueryOptions<CollectionBidExpiryOffset>
     },
 }
 
