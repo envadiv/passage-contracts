@@ -1,8 +1,7 @@
 use crate::msg::{
-    QueryMsg, AskResponse, AsksResponse, QueryOptions, TokenTimestampOffset, TokenPriceOffset,
-    AskCountResponse, BidResponse, BidsResponse, BidExpiryOffset, BidTokenPriceOffset,
-    ConfigResponse, CollectionBidResponse, CollectionBidsResponse, CollectionBidPriceOffset,
-    CollectionBidExpiryOffset,
+    QueryMsg, AskResponse, AsksResponse, QueryOptions, TokenPriceOffset,
+    AskCountResponse, BidResponse, BidsResponse, BidTokenPriceOffset,
+    ConfigResponse, CollectionBidResponse, CollectionBidsResponse, CollectionBidPriceOffset, TokenAddrOffset,
 };
 use crate::state::{
     CONFIG, asks, TokenId, bids, bid_key, collection_bids,
@@ -24,24 +23,16 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Ask {
             token_id,
         } => to_binary(&query_ask(deps, token_id)?),
-        QueryMsg::AsksSortedByExpiry {
-            query_options
-        } => to_binary(&query_asks_sorted_by_expiry(
-            deps,
-            &query_options
-        )?),
         QueryMsg::AsksSortedByPrice {
             query_options
         } => to_binary(&query_asks_sorted_by_price(
             deps,
             &query_options,
         )?),
-        QueryMsg::AsksBySellerExpiry {
-            seller,
+        QueryMsg::AsksBySeller {
             query_options,
-        } => to_binary(&query_asks_by_seller_expiry(
+        } => to_binary(&query_asks_by_seller(
             deps,
-            api.addr_validate(&seller)?,
             &query_options,
         )?),
         QueryMsg::AskCount { } => to_binary(&query_ask_count(deps)?),
@@ -53,12 +44,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             token_id,
             api.addr_validate(&bidder)?,
         )?),
-        QueryMsg::BidsSortedByExpiry {
-            query_options,
-        } => to_binary(&query_bids_sorted_by_expiry(
-            deps,
-            &query_options,
-        )?),
         QueryMsg::BidsByTokenPrice {
             token_id,
             query_options,
@@ -67,12 +52,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             token_id,
             &query_options,
         )?),
-        QueryMsg::BidsByBidderExpiry {
-            bidder,
+        QueryMsg::BidsByBidder {
             query_options,
-        } => to_binary(&query_bids_by_bidder_expiry(
+        } => to_binary(&query_bids_by_bidder(
             deps,
-            api.addr_validate(&bidder)?,
             &query_options
         )?),
         QueryMsg::CollectionBid { 
@@ -84,12 +67,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::CollectionBidsByPrice {
             query_options,
         } => to_binary(&query_collection_bids_by_price(
-            deps,
-            &query_options,
-        )?),
-        QueryMsg::CollectionBidsByExpiry {
-            query_options,
-        } => to_binary(&query_collection_bids_by_expiry(
             deps,
             &query_options,
         )?),
@@ -108,34 +85,6 @@ pub fn query_ask(deps: Deps, token_id: TokenId) -> StdResult<AskResponse> {
     Ok(AskResponse { ask })
 }
 
-pub fn query_asks_sorted_by_expiry(
-    deps: Deps,
-    query_options: &QueryOptions<TokenTimestampOffset>
-) -> StdResult<AsksResponse> {
-    let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
-    let start = query_options.start_after.as_ref().map(|offset| {
-        Bound::exclusive((offset.timestamp.seconds(), offset.token_id.clone()))
-    });
-    let order = option_bool_to_order(query_options.descending);
-
-    let asks = asks()
-        .idx
-        .expiry
-        .range(deps.storage, start, None, order)
-        .filter(|item| match item {
-            Ok((_, ask)) => match query_options.filter_expiry {
-                Some(ts) => ts < ask.expires_at,
-                _ => true,
-            },
-            Err(_) => true,
-        })
-        .take(limit)
-        .map(|res| res.map(|item| item.1))
-        .collect::<StdResult<Vec<_>>>()?;
-
-    Ok(AsksResponse { asks })
-}
-
 pub fn query_asks_sorted_by_price(
     deps: Deps,
     query_options: &QueryOptions<TokenPriceOffset>
@@ -150,13 +99,6 @@ pub fn query_asks_sorted_by_price(
         .idx
         .price
         .range(deps.storage, start, None, order)
-        .filter(|item| match item {
-            Ok((_, ask)) => match query_options.filter_expiry {
-                Some(ts) => ts < ask.expires_at,
-                _ => true,
-            },
-            Err(_) => true,
-        })
         .take(limit)
         .map(|res| res.map(|item| item.1))
         .collect::<StdResult<Vec<_>>>()?;
@@ -164,29 +106,20 @@ pub fn query_asks_sorted_by_price(
     Ok(AsksResponse { asks })
 }
 
-pub fn query_asks_by_seller_expiry(
+pub fn query_asks_by_seller(
     deps: Deps,
-    seller: Addr,
-    query_options: &QueryOptions<TokenTimestampOffset>
+    query_options: &QueryOptions<TokenAddrOffset>
 ) -> StdResult<AsksResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
     let start = query_options.start_after.as_ref().map(|offset| {
-        Bound::exclusive((offset.timestamp.seconds(), offset.token_id.clone()))
+        Bound::exclusive((offset.address.clone(), offset.token_id.clone()))
     });
     let order = option_bool_to_order(query_options.descending);
 
     let asks = asks()
         .idx
-        .seller_expiry
-        .sub_prefix(seller)
+        .seller
         .range(deps.storage, start, None, order)
-        .filter(|item| match item {
-            Ok((_, ask)) => match query_options.filter_expiry {
-                Some(ts) => ts < ask.expires_at,
-                _ => true,
-            },
-            Err(_) => true,
-        })
         .take(limit)
         .map(|res| res.map(|item| item.1))
         .collect::<StdResult<Vec<_>>>()?;
@@ -207,37 +140,9 @@ pub fn query_bid(
     token_id: TokenId,
     bidder: Addr,
 ) -> StdResult<BidResponse> {
-    let bid = bids().may_load(deps.storage, bid_key(token_id, &bidder))?;
+    let bid = bids().may_load(deps.storage, bid_key(&bidder, token_id))?;
 
     Ok(BidResponse { bid })
-}
-
-pub fn query_bids_sorted_by_expiry(
-    deps: Deps,
-    query_options: &QueryOptions<BidExpiryOffset>
-) -> StdResult<BidsResponse> {
-    let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
-    let start = query_options.start_after.as_ref().map(|offset| {
-        Bound::exclusive((offset.expires_at.seconds(), bid_key(offset.token_id.clone(), &offset.bidder)))
-    });
-    let order = option_bool_to_order(query_options.descending);
-
-    let bids = bids()
-        .idx
-        .expiry
-        .range(deps.storage, start, None, order)
-        .filter(|item| match item {
-            Ok((_, ask)) => match query_options.filter_expiry {
-                Some(ts) => ts < ask.expires_at,
-                _ => true,
-            },
-            Err(_) => true,
-        })
-        .take(limit)
-        .map(|res| res.map(|item| item.1))
-        .collect::<StdResult<Vec<_>>>()?;
-
-    Ok(BidsResponse { bids })
 }
 
 pub fn query_bids_token_price(
@@ -247,7 +152,7 @@ pub fn query_bids_token_price(
 ) -> StdResult<BidsResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
     let start = query_options.start_after.as_ref().map(|offset| {
-        Bound::exclusive((offset.price, bid_key(offset.token_id.clone(), &offset.bidder)))
+        Bound::exclusive((offset.price, bid_key(&offset.bidder, offset.token_id.clone())))
     });
     let order = option_bool_to_order(query_options.descending);
 
@@ -256,13 +161,6 @@ pub fn query_bids_token_price(
         .token_price
         .sub_prefix(token_id)
         .range(deps.storage, start, None, order)
-        .filter(|item| match item {
-            Ok((_, ask)) => match query_options.filter_expiry {
-                Some(ts) => ts < ask.expires_at,
-                _ => true,
-            },
-            Err(_) => true,
-        })
         .take(limit)
         .map(|item| item.map(|(_, b)| b))
         .collect::<StdResult<Vec<_>>>()?;
@@ -270,29 +168,18 @@ pub fn query_bids_token_price(
     Ok(BidsResponse { bids })
 }
 
-pub fn query_bids_by_bidder_expiry(
+pub fn query_bids_by_bidder(
     deps: Deps,
-    bidder: Addr,
-    query_options: &QueryOptions<BidExpiryOffset>
+    query_options: &QueryOptions<TokenAddrOffset>
 ) -> StdResult<BidsResponse> {
     let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
     let start = query_options.start_after.as_ref().map(|offset| {
-        Bound::exclusive((offset.expires_at.seconds(), bid_key(offset.token_id.clone(), &offset.bidder)))
+        Bound::exclusive(bid_key(&offset.address, offset.token_id.clone()))
     });
     let order = option_bool_to_order(query_options.descending);
 
     let bids = bids()
-        .idx
-        .bidder_expiry
-        .sub_prefix(bidder)
         .range(deps.storage, start, None, order)
-        .filter(|item| match item {
-            Ok((_, ask)) => match query_options.filter_expiry {
-                Some(ts) => ts < ask.expires_at,
-                _ => true,
-            },
-            Err(_) => true,
-        })
         .take(limit)
         .map(|item| item.map(|(_, b)| b))
         .collect::<StdResult<Vec<_>>>()?;
@@ -323,41 +210,6 @@ pub fn query_collection_bids_by_price(
         .idx
         .price
         .range(deps.storage, start, None, order)
-        .filter(|item| match item {
-            Ok((_, ask)) => match query_options.filter_expiry {
-                Some(ts) => ts < ask.expires_at,
-                _ => true,
-            },
-            Err(_) => true,
-        })
-        .take(limit)
-        .map(|res| res.map(|item| item.1))
-        .collect::<StdResult<Vec<_>>>()?;
-
-    Ok(CollectionBidsResponse { collection_bids })
-}
-
-pub fn query_collection_bids_by_expiry(
-    deps: Deps,
-    query_options: &QueryOptions<CollectionBidExpiryOffset>
-) -> StdResult<CollectionBidsResponse> {
-    let limit = query_options.limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
-    let start = query_options.start_after.as_ref().map(|offset| {
-        Bound::exclusive((offset.expires_at.seconds(), offset.bidder.clone()))
-    });
-    let order = option_bool_to_order(query_options.descending);
-
-    let collection_bids = collection_bids()
-        .idx
-        .expiry
-        .range(deps.storage, start, None, order)
-        .filter(|item| match item {
-            Ok((_, ask)) => match query_options.filter_expiry {
-                Some(ts) => ts < ask.expires_at,
-                _ => true,
-            },
-            Err(_) => true,
-        })
         .take(limit)
         .map(|res| res.map(|item| item.1))
         .collect::<StdResult<Vec<_>>>()?;

@@ -13,19 +13,15 @@ pub enum ContractError {
     #[error("Invalid price")]
     InvalidPrice {},
 
-    #[error("Bid expired")]
-    BidExpired {},
-
     #[error("{0}")]
     BidPaymentError(#[from] PaymentError),
 
     #[error("Incorrect bid payment: expected {0}, actual {1}")]
     IncorrectBidPayment(Uint128, Uint128),
 
-    // Expiry errors
-    #[error("Invalid expiration range")]
-    InvalidExpirationRange {},
+    #[error("Invalid config: {0}")]
+    InvalidConfig(String),
 
-    #[error("Expiry min > max")]
-    InvalidExpiry {},
+    #[error("Invalid collection bid")]
+    InvalidCollectionBid {},
 }
