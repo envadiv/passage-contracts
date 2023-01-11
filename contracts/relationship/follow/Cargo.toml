@@ -1,0 +1,59 @@
+[package]
+name = "follow"
+version = "0.1.0"
+edition = "2021"
+authors = ["Tasio Victoria <tasio@envadiv.com>",]
+repository = "https://github.com/envadiv/passage-contracts"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+cosmwasm-std = "1.1.9"
+cosmwasm-schema = "1.1.9"
+cw-storage-plus = "1.0.1"
+
+# [package]
+# name = "auction-english"
+# version = "0.1.0"
+# authors = ["Tasio Victoria <tasio@envadiv.com>",]
+# repository = "https://github.com/envadiv/passage-contracts"
+# edition = "2018"
+
+# exclude = [
+#   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+#   "contract.wasm",
+#   "hash.txt",
+# ]
+
+# # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+# [lib]
+# crate-type = ["cdylib", "rlib"]
+
+# [features]
+# # for more explicit tests, cargo test --features=backtraces
+# backtraces = ["cosmwasm-std/backtraces"]
+# # use library feature to disable all instantiate/execute/query exports
+# library = []
+
+# [dependencies]
+# cosmwasm-std = { version = "1.0.0-rc.0" }
+# cosmwasm-storage = { version = "1.0.0-rc.0" }
+# cw-storage-plus = "0.13.2"
+# cw2 = "0.13.2"
+# cw20 = "0.13.2"
+# cw721 = "0.13.2"
+# cw721-base = { version = "0.13.2", features = ["library"] }
+# schemars = "0.8.8"
+# serde = { version = "1.0.133", default-features = false, features = ["derive"] }
+# pg721 = { path = "../pg721", features = ["library"] }
+# thiserror = { version = "1.0.30" }
+# cw-utils = "0.13.2"
+
+# [dev-dependencies]
+# cosmwasm-schema = { version = "1.0.0-rc.0" }
+# cw-multi-test = { version = "0.13.2" }
+
+# [profile.release]
+# overflow-checks = true
