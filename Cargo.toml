@@ -1,5 +1,5 @@
 [workspace]
-members = ["contracts/*"]
+members = ["contracts/nft/*", "contracts/relationship/*"]
 
 [profile.release.package.auction-english]
 codegen-units = 1
