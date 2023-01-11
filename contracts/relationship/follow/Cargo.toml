@@ -12,6 +12,11 @@ crate-type = ["cdylib", "rlib"]
 cosmwasm-std = "1.1.9"
 cosmwasm-schema = "1.1.9"
 cw-storage-plus = "1.0.1"
+cw2 = "1.0.1"
+thiserror = { version = "1.0.38" }
+
+[dev-dependencies]
+cw-multi-test = { version = "0.16.2" }
 
 # [package]
 # name = "auction-english"
@@ -52,8 +57,8 @@ cw-storage-plus = "1.0.1"
 # cw-utils = "0.13.2"
 
 # [dev-dependencies]
-# cosmwasm-schema = { version = "1.0.0-rc.0" }
 # cw-multi-test = { version = "0.13.2" }
+# cosmwasm-schema = { version = "1.0.0-rc.0" }
 
 # [profile.release]
 # overflow-checks = true
