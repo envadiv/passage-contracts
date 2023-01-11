@@ -17,8 +17,8 @@ Passage smart contracts written in CosmWasm and deployed to Juno.
 | pg721-metadata-onchain  | 478     | v0.1.8-alpha | be256a2235558736018a0bdb4ee9d5c80bf2a73f4411e29be771debe6c6b1c58 | 8.000106ujuno  |       |
 | minter-metadata-onchain | 480     | v0.1.8-alpha | 3f8e3db3b53c8bd4229f22263842beb3477fa1350228f08e71d4c49bca33e5d6 | 4.0814907ujuno |       |
 | marketplace-legacy      | 490     | v0.1.8-alpha | 46bc19eea386551aa58267c9844d4b1b77b32ac535326cae2897733ab610b35c | 3.360571ujuno  |       |
-| pg721-metadata-onchain  | 1486    | ...          | 9587d0722d6a3ad19aa6623632ddc4b92592b70f7c6869fa754a3eeedbcad900 | 0.560861ujuno  |       |
-| minter-metadata-onchain | 1489    | ...          | 598cc1f1a102e121d785bc3c58075892ef8f3f781c6084b5bf97ff628a888353 | 0.269856ujuno  |       |
+| pg721-metadata-onchain  | 1486    | v0.2.0-alpha | 9587d0722d6a3ad19aa6623632ddc4b92592b70f7c6869fa754a3eeedbcad900 | 0.560861ujuno  |       |
+| minter-metadata-onchain | 1489    | v0.2.0-alpha | 598cc1f1a102e121d785bc3c58075892ef8f3f781c6084b5bf97ff628a888353 | 0.269856ujuno  |       |
 
 ### Testnet (uni-5)
 
@@ -32,13 +32,9 @@ Passage smart contracts written in CosmWasm and deployed to Juno.
 | nft-vault               | 688     | v0.1.9-alpha | 69dd5d7ed6c33a267fbe851554b5f781f2cbcc0c8a500ff2407db852440a1dc6 | Initial release                                       |
 | minter-metadata-onchain | 2770    | v0.1.9-alpha | f3fb80a6764c803e6c313e78c89db8c64358e6522a96624fd0325f821b9e40f2 | Migration test (legacy version)                       |
 | pg721-metadata-onchain  | 2806    | v0.1.9-alpha | 31aba788d98137b12d8690de852075a74c6516914a5dd64cf892b21db8614370 | Migration test (legacy version)                       |
-| minter-metadata-onchain | 2899    | ...          | 42c2696a30581cfc8bca753e0add69a3356df8240ce316d17dca8aec7831d824 | Migration test (updated version, optimization failed) |
-| pg721-metadata-onchain  | 2900    | ...          | 9587d0722d6a3ad19aa6623632ddc4b92592b70f7c6869fa754a3eeedbcad900 | Migration test (updated version)                      |
-| minter-metadata-onchain | 2902    | ...          | 42c2696a30581cfc8bca753e0add69a3356df8240ce316d17dca8aec7831d824 | Migration test (updated version)                      |
-
-| minter-metadata-onchain | 2805 | ... | d65ec2bd67f076b345c655483c888fb309f5ff52ed25074901a3f83add473a3a | Migration test (new version, not used) |
-| pg721-metadata-onchain | 2822 | ... | 9587d0722d6a3ad19aa6623632ddc4b92592b70f7c6869fa754a3eeedbcad900 | Migration test |
-| minter-metadata-onchain | 2823 | ... | a7433be1cdae32effea78c3826c107273371b40cb49ac1dd4d0abb75786f1d11 | Migration test (new version) |
+| minter-metadata-onchain | 2899    | v0.2.0-alpha | 42c2696a30581cfc8bca753e0add69a3356df8240ce316d17dca8aec7831d824 | Migration test (updated version, optimization failed) |
+| pg721-metadata-onchain  | 2900    | v0.2.0-alpha | 9587d0722d6a3ad19aa6623632ddc4b92592b70f7c6869fa754a3eeedbcad900 | Migration test (updated version)                      |
+| minter-metadata-onchain | 2902    | v0.2.0-alpha | 42c2696a30581cfc8bca753e0add69a3356df8240ce316d17dca8aec7831d824 | Migration test (updated version)                      |
 
 ### Testnet (uni-3)
 
