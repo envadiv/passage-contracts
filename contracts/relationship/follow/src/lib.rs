@@ -1,7 +1,9 @@
-pub mod instantiate;
 pub mod execute;
-pub mod query;
+pub mod helpers;
+pub mod hooks;
+pub mod instantiate;
 pub mod msg;
+pub mod query;
 pub mod state;
 
 mod error;

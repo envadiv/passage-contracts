@@ -1,8 +1,10 @@
 #![cfg(test)]
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg};
-use cosmwasm_std::{Addr, Empty, Timestamp, coin, coins, Coin, Decimal, Uint128};
-use cw_multi_test::{App, AppBuilder, BankSudo, Contract, ContractWrapper, Executor, SudoMsg as CwSudoMsg};
+use crate::msg::InstantiateMsg;
+use cosmwasm_std::{coins, Addr, Coin, Empty, Timestamp, Uint128};
+use cw_multi_test::{
+    App, AppBuilder, BankSudo, Contract, ContractWrapper, Executor, SudoMsg as CwSudoMsg,
+};
 
 const NATIVE_DENOM: &str = "ujunox";
 const CREATION_FEE: u128 = 1_000_000_000;
@@ -42,7 +44,7 @@ fn setup_block_time(router: &mut App, seconds: u64) {
 }
 
 // Intializes accounts with balances
-fn setup_accounts(router: &mut App) -> Result<(Addr, Addr,), ContractError> {
+fn setup_accounts(router: &mut App) -> Result<(Addr, Addr), ContractError> {
     let creator: Addr = Addr::unchecked(CREATOR);
     let user: Addr = Addr::unchecked("user");
 
@@ -61,26 +63,16 @@ fn setup_accounts(router: &mut App) -> Result<(Addr, Addr,), ContractError> {
     let user_native_balances = router.wrap().query_all_balances(user.clone()).unwrap();
     assert_eq!(user_native_balances, funds);
 
-    Ok((creator, user,))
+    Ok((creator, user))
 }
 
 // Instantiates all needed contracts for testing
-fn setup_contracts(
-    router: &mut App,
-    creator: &Addr,
-) -> Result<(Addr,), ContractError> {
+fn setup_contracts(router: &mut App, creator: &Addr) -> Result<(Addr,), ContractError> {
     // Setup follow contract
     let follow_code_id = router.store_code(contract_follow());
     let msg = InstantiateMsg {};
     let follow = router
-        .instantiate_contract(
-            follow_code_id,
-            creator.clone(),
-            &msg,
-            &[],
-            "Follow",
-            None,
-        )
+        .instantiate_contract(follow_code_id, creator.clone(), &msg, &[], "Follow", None)
         .unwrap();
 
     Ok((follow,))
@@ -90,7 +82,7 @@ fn setup_contracts(
 fn test_instantiate_follow_contract() {
     let mut router = custom_mock_app();
 
-    let (creator, _user,) = setup_accounts(&mut router).unwrap();
+    let (creator, _user) = setup_accounts(&mut router).unwrap();
 
     let (follow_contract,) = setup_contracts(&mut router, &creator).unwrap();
     assert_eq!(follow_contract, Addr::unchecked("contract0"));
