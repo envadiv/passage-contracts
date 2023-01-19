@@ -139,16 +139,22 @@ pub fn execute_remove_follow(
     target: Addr,
 ) -> Result<Response, ContractError> {
     let follow_key = follow_key(&info.sender, &target);
-    let old_data = follows().may_load(deps.storage, follow_key.clone())?;
-    match old_data {
-        Some(_old_data) => follows().replace(deps.storage, follow_key, None, Some(&_old_data))?,
+    let maybe_follow = follows().may_load(deps.storage, follow_key.clone())?;
+    match &maybe_follow {
+        Some(_follow) => follows().replace(deps.storage, follow_key, None, Some(&_follow))?,
         None => return Err(ContractError::NotFollowing),
-    }
+    };
+    let follow = maybe_follow.unwrap();
 
     let response = Response::new();
 
     let submsgs = FOLLOW_HOOKS.prepare_hooks(deps.storage, info.sender.clone(), |h| {
-        let msg = HookMsg::new(info.sender.clone(), target.clone(), env.block.time, None);
+        let msg = HookMsg::new(
+            follow.origin.clone(),
+            follow.target.clone(),
+            follow.timestamp,
+            Some(env.block.time),
+        );
         let execute = WasmMsg::Execute {
             contract_addr: h.to_string(),
             msg: msg.into_binary(HookAction::Follow)?,
