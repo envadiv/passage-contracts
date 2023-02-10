@@ -19,6 +19,16 @@ Passage smart contracts written in CosmWasm and deployed to Juno.
 | marketplace-legacy      | 490     | v0.1.8-alpha | 46bc19eea386551aa58267c9844d4b1b77b32ac535326cae2897733ab610b35c | 3.360571ujuno  |       |
 | pg721-metadata-onchain  | 1486    | v0.2.0-alpha | 9587d0722d6a3ad19aa6623632ddc4b92592b70f7c6869fa754a3eeedbcad900 | 0.560861ujuno  |       |
 | minter-metadata-onchain | 1489    | v0.2.0-alpha | 598cc1f1a102e121d785bc3c58075892ef8f3f781c6084b5bf97ff628a888353 | 0.269856ujuno  |       |
+| royalty-group           | 1988    | v0.2.0-alpha | 6e7dd43e8463f81d91bcbb83d175a1531cab72e4011fce5b4b5ea311ec87ebdc |                |       |
+
+### Testnet (uni-6)
+
+| Contract                | Code ID | Checksum                                                         | Notes              |
+| ----------------------- | ------- | ---------------------------------------------------------------- | ------------------ |
+| whitelist               | 73      | 26cbdb6e116866c1981438185ae6198e0719708d8b735b851521eb15525c4872 | uni-6 redeployment |
+| pg721-metadata-onchain  | 74      | 9438a8062fcfbca53c76b76f60491112cba2edbc1a0e9532c71bb4c30091957d | uni-6 redeployment |
+| minter-metadata-onchain | 75      | d82a4bcc8ef51dca7005851d0c059e548e1a1e1b7357158428d868b23f391138 | uni-6 redeployment |
+| marketplace-legacy      | 76      | 61820208f932ac3e771cfbcc7115ca624e555e466b98ab6c17e134a5d6237399 | uni-6 redeployment |
 
 ### Testnet (uni-5)
 
