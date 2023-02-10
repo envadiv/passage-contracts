@@ -20,6 +20,7 @@ use crate::msg::{
 };
 use crate::state::{
     token_mints, Config, TokenMint, CONFIG, CW721_ADDRESS, MINTABLE_TOKEN_IDS, MINTER_ADDRS,
+    NUM_MINTED,
 };
 use whitelist::msg::{
     ConfigResponse as WhitelistConfigResponse, HasMemberResponse, QueryMsg as WhitelistQueryMsg,
@@ -201,6 +202,8 @@ pub fn execute_upsert_token_metadatas(
 
     let mut mintable_token_ids = MINTABLE_TOKEN_IDS.load(deps.storage)?;
     mintable_token_ids.append(&mut append_token_ids.clone());
+    mintable_token_ids.sort_unstable();
+    mintable_token_ids.dedup();
     MINTABLE_TOKEN_IDS.save(deps.storage, &mintable_token_ids)?;
 
     let mut response = Response::new();
@@ -514,6 +517,10 @@ fn _execute_mint(
     let new_mint_count = mint_count(deps.as_ref(), &info)? + 1;
     MINTER_ADDRS.save(deps.storage, info.clone().sender, &new_mint_count)?;
 
+    // Increment NUM_MINTED
+    let num_minted = NUM_MINTED.load(deps.storage)?;
+    NUM_MINTED.save(deps.storage, &(num_minted + 1))?;
+
     Ok(Response::default()
         .add_attribute("action", action)
         .add_attribute("sender", info.sender)
@@ -692,9 +699,7 @@ fn query_start_time(deps: Deps) -> StdResult<StartTimeResponse> {
 }
 
 fn query_num_minted(deps: Deps) -> StdResult<NumMintedResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    let mintable_token_ids = MINTABLE_TOKEN_IDS.load(deps.storage)?;
-    let num_minted: u32 = config.max_num_tokens - mintable_token_ids.len() as u32;
+    let num_minted: u32 = NUM_MINTED.load(deps.storage)?;
     return Ok(NumMintedResponse { num_minted });
 }
 
@@ -788,6 +793,8 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     let mut response = Response::new();
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    NUM_MINTED.save(deps.storage, &0)?;
 
     let event = Event::new("contract-migrated")
         .add_attribute("prev-version", storage_version)
