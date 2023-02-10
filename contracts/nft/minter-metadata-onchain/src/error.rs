@@ -36,7 +36,7 @@ pub enum ContractError {
 
     #[error("Invalid token id")]
     InvalidTokenId {},
-    
+
     #[error("Token has already been minted {token_id}")]
     TokenAlreadyMinted { token_id: u32 },
 
@@ -73,7 +73,9 @@ pub enum ContractError {
     #[error("Token id: {token_id} did not have matching metadata")]
     MetadataNotFound { token_id: u32 },
 
-    #[error("Full set of metadata not found on the contract. expected: {expected}, actual: {actual}")]
+    #[error(
+        "Full set of metadata not found on the contract. expected: {expected}, actual: {actual}"
+    )]
     MissingMetadata { expected: u32, actual: u32 },
 
     #[error("ZeroBalance")]

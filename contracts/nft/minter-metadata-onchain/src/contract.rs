@@ -1,27 +1,25 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Order, Reply, ReplyOn, StdError, StdResult, Timestamp, WasmMsg,
-    Response, SubMsg, Event
+    coin, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, Event,
+    MessageInfo, Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Timestamp, WasmMsg,
 };
-use cw_storage_plus::{Bound};
-use cw2::{set_contract_version, get_contract_version};
+use cw2::{get_contract_version, set_contract_version};
 use cw721_base::MintMsg;
+use cw_storage_plus::Bound;
 use cw_utils::{may_pay, parse_reply_instantiate_data};
 use pg721_metadata_onchain::msg::{
-    InstantiateMsg as Pg721InstantiateMsg, ExecuteMsg as Pg721ExecuteMsg, Metadata
+    ExecuteMsg as Pg721ExecuteMsg, InstantiateMsg as Pg721InstantiateMsg, Metadata,
 };
 
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
-    QueryMsg, StartTimeResponse, TokenMetadata, TokenMintResponse, TokenMintsResponse,
-    NumMintedResponse, NumRemainingResponse, MigrateMsg
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, MintCountResponse, MintPriceResponse,
+    NumMintedResponse, NumRemainingResponse, QueryMsg, StartTimeResponse, TokenMetadata,
+    TokenMintResponse, TokenMintsResponse,
 };
 use crate::state::{
-    CONFIG, MINTER_ADDRS, CW721_ADDRESS, MINTABLE_TOKEN_IDS,
-    Config, TokenMint, token_mints, 
+    token_mints, Config, TokenMint, CONFIG, CW721_ADDRESS, MINTABLE_TOKEN_IDS, MINTER_ADDRS,
 };
 use whitelist::msg::{
     ConfigResponse as WhitelistConfigResponse, HasMemberResponse, QueryMsg as WhitelistQueryMsg,
@@ -43,8 +41,9 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    if msg.cw721_instantiate_msg.is_none() && msg.cw721_address.is_none() ||
-       msg.cw721_instantiate_msg.is_some() && msg.cw721_address.is_some() {
+    if msg.cw721_instantiate_msg.is_none() && msg.cw721_address.is_none()
+        || msg.cw721_instantiate_msg.is_some() && msg.cw721_address.is_some()
+    {
         return Err(ContractError::InvalidInstantiateMsg {});
     }
 
@@ -52,9 +51,7 @@ pub fn instantiate(
 
     // Check the number of tokens is more than zero
     if msg.max_num_tokens == 0 {
-        return Err(ContractError::InvalidNumTokens {
-            min: 1,
-        });
+        return Err(ContractError::InvalidNumTokens { min: 1 });
     }
 
     // Check per address limit is valid
@@ -95,7 +92,7 @@ pub fn instantiate(
             let cw721_address = deps.api.addr_validate(&_addr)?;
             CW721_ADDRESS.save(deps.storage, &cw721_address)?;
             Response::new()
-        },
+        }
         None => {
             let cw721_instantiate_msg = msg.cw721_instantiate_msg.unwrap();
             // Submessage to instantiate cw721 contract
@@ -138,13 +135,17 @@ pub fn execute(
     let api = deps.api;
 
     match msg {
-        ExecuteMsg::UpsertTokenMetadatas { token_metadatas } => execute_upsert_token_metadatas(deps, info, token_metadatas ),
+        ExecuteMsg::UpsertTokenMetadatas { token_metadatas } => {
+            execute_upsert_token_metadatas(deps, info, token_metadatas)
+        }
         ExecuteMsg::Mint {} => execute_mint_sender(deps, env, info),
         ExecuteMsg::UpdateStartTime(time) => execute_update_start_time(deps, env, info, time),
         ExecuteMsg::UpdatePerAddressLimit { per_address_limit } => {
             execute_update_per_address_limit(deps, env, info, per_address_limit)
         }
-        ExecuteMsg::UpdateUnitPrice { unit_price } => execute_update_unit_price(deps, env, info, unit_price),
+        ExecuteMsg::UpdateUnitPrice { unit_price } => {
+            execute_update_unit_price(deps, env, info, unit_price)
+        }
         ExecuteMsg::MintTo { recipient } => execute_mint_to(deps, env, info, recipient),
         ExecuteMsg::MintFor {
             token_id,
@@ -154,14 +155,16 @@ pub fn execute(
         ExecuteMsg::SetWhitelist { whitelist } => {
             execute_set_whitelist(deps, env, info, &whitelist)
         }
-        ExecuteMsg::Withdraw { recipient } => execute_withdraw(deps, env, info, api.addr_validate(&recipient)?),
+        ExecuteMsg::Withdraw { recipient } => {
+            execute_withdraw(deps, env, info, api.addr_validate(&recipient)?)
+        }
     }
 }
 
 pub fn execute_upsert_token_metadatas(
     deps: DepsMut,
     info: MessageInfo,
-    token_metadatas: Vec<TokenMetadata>
+    token_metadatas: Vec<TokenMetadata>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     if config.admin != info.sender {
@@ -181,7 +184,9 @@ pub fn execute_upsert_token_metadatas(
             |existing_token_mint| -> Result<TokenMint, ContractError> {
                 if let Some(_existing_token_mint) = existing_token_mint {
                     if let true = _existing_token_mint.is_minted {
-                        return Err(ContractError::TokenAlreadyMinted { token_id: _existing_token_mint.token_id });
+                        return Err(ContractError::TokenAlreadyMinted {
+                            token_id: _existing_token_mint.token_id,
+                        });
                     }
                 };
                 Ok(TokenMint {
@@ -189,7 +194,7 @@ pub fn execute_upsert_token_metadatas(
                     metadata: token_metadata.clone().metadata,
                     is_minted: false,
                 })
-            }
+            },
         )?;
         append_token_ids.push(token_metadata.token_id);
     }
@@ -200,7 +205,9 @@ pub fn execute_upsert_token_metadatas(
 
     let mut response = Response::new();
     let append_token_ids_fmt: Vec<String> = append_token_ids
-        .into_iter().map(|token_id| token_id.to_string()).collect();
+        .into_iter()
+        .map(|token_id| token_id.to_string())
+        .collect();
     let event = Event::new("upsert-metadata")
         .add_attribute("append-token-ids", append_token_ids_fmt.join(", "));
     response.events.push(event);
@@ -376,7 +383,16 @@ pub fn execute_mint_to(
         ));
     }
 
-    _execute_mint(deps, env, info, &config, action, true, Some(recipient), None)
+    _execute_mint(
+        deps,
+        env,
+        info,
+        &config,
+        action,
+        true,
+        Some(recipient),
+        None,
+    )
 }
 
 pub fn execute_mint_for(
@@ -397,7 +413,16 @@ pub fn execute_mint_for(
         ));
     }
 
-    _execute_mint(deps, env, info, &config, action, true, Some(recipient), Some(token_id))
+    _execute_mint(
+        deps,
+        env,
+        info,
+        &config,
+        action,
+        true,
+        Some(recipient),
+        Some(token_id),
+    )
 }
 
 // Generalize checks and mint message creation
@@ -443,18 +468,18 @@ fn _execute_mint(
             }
             match mintable_token_ids.iter().position(|_id| *_id == token_id) {
                 Some(position) => position,
-                None => return Err(ContractError::TokenAlreadyMinted { token_id })
+                None => return Err(ContractError::TokenAlreadyMinted { token_id }),
             }
         }
-        None => {
-            env.block.time.nanos() as usize % mintable_token_ids.len()
-        }
+        None => env.block.time.nanos() as usize % mintable_token_ids.len(),
     };
 
     let mintable_token_id = mintable_token_ids[mintable_token_position];
     let token_mint = token_mints().load(deps.storage, mintable_token_id)?;
     if token_mint.is_minted {
-        return Err(ContractError::TokenAlreadyMinted { token_id: mintable_token_id });
+        return Err(ContractError::TokenAlreadyMinted {
+            token_id: mintable_token_id,
+        });
     }
 
     // Create mint msgs
@@ -478,7 +503,7 @@ fn _execute_mint(
             let mut updated_token_mint = token_mint.unwrap();
             updated_token_mint.is_minted = true;
             Ok(updated_token_mint)
-        }
+        },
     )?;
 
     // Remove mintable token id
@@ -619,8 +644,18 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::MintPrice {} => to_binary(&query_mint_price(deps)?),
         QueryMsg::MintCount { address } => to_binary(&query_mint_count(deps, address)?),
         QueryMsg::TokenMint { token_id } => to_binary(&query_token_mint(deps, token_id)?),
-        QueryMsg::TokenMints { descending, filter_minted, start_after, limit } =>
-            to_binary(&query_token_mints(deps, descending, filter_minted, start_after, limit)?),
+        QueryMsg::TokenMints {
+            descending,
+            filter_minted,
+            start_after,
+            limit,
+        } => to_binary(&query_token_mints(
+            deps,
+            descending,
+            filter_minted,
+            start_after,
+            limit,
+        )?),
     }
 }
 
@@ -665,7 +700,9 @@ fn query_num_minted(deps: Deps) -> StdResult<NumMintedResponse> {
 
 fn query_num_remaining(deps: Deps) -> StdResult<NumRemainingResponse> {
     let mintable_token_ids = MINTABLE_TOKEN_IDS.load(deps.storage)?;
-    Ok(NumRemainingResponse { num_remaining: mintable_token_ids.len() as u32 })
+    Ok(NumRemainingResponse {
+        num_remaining: mintable_token_ids.len() as u32,
+    })
 }
 
 fn query_mint_price(deps: Deps) -> StdResult<MintPriceResponse> {
@@ -697,15 +734,19 @@ fn query_token_mints(
     descending: Option<bool>,
     filter_minted: Option<bool>,
     start_after: Option<u32>,
-    limit: Option<u32>
+    limit: Option<u32>,
 ) -> StdResult<TokenMintsResponse> {
     let limit = limit.unwrap_or(DEFAULT_QUERY_LIMIT).min(MAX_QUERY_LIMIT) as usize;
-    let start = start_after.as_ref().map(|offset| {
-        Bound::exclusive(*offset)
-    });
+    let start = start_after.as_ref().map(|offset| Bound::exclusive(*offset));
     let order = match descending {
-        Some(_descending) => if _descending { Order::Descending } else { Order::Ascending },
-        _ => Order::Ascending
+        Some(_descending) => {
+            if _descending {
+                Order::Descending
+            } else {
+                Order::Ascending
+            }
+        }
+        _ => Order::Ascending,
     };
 
     let token_mints = token_mints()

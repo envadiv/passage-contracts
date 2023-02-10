@@ -1,11 +1,11 @@
 use cosmwasm_std::testing::{mock_dependencies_with_balance, mock_env, mock_info};
-use cosmwasm_std::{coin, coins, Addr, Decimal, Empty, Timestamp, Uint128, Attribute};
+use cosmwasm_std::{coin, coins, Addr, Attribute, Decimal, Empty, Timestamp, Uint128};
 use cosmwasm_std::{Api, Coin};
-use cw721::{Cw721QueryMsg, OwnerOfResponse, NftInfoResponse};
+use cw721::{Cw721QueryMsg, NftInfoResponse, OwnerOfResponse};
 use cw721_base::ExecuteMsg as Cw721ExecuteMsg;
 use cw_multi_test::{App, AppBuilder, BankSudo, Contract, ContractWrapper, Executor, SudoMsg};
 use pg721_metadata_onchain::msg::{
-    InstantiateMsg as Pg721InstantiateMsg, RoyaltyInfoResponse, Metadata
+    InstantiateMsg as Pg721InstantiateMsg, Metadata, RoyaltyInfoResponse,
 };
 use pg721_metadata_onchain::state::CollectionInfo;
 use whitelist::msg::InstantiateMsg as WhitelistInstantiateMsg;
@@ -13,9 +13,9 @@ use whitelist::msg::{AddMembersMsg, ExecuteMsg as WhitelistExecuteMsg};
 
 use crate::contract::instantiate;
 use crate::msg::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
-    QueryMsg, StartTimeResponse, ExecuteMsg as Pg721MinterExecuteMsg, TokenMetadata,
-    TokenMintsResponse, NumMintedResponse, NumRemainingResponse
+    ConfigResponse, ExecuteMsg, ExecuteMsg as Pg721MinterExecuteMsg, InstantiateMsg,
+    MintCountResponse, MintPriceResponse, NumMintedResponse, NumRemainingResponse, QueryMsg,
+    StartTimeResponse, TokenMetadata, TokenMintsResponse,
 };
 use crate::ContractError;
 
@@ -166,7 +166,7 @@ fn upsert_metadata(
     };
 
     let mut token_metadatas = vec![];
-    for idx in _start_index..(_start_index+num_tokens) {
+    for idx in _start_index..(_start_index + num_tokens) {
         token_metadatas.push(TokenMetadata {
             token_id: idx,
             metadata: Metadata {
@@ -179,7 +179,7 @@ fn upsert_metadata(
                 background_color: None,
                 animation_url: None,
                 youtube_url: None,
-            }
+            },
         })
     }
     let upsert_message = Pg721MinterExecuteMsg::UpsertTokenMetadatas { token_metadatas };
@@ -347,7 +347,6 @@ fn initialization_with_cw721_addr() {
         .query_wasm_smart(minter_addr.clone(), &QueryMsg::Config {})
         .unwrap();
     assert_eq!(config.cw721_address, cw721_addr.clone());
-
 }
 
 #[test]
@@ -764,7 +763,7 @@ fn whitelist_access_len_add_remove_expiration() {
     let num_tokens = 1;
     let (minter_addr, config) = setup_minter_contract(&mut router, &creator, num_tokens);
     upsert_metadata(&mut router, &creator, &minter_addr, num_tokens, None);
-    
+
     let cw721_addr = config.cw721_address;
     let whitelist_addr = setup_whitelist_contract(&mut router, &creator);
     const AFTER_GENESIS_TIME: Timestamp = Timestamp::from_nanos(START_TIME + 100);
@@ -1148,7 +1147,10 @@ fn mint_for_token_id_addr() {
         .wrap()
         .query_wasm_smart(minter_addr.clone(), &QueryMsg::NumRemaining {})
         .unwrap();
-    assert_eq!(num_remaining_response, NumRemainingResponse { num_remaining: 3 });
+    assert_eq!(
+        num_remaining_response,
+        NumRemainingResponse { num_remaining: 3 }
+    );
 
     // Test mint_for token_id 2 then normal mint
     let token_id = 2;
@@ -1177,7 +1179,10 @@ fn mint_for_token_id_addr() {
         .wrap()
         .query_wasm_smart(minter_addr.clone(), &QueryMsg::NumRemaining {})
         .unwrap();
-    assert_eq!(num_remaining_response, NumRemainingResponse { num_remaining: 2 });
+    assert_eq!(
+        num_remaining_response,
+        NumRemainingResponse { num_remaining: 2 }
+    );
 }
 
 #[test]
@@ -1288,7 +1293,6 @@ fn test_update_start_time() {
     );
 }
 
-
 #[test]
 fn test_update_unit_price() {
     let mut router = custom_mock_app();
@@ -1298,7 +1302,9 @@ fn test_update_unit_price() {
     let (minter_addr, _config) = setup_minter_contract(&mut router, &creator, num_tokens);
 
     let new_unit_price = coin(UNIT_PRICE + 100u128, NATIVE_DENOM);
-    let msg = ExecuteMsg::UpdateUnitPrice { unit_price: new_unit_price.clone() };
+    let msg = ExecuteMsg::UpdateUnitPrice {
+        unit_price: new_unit_price.clone(),
+    };
     let _res = router
         .execute_contract(creator, minter_addr.clone(), &msg, &[])
         .unwrap();
@@ -1447,7 +1453,9 @@ fn can_withdraw() {
     setup_block_time(&mut router, START_TIME + 1);
 
     // someone who isn't the creator cannot withdraw
-    let withdraw_msg = ExecuteMsg::Withdraw { recipient: creator.to_string() };
+    let withdraw_msg = ExecuteMsg::Withdraw {
+        recipient: creator.to_string(),
+    };
     router
         .execute_contract(buyer.clone(), minter_addr.clone(), &withdraw_msg, &[])
         .unwrap_err();
@@ -1510,7 +1518,7 @@ fn metadata_test() {
     );
 
     setup_block_time(&mut router, START_TIME + 1);
-    
+
     // Fails with missing metadata
     upsert_metadata(&mut router, &creator, &minter_addr, 2, None);
     let mint_msg = ExecuteMsg::Mint {};
@@ -1532,10 +1540,13 @@ fn metadata_test() {
         &coins(UNIT_PRICE, NATIVE_DENOM),
     );
     assert!(res.is_ok());
-    assert_eq!(res.unwrap().events[1].attributes[4], Attribute {
-        key: String::from("token_id"),
-        value: String::from("3")
-    });
+    assert_eq!(
+        res.unwrap().events[1].attributes[4],
+        Attribute {
+            key: String::from("token_id"),
+            value: String::from("3")
+        }
+    );
 
     // Check NFT is transferred
     let query_info = Cw721QueryMsg::NftInfo {
@@ -1572,19 +1583,16 @@ fn update_admin() {
     let (minter_addr, _) = setup_minter_contract(&mut router, &creator, num_tokens);
 
     let config: ConfigResponse = router
-    .wrap()
-    .query_wasm_smart(minter_addr.clone(), &QueryMsg::Config {})
-    .unwrap();
+        .wrap()
+        .query_wasm_smart(minter_addr.clone(), &QueryMsg::Config {})
+        .unwrap();
     assert_eq!(config.admin, creator.to_string());
 
     // Update the admin address
-    let set_admin = ExecuteMsg::SetAdmin { admin: buyer.to_string() };
-    let res = router.execute_contract(
-        creator.clone(),
-        minter_addr.clone(),
-        &set_admin,
-        &[],
-    );
+    let set_admin = ExecuteMsg::SetAdmin {
+        admin: buyer.to_string(),
+    };
+    let res = router.execute_contract(creator.clone(), minter_addr.clone(), &set_admin, &[]);
     assert!(res.is_ok());
 
     let config: ConfigResponse = router
