@@ -26,7 +26,7 @@ pub fn instantiate(
     deps: DepsMut,
     env: Env,
     _info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: InstantiateMsg<Empty>,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -74,6 +74,7 @@ pub fn instantiate(
     };
 
     COLLECTION_INFO.save(deps.storage, &collection_info)?;
+    
     // migrate tokens
     for migration in msg.migrations.into_iter(){
         let new_deps = DepsMut { storage: deps.storage, api: deps.api, querier: deps.querier };

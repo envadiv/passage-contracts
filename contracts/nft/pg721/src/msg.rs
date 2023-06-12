@@ -5,12 +5,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InstantiateMsg {
+pub struct InstantiateMsg<T> {
     pub name: String,
     pub symbol: String,
     pub minter: String,
     pub collection_info: CollectionInfo<RoyaltyInfoResponse>,
-    pub migrations: Vec<MintMsg<Empty>>
+    pub migrations: Vec<MintMsg<T>>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

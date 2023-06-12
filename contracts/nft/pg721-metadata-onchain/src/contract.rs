@@ -25,9 +25,9 @@ const MAX_DESCRIPTION_LENGTH: u32 = 512;
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: InstantiateMsg<Extension>,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -75,6 +75,29 @@ pub fn instantiate(
     };
 
     COLLECTION_INFO.save(deps.storage, &collection_info)?;
+
+    // migrate tokens
+    for migration in msg.migrations.into_iter(){
+        let new_deps = DepsMut { storage: deps.storage, api: deps.api, querier: deps.querier };
+        let exce_msg=ExecuteMsg::Mint(migration.clone());
+        let res = Pg721MetadataContract::default().execute(new_deps, env.clone(), _info.clone(), exce_msg);
+
+        match res {
+            Ok(response) => {
+                for attribute in response.attributes.iter() {
+                    if attribute.key == "token_id" {
+                        if attribute.value != migration.token_id {
+                            return Err(ContractError::MintFalied(migration.token_id));
+                        }
+                    }
+                }
+            },
+            Err(error) => {
+                // Handle the error case
+                return Err(ContractError::MigrationFailed(error));
+            }
+        }
+    }
 
     Ok(Response::default()
         .add_attribute("action", "instantiate")
@@ -149,9 +172,13 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
 mod tests {
     use super::*;
 
+    use crate::msg::Metadata;
     use crate::state::CollectionInfo;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coins, from_binary, Decimal, Attribute};
+    use cw721_base::MintMsg;
+    use cw721::NftInfoResponse;
+    use schemars::_serde_json::from_str;
 
     const NATIVE_DENOM: &str = "ujunox";
 
@@ -169,8 +196,14 @@ mod tests {
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: royalty_info,
             },
+            migrations: vec![MintMsg{
+                token_id:"0001".to_string(),
+                token_uri: None,
+                owner: String::from("creator"),
+                extension: from_str("{\"name\":\"test nft\"}").expect("Failed to parse JSON")
+            }],
         };
-        let info = mock_info("creator", &coins(0, NATIVE_DENOM));
+        let info = mock_info("minter", &coins(0, NATIVE_DENOM));
         let res = instantiate(deps, mock_env(), info.clone(), msg).unwrap();
         assert!(res.attributes[0].eq(&Attribute::new("action", "instantiate")));
         assert!(res.attributes[1].eq(&Attribute::new("contract_name", CONTRACT_NAME)));
@@ -193,6 +226,20 @@ mod tests {
             value.external_link.unwrap()
         );
         assert_eq!(None, value.royalty_info);
+
+        let nft_res = query(deps.as_ref(), mock_env(), QueryMsg::NftInfo { token_id: "0001".to_string() }).unwrap();
+        let nft_info: NftInfoResponse<Extension> = from_binary(&nft_res).unwrap();
+
+        let metadata = Metadata{
+            name: Some("test nft".to_string()),
+            ..Default::default()
+        };
+
+        let nft = NftInfoResponse{
+            token_uri: None,
+            extension: Some(metadata)
+        };
+        assert_eq!(nft,nft_info)
     }
 
     #[test]
