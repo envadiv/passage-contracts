@@ -1,6 +1,6 @@
 use crate::{state::CollectionInfo, ContractError};
 use cosmwasm_std::{Decimal, Empty};
-use cw721_base::msg::QueryMsg as Cw721QueryMsg;
+use cw721_base::{msg::QueryMsg as Cw721QueryMsg, MintMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -10,6 +10,7 @@ pub struct InstantiateMsg {
     pub symbol: String,
     pub minter: String,
     pub collection_info: CollectionInfo<RoyaltyInfoResponse>,
+    pub migrations: Vec<MintMsg<Empty>>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -35,6 +35,12 @@ pub enum ContractError {
 
     #[error("{0}")]
     Parse(#[from] ParseError),
+
+    #[error("Migration failed {0}")]
+    MigrationFailed(Cw721ContractError),
+
+    #[error("Mint failed for token id {0}")]
+    MintFalied(String)
 }
 
 impl From<ContractError> for Cw721ContractError {

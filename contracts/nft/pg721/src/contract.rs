@@ -24,7 +24,7 @@ pub type Pg721Contract<'a> = cw721_base::Cw721Contract<'a, Empty, Empty>;
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
@@ -74,6 +74,28 @@ pub fn instantiate(
     };
 
     COLLECTION_INFO.save(deps.storage, &collection_info)?;
+    // migrate tokens
+    for migration in msg.migrations.into_iter(){
+        let new_deps = DepsMut { storage: deps.storage, api: deps.api, querier: deps.querier };
+        let exce_msg=ExecuteMsg::Mint(migration.clone());
+        let res = Pg721Contract::default().execute(new_deps, env.clone(), _info.clone(), exce_msg);
+
+        match res {
+            Ok(response) => {
+                for attribute in response.attributes.iter() {
+                    if attribute.key == "token_id" {
+                        if attribute.value != migration.token_id {
+                            return Err(ContractError::MintFalied(migration.token_id));
+                        }
+                    }
+                }
+            },
+            Err(error) => {
+                // Handle the error case
+                return Err(ContractError::MigrationFailed(error));
+            }
+        }
+    }
 
     Ok(Response::default()
         .add_attribute("action", "instantiate")
@@ -127,6 +149,7 @@ mod tests {
     use crate::state::CollectionInfo;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coins, from_binary, Decimal, Attribute};
+    use cw721_base::MintMsg;
 
     const NATIVE_DENOM: &str = "ujunox";
 
@@ -144,8 +167,14 @@ mod tests {
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: royalty_info,
             },
+            migrations: vec![MintMsg{
+                token_id:"0001".to_string(),
+                token_uri: None,
+                owner: String::from("minter"),
+                extension:Empty {  }
+            }],
         };
-        let info = mock_info("creator", &coins(0, NATIVE_DENOM));
+        let info = mock_info("minter", &coins(0, NATIVE_DENOM));
         let res = instantiate(deps, mock_env(), info.clone(), msg).unwrap();
         assert!(res.attributes[0].eq(&Attribute::new("action", "instantiate")));
         assert!(res.attributes[1].eq(&Attribute::new("contract_name", CONTRACT_NAME)));
