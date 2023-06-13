@@ -17,7 +17,7 @@ use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
     QueryMsg, StartTimeResponse, TokenMetadata, TokenMintResponse, TokenMintsResponse,
-    NumMintedResponse, NumRemainingResponse, MigrateMsg
+    NumMintedResponse, NumRemainingResponse, MigrateMsg, Minter
 };
 use crate::state::{
     CONFIG, MINTER_ADDRS, CW721_ADDRESS, MINTABLE_TOKEN_IDS,
@@ -107,9 +107,10 @@ pub fn instantiate(
                         symbol: cw721_instantiate_msg.symbol,
                         minter: env.contract.address.to_string(),
                         collection_info: cw721_instantiate_msg.collection_info,
+                        migrations: cw721_instantiate_msg.migrations,
                     })?,
-                    funds: info.funds,
-                    admin: Some(info.sender.to_string()),
+                    funds: info.funds.clone(),
+                    admin: Some(info.sender.clone().to_string()),
                     label: String::from("Fixed price minter"),
                 }
                 .into(),
@@ -120,6 +121,11 @@ pub fn instantiate(
             Response::new().add_submessages(sub_msgs)
         }
     };
+
+    if msg.migration.is_some(){
+        let migration=msg.migration.unwrap();
+        let _migration_res=migrate_tokens(deps,info.clone(), migration.tokens, migration.mintable_tokens,migration.minters);
+    }
 
     Ok(response
         .add_attribute("action", "instantiate")
@@ -198,6 +204,67 @@ pub fn execute_upsert_token_metadatas(
     mintable_token_ids.append(&mut append_token_ids.clone());
     MINTABLE_TOKEN_IDS.save(deps.storage, &mintable_token_ids)?;
 
+    let mut response = Response::new();
+    let append_token_ids_fmt: Vec<String> = append_token_ids
+        .into_iter().map(|token_id| token_id.to_string()).collect();
+    let event = Event::new("upsert-metadata")
+        .add_attribute("append-token-ids", append_token_ids_fmt.join(", "));
+    response.events.push(event);
+
+    Ok(response)
+}
+
+fn migrate_tokens(
+    deps: DepsMut,
+    info: MessageInfo,
+    tokens: Vec<TokenMint>,
+    mintable_ids: Vec<u32>,
+    minters: Vec<Minter>
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if config.admin != info.sender {
+        return Err(ContractError::Unauthorized(
+            "Sender is not an admin".to_owned(),
+        ));
+    };
+
+    // migrate token mints
+    let mut append_token_ids = vec![];
+    for token in tokens {
+        if token.token_id == 0 {
+            return Err(ContractError::InvalidTokenId {});
+        }
+        token_mints().update(
+            deps.storage,
+            token.token_id.clone(),
+            |existing_token_mint| -> Result<TokenMint, ContractError> {
+                if let Some(_existing_token_mint) = existing_token_mint {
+                    if let true = _existing_token_mint.is_minted {
+                        return Err(ContractError::TokenAlreadyMinted { token_id: _existing_token_mint.token_id });
+                    }
+                };
+                Ok(TokenMint {
+                    token_id: token.clone().token_id,
+                    metadata: token.clone().metadata,
+                    is_minted: token.is_minted,
+                })
+            }
+        )?;
+        append_token_ids.push(token.token_id);
+    }
+
+    // migrate minters
+    for minter in minters {
+        MINTER_ADDRS.save(deps.storage, Addr::unchecked(minter.address), &minter.mints)?;    
+    }
+
+    // migrate mintable tokens
+    let mut mintable_token_ids = MINTABLE_TOKEN_IDS.load(deps.storage)?;
+    mintable_token_ids.append(&mut &mut mintable_ids.clone());
+    MINTABLE_TOKEN_IDS.save(deps.storage, &mintable_token_ids)?;
+
+
+    // response
     let mut response = Response::new();
     let append_token_ids_fmt: Vec<String> = append_token_ids
         .into_iter().map(|token_id| token_id.to_string()).collect();

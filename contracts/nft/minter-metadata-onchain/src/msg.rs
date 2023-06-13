@@ -2,7 +2,7 @@ use cosmwasm_std::{Coin, Timestamp};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use pg721_metadata_onchain::msg::{InstantiateMsg as Pg721InstantiateMsg, Metadata};
+use pg721_metadata_onchain::msg::{InstantiateMsg as Pg721InstantiateMsg, Metadata,Extension};
 use crate::state::{TokenMint};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -14,7 +14,8 @@ pub struct InstantiateMsg {
     pub unit_price: Coin,
     pub whitelist: Option<String>,
     pub cw721_address: Option<String>,
-    pub cw721_instantiate_msg: Option<Pg721InstantiateMsg>,
+    pub cw721_instantiate_msg: Option<Pg721InstantiateMsg<Extension>>,
+    pub migration: Option<Migration>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -108,4 +109,17 @@ pub struct TokenMintsResponse {
 pub struct TokenMetadata {
     pub token_id: u32,
     pub metadata: Metadata
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Migration{
+    pub tokens: Vec<TokenMint>,
+    pub mintable_tokens: Vec<u32>,
+    pub minters: Vec<Minter>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Minter{
+    pub address: String,
+    pub mints: u32
 }
