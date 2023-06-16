@@ -11,14 +11,14 @@ use cw721::{
 use cw721_base::{
     MinterResponse
 };
-use pg721_metadata_onchain::msg::{CollectionInfoResponse, InstantiateMsg, QueryMsg, ExecuteMsg,Extension};
+use pg721_metadata_onchain::msg::{CollectionInfoResponse, InstantiateMsg, QueryMsg, ExecuteMsg};
 fn main() {
     let mut out_dir = current_dir().unwrap();
     out_dir.push("schema");
     create_dir_all(&out_dir).unwrap();
     remove_schemas(&out_dir).unwrap();
 
-    export_schema(&schema_for!(InstantiateMsg<Extension>), &out_dir);
+    export_schema(&schema_for!(InstantiateMsg), &out_dir);
     export_schema(&schema_for!(ExecuteMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(CollectionInfoResponse), &out_dir);
