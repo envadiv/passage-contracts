@@ -5,14 +5,14 @@ use cw2::{set_contract_version, get_contract_version};
 
 use crate::ContractError;
 use cw721::ContractInfoResponse;
-use cw721_base::ContractError as BaseError;
+use cw721_base::{ContractError as BaseError, MintMsg};
 use url::Url;
 
 use crate::msg::{
     CollectionInfoResponse, InstantiateMsg, QueryMsg, RoyaltyInfoResponse,
     Extension, ExecuteMsg, MigrateMsg
 };
-use crate::state::{CollectionInfo, RoyaltyInfo, COLLECTION_INFO};
+use crate::state::{CollectionInfo, RoyaltyInfo, COLLECTION_INFO,MIGRATION_STATUS,MigrationStatus,migration_status,migration_done};
 
 pub type Pg721MetadataContract<'a> = cw721_base::Cw721Contract<'a, Extension, Empty>;
 
@@ -25,9 +25,9 @@ const MAX_DESCRIPTION_LENGTH: u32 = 512;
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     _info: MessageInfo,
-    msg: InstantiateMsg<Extension>,
+    msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -76,29 +76,12 @@ pub fn instantiate(
 
     COLLECTION_INFO.save(deps.storage, &collection_info)?;
 
-    // migrate tokens
-    for migration in msg.migrations.into_iter(){
-        let new_deps = DepsMut { storage: deps.storage, api: deps.api, querier: deps.querier };
-        let exce_msg=ExecuteMsg::Mint(migration.clone());
-        let res = Pg721MetadataContract::default().execute(new_deps, env.clone(), _info.clone(), exce_msg);
+    let migration_status=MigrationStatus{
+        done: false,
+    };
 
-        match res {
-            Ok(response) => {
-                for attribute in response.attributes.iter() {
-                    if attribute.key == "token_id" {
-                        if attribute.value != migration.token_id {
-                            return Err(ContractError::MintFalied(migration.token_id));
-                        }
-                    }
-                }
-            },
-            Err(error) => {
-                // Handle the error case
-                return Err(ContractError::MigrationFailed(error));
-            }
-        }
-    }
-
+    MIGRATION_STATUS.save(deps.storage, &migration_status)?;
+    
     Ok(Response::default()
         .add_attribute("action", "instantiate")
         .add_attribute("contract_name", CONTRACT_NAME)
@@ -113,7 +96,79 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, BaseError> {
-    Pg721MetadataContract::default().execute(deps, env, info, msg)
+    match msg{
+        ExecuteMsg::Migrate{migrations}=>migrate_data(deps,env,info,migrations),
+        ExecuteMsg::MigrationDone{}=>migrated(deps, info),
+        _ => if migration_status(deps.as_ref()){
+            Pg721MetadataContract::default().execute(deps, env, info, msg.into())
+        } else {
+            return Err(ContractError::MigrationInProgress {  }.into());
+        },
+    }
+}
+
+fn migrate_data(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    migrations: Vec<MintMsg<Extension>>,
+)-> Result<Response, BaseError>{
+
+    // check migration status
+    if migration_status(deps.as_ref()){
+        return Err(ContractError::MigrationDone {  }.into());
+    }
+
+    //  verify sender == minter 
+    let minter = Pg721MetadataContract::default().minter.load(deps.storage)?;
+    if info.sender != minter {
+        return Err(BaseError::Unauthorized {});
+    }
+
+     // migrate tokens
+     for migration in migrations.into_iter(){
+        let new_deps = DepsMut { storage: deps.storage, api: deps.api, querier: deps.querier };
+        let exce_msg=ExecuteMsg::Mint(migration.clone());
+        let res = Pg721MetadataContract::default().execute(new_deps, env.clone(), info.clone(), exce_msg.into());
+
+        match res {
+            Ok(response) => {
+                for attribute in response.attributes.iter() {
+                    if attribute.key == "token_id" {
+                        if attribute.value != migration.token_id {
+                            return Err(ContractError::MintFalied(migration.token_id).into());
+                        }
+                    }
+                }
+            },
+            Err(error) => {
+                // Handle the error case
+                return Err(ContractError::MigrationFailed(error).into());
+            }
+        }
+    }
+
+    Ok(Response::new()
+    .add_attribute("action", "migrated")
+    .add_attribute("minter", info.sender))
+}
+
+fn migrated(
+    deps: DepsMut,
+    info: MessageInfo,
+)->Result<Response,BaseError>{
+    //  verify sender == minter 
+    let minter = Pg721MetadataContract::default().minter.load(deps.storage)?;
+    if info.sender != minter {
+        return Err(BaseError::Unauthorized {});
+    }
+
+    migration_done(deps)?;
+    
+    Ok(Response::new()
+        .add_attribute("action", "migration_done")
+        .add_attribute("marked done as", true.to_string())
+    )
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -176,9 +231,7 @@ mod tests {
     use crate::state::CollectionInfo;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coins, from_binary, Decimal, Attribute};
-    use cw721_base::MintMsg;
     use cw721::NftInfoResponse;
-    use schemars::_serde_json::from_str;
 
     const NATIVE_DENOM: &str = "ujunox";
 
@@ -196,12 +249,6 @@ mod tests {
                 external_link: Some("https://example.com/external.html".to_string()),
                 royalty_info: royalty_info,
             },
-            migrations: vec![MintMsg{
-                token_id:"0001".to_string(),
-                token_uri: None,
-                owner: String::from("creator"),
-                extension: from_str("{\"name\":\"test nft\"}").expect("Failed to parse JSON")
-            }],
         };
         let info = mock_info("minter", &coins(0, NATIVE_DENOM));
         let res = instantiate(deps, mock_env(), info.clone(), msg).unwrap();
