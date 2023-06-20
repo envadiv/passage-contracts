@@ -81,20 +81,22 @@ Passage smart contracts written in CosmWasm and deployed to Juno.
 **Deploy to mainnet**
 
 ```bash
-junod tx wasm store artifacts/marketplace_legacy.wasm  --from juno19mmkdpvem2xvrddt8nukf5kfpjwfslrs7sgw8e --chain-id=juno-1 --node https://rpc.juno-1.deuslabs.fi:443 --gas-prices 0.1ujuno --gas auto --gas-adjustment 1.3 -b block
+junod tx wasm store artifacts/marketplace_legacy.wasm  --from <from_address> --chain-id=juno-1 --node <node> --gas-prices 0.1ujuno --gas auto --gas-adjustment 1.3 -b block
 ```
 
 **Deploy to testnet**
 
 ```bash
-junod tx wasm store artifacts/minter_metadata_onchain.wasm  --from juno19mmkdpvem2xvrddt8nukf5kfpjwfslrs7sgw8e --chain-id=uni-5 \
+junod tx wasm store artifacts/minter_metadata_onchain.wasm  --from <from_address> --chain-id=uni-5 \
   --gas-prices 0.1ujunox --gas auto --gas-adjustment 1.3 -b block -y
 ```
 
-## Keys
+## Migrate
 
-- Tasio testnet address: `juno19mmkdpvem2xvrddt8nukf5kfpjwfslrs7sgw8e`
+```bash
+junod tx wasm migrate <contract_address> 2805 '{"num_mintable_tokens":5000}' --from <from_address> --chain-id=uni-5 --gas-prices 0.1ujunox --gas auto --gas-adjustment 1.3 -b block -y
+```
 
-junod tx wasm migrate juno1wzv8xr8qc4jtamqtjtj6te70vqvlzalnqrk4k78efhf0v9ufwzfqvltkdm 2805 '{"num_mintable_tokens":5000}' --from juno19mmkdpvem2xvrddt8nukf5kfpjwfslrs7sgw8e --chain-id=uni-5 --gas-prices 0.1ujunox --gas auto --gas-adjustment 1.3 -b block -y
-
-junod tx wasm set-contract-admin juno1wzv8xr8qc4jtamqtjtj6te70vqvlzalnqrk4k78efhf0v9ufwzfqvltkdm juno19mmkdpvem2xvrddt8nukf5kfpjwfslrs7sgw8e --from juno19mmkdpvem2xvrddt8nukf5kfpjwfslrs7sgw8e --chain-id=uni-5 --gas-prices 0.1ujunox --gas auto --gas-adjustment 1.3 -b block -y
+```bash
+junod tx wasm set-contract-admin <contract_address> <new_admin> --from <from_address> --chain-id=uni-5 --gas-prices 0.1ujunox --gas auto --gas-adjustment 1.3 -b block -y
+```
