@@ -2,7 +2,7 @@ use cosmwasm_std::{Coin, Timestamp};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use pg721_metadata_onchain::msg::{InstantiateMsg as Pg721InstantiateMsg, Metadata,Extension};
+use pg721_metadata_onchain::msg::{InstantiateMsg as Pg721InstantiateMsg, Metadata};
 use crate::state::{TokenMint};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -14,8 +14,7 @@ pub struct InstantiateMsg {
     pub unit_price: Coin,
     pub whitelist: Option<String>,
     pub cw721_address: Option<String>,
-    pub cw721_instantiate_msg: Option<Pg721InstantiateMsg<Extension>>,
-    pub migration: Option<Migration>
+    pub cw721_instantiate_msg: Option<Pg721InstantiateMsg>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -31,6 +30,8 @@ pub enum ExecuteMsg {
     MintTo { recipient: String },
     MintFor { token_id: u32, recipient: String },
     Withdraw { recipient: String },
+    MigrateData {migrations: Migration},
+    MigrationDone{},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -113,9 +114,9 @@ pub struct TokenMetadata {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Migration{
-    pub tokens: Vec<TokenMint>,
-    pub mintable_tokens: Vec<u32>,
-    pub minters: Vec<Minter>,
+    pub tokens: Option<Vec<TokenMint>>,
+    pub mintable_tokens: Option<Vec<u32>>,
+    pub minters: Option<Vec<Minter>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
