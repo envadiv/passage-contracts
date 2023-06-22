@@ -1041,7 +1041,7 @@ dependencies = [
 
 [[package]]
 name = "pg721-metadata-onchain"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
