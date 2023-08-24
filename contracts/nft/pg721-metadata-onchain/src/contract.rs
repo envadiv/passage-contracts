@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult, Response, Event};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult, Response, Event, StdError};
 use cw2::{set_contract_version, get_contract_version};
 
 use crate::ContractError;
@@ -85,12 +85,12 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    msg: ExecuteMsg,
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: ExecuteMsg,
 ) -> Result<Response, BaseError> {
-    Pg721MetadataContract::default().execute(deps, env, info, msg)
+    return Err(BaseError::Std(StdError::GenericErr { msg: "contract decommissioned, cannont execute any messages".to_string() }));
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
