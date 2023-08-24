@@ -7,7 +7,7 @@ use std::ops::Mul;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, SubMsg,
-    Uint128, WasmMsg, StdError,
+    Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 
@@ -37,13 +37,38 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    _deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _msg: ExecuteMsg,
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-     return Err(ContractError::Std(StdError::GenericErr { msg: "contract decommissioned, cannont execute any messages".to_string() }));
-
+    match msg {
+        ExecuteMsg::Buy {
+            recipient,
+            token_id,
+        } => execute_buy(deps, env, info, recipient, token_id),
+        ExecuteMsg::ListTokens { tokens } => execute_list_token(deps, env, info, tokens),
+        ExecuteMsg::DelistTokens { tokens } => execute_delist_token(deps, env, info, tokens),
+        ExecuteMsg::UpdatePrice { token, price } => {
+            execute_update_price(deps, env, info, token, price)
+        }
+        ExecuteMsg::UpdateConfig {
+            admin,
+            nft_addr,
+            allowed_native,
+            fee_percentage,
+            collector_addr,
+        } => execute_update_config(
+            deps,
+            env,
+            info,
+            admin,
+            nft_addr,
+            allowed_native,
+            fee_percentage,
+            collector_addr,
+        ),
+    }
 }
 
 pub fn execute_list_token(

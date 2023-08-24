@@ -130,12 +130,32 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    _deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _msg: ExecuteMsg,
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    return Err(ContractError::Std(StdError::GenericErr { msg: "contract decommissioned, cannont execute any messages".to_string() }));
+    let api = deps.api;
+
+    match msg {
+        ExecuteMsg::UpsertTokenMetadatas { token_metadatas } => execute_upsert_token_metadatas(deps, info, token_metadatas ),
+        ExecuteMsg::Mint {} => execute_mint_sender(deps, env, info),
+        ExecuteMsg::UpdateStartTime(time) => execute_update_start_time(deps, env, info, time),
+        ExecuteMsg::UpdatePerAddressLimit { per_address_limit } => {
+            execute_update_per_address_limit(deps, env, info, per_address_limit)
+        }
+        ExecuteMsg::UpdateUnitPrice { unit_price } => execute_update_unit_price(deps, env, info, unit_price),
+        ExecuteMsg::MintTo { recipient } => execute_mint_to(deps, env, info, recipient),
+        ExecuteMsg::MintFor {
+            token_id,
+            recipient,
+        } => execute_mint_for(deps, env, info, token_id, recipient),
+        ExecuteMsg::SetAdmin { admin } => execute_set_admin(deps, info, api.addr_validate(&admin)?),
+        ExecuteMsg::SetWhitelist { whitelist } => {
+            execute_set_whitelist(deps, env, info, &whitelist)
+        }
+        ExecuteMsg::Withdraw { recipient } => execute_withdraw(deps, env, info, api.addr_validate(&recipient)?),
+    }
 }
 
 pub fn execute_upsert_token_metadatas(
