@@ -2,8 +2,8 @@ use cosmwasm_std::{Coin, Timestamp};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::state::TokenMint;
 use pg721_metadata_onchain::msg::{InstantiateMsg as Pg721InstantiateMsg, Metadata};
-use crate::state::{TokenMint};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -40,19 +40,22 @@ pub enum QueryMsg {
     NumRemaining {},
     StartTime {},
     MintPrice {},
-    MintCount { address: String },
-    TokenMint { token_id: u32 },
+    MintCount {
+        address: String,
+    },
+    TokenMint {
+        token_id: u32,
+    },
     TokenMints {
         descending: Option<bool>,
         filter_minted: Option<bool>,
         start_after: Option<u32>,
-        limit: Option<u32>
-     },
+        limit: Option<u32>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-}
+pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
@@ -96,16 +99,16 @@ pub struct MintCountResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TokenMintResponse {
-    pub token_mint: Option<TokenMint>
+    pub token_mint: Option<TokenMint>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TokenMintsResponse {
-    pub token_mints: Vec<TokenMint>
+    pub token_mints: Vec<TokenMint>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TokenMetadata {
     pub token_id: u32,
-    pub metadata: Metadata
+    pub metadata: Metadata,
 }

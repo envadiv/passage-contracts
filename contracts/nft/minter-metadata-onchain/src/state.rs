@@ -1,9 +1,8 @@
-
+use cosmwasm_std::{Addr, Coin, Timestamp};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
+use pg721_metadata_onchain::msg::Metadata;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use cosmwasm_std::{Addr, Coin, Timestamp};
-use cw_storage_plus::{Item, Map, Index, IndexList, IndexedMap, MultiIndex};
-use pg721_metadata_onchain::msg::Metadata;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -20,6 +19,7 @@ pub const CONFIG: Item<Config> = Item::new("config");
 pub const CW721_ADDRESS: Item<Addr> = Item::new("cw721_address");
 pub const MINTER_ADDRS: Map<Addr, u32> = Map::new("minter_address");
 pub const MINTABLE_TOKEN_IDS: Item<Vec<u32>> = Item::new("mintable_token_ids");
+pub const NUM_MINTED: Item<u32> = Item::new("num-minted");
 
 pub type TokenId = u32;
 
@@ -45,7 +45,11 @@ impl<'a> IndexList<TokenMint> for TokenMintIndices<'a> {
 
 pub fn token_mints<'a>() -> IndexedMap<'a, TokenId, TokenMint, TokenMintIndices<'a>> {
     let indexes = TokenMintIndices {
-        is_minted: MultiIndex::new(|_, d: &TokenMint|  d.is_minted as u8, "token_mint", "token_mint__is_minted"),
+        is_minted: MultiIndex::new(
+            |_, d: &TokenMint| d.is_minted as u8,
+            "token_mint",
+            "token_mint__is_minted",
+        ),
     };
     IndexedMap::new("token_mint", indexes)
 }
