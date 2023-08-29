@@ -1,4 +1,4 @@
-use crate::msg::{ExecuteMsg, InstantiateMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg};
 use crate::state::{Config, Token, CONFIG, token_map};
 use crate::ContractError;
 use std::ops::Mul;
@@ -7,9 +7,9 @@ use std::ops::Mul;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, SubMsg,
-    Uint128, WasmMsg, StdError,
+    Uint128, WasmMsg, StdError,Event
 };
-use cw2::set_contract_version;
+use cw2::{set_contract_version, get_contract_version};
 
 const CONTRACT_NAME: &str = "crates.io:cw721-marketplace";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -276,4 +276,18 @@ pub fn execute_update_config(
     CONFIG.save(deps.storage, &cfg)?;
 
     Ok(Response::new().add_attribute("action", "update_config"))
+}
+
+#[entry_point]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let storage_version: &str = &get_contract_version(deps.storage)?.version.to_string();
+
+    let mut response = Response::new();
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let event = Event::new("contract-migrated")
+        .add_attribute("prev-version", storage_version)
+        .add_attribute("next-version", CONTRACT_VERSION);
+    response.events.push(event);
+    Ok(response)
 }

@@ -81,3 +81,7 @@ pub struct TokenResponse {
 pub struct TokensResponse {
     pub tokens: Vec<Token>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {
+}
